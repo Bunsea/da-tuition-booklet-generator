@@ -1335,7 +1335,7 @@ def clean_sigma_and_advanced_symbols(text: str) -> str:
 
 
 def sanitize_for_latex(text: str) -> str:
-    """
+    r"""
     Safely escapes text for LaTeX while preserving:
     1. TikZ diagrams (\begin{tikzpicture}...\end{tikzpicture})
     2. LaTeX tables (\begin{tabular}...\end{tabular}) including stem-and-leaf plots and frequency tables
@@ -1677,7 +1677,7 @@ def format_teacher_example_heading(ex_num: int, raw_title: str, year_level: str 
 
 
 def clean_set_notation(text: str) -> str:
-    """
+    r"""
     Translates advanced / university set theory notation and set builder symbols
     into plain English and standard high school inequalities or intervals for NSW Stage 6 students.
     Eliminates: \in, \notin, \forall, \exists, \mathbb{R}, set-builder braces {x : ...}, cardinality |{...}|, etc.
@@ -1823,7 +1823,7 @@ def is_prose_line(line: str) -> bool:
 
 
 def split_implication_chain(raw_line: str, indent: str = r"\hspace*{0.4cm}", mark: str = "") -> List[str]:
-    """
+    r"""
     Safely splits a mathematical line with implications (\implies, \Rightarrow, \iff)
     into vertically separated steps without corrupting math mode delimiters ($...$)
     or leaving unclosed math blocks.
@@ -2860,7 +2860,7 @@ def format_theory_summary_point_latex(clean_pt: str) -> str:
 
 
 def format_question_parts_latex(q_text: str) -> str:
-    """
+    r"""
     Ensures that question sub-parts like (i), (ii), (iii), (iv), (v) or (a), (b), (c)
     each start on their own brand-new line with proper vertical spacing and no indent,
     while carefully preserving LaTeX math environments ($...$, $$...$$, \[...\]).

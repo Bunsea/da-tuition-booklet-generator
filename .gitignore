@@ -3,6 +3,7 @@
 __pycache__/
 *.pyc
 *.db
+*.db-*
 da_tuition.db
 homework_marking.db
 homework_system.db

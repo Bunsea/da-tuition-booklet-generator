@@ -3,14 +3,22 @@ import json
 import os
 import hashlib
 import secrets
+import threading
 from datetime import datetime
 from typing import List, Dict, Any, Optional, Tuple
 
 DB_FILE = os.path.join(os.path.dirname(__file__), "da_tuition.db")
+_db_init_lock = threading.Lock()
+_initialized_dbs = set()
 
 def get_connection():
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(DB_FILE, timeout=30.0)
     conn.row_factory = sqlite3.Row
+    try:
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA busy_timeout=30000;")
+    except Exception:
+        pass
     return conn
 
 # --- Cryptographic Password Security ---
@@ -31,15 +39,17 @@ def verify_password(password: str, password_hash: str, salt: str) -> bool:
     computed_hash, _ = hash_password(password, salt)
     return secrets.compare_digest(computed_hash, password_hash)
 
-_initialized_dbs = set()
-
 def init_db(force: bool = False):
     global _initialized_dbs
     abs_path = os.path.abspath(DB_FILE)
     if not force and abs_path in _initialized_dbs and os.path.exists(abs_path):
         return
-    conn = get_connection()
-    cursor = conn.cursor()
+
+    with _db_init_lock:
+        if not force and abs_path in _initialized_dbs and os.path.exists(abs_path):
+            return
+        conn = get_connection()
+        cursor = conn.cursor()
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS users (
@@ -267,28 +277,30 @@ def init_db(force: bool = False):
     except Exception:
         pass
 
-    # Default User Seeding & Class Linkage
-    cursor.execute("SELECT COUNT(*) as count FROM users")
-    user_count = cursor.fetchone()['count']
+    # Default User Seeding & Class Linkage (idempotent and race-condition proof)
     admin_id = None
-    if user_count == 0:
-        admin_hash, admin_salt = hash_password("password123")
-        cursor.execute("""
-            INSERT INTO users (username, password_hash, salt, display_name, role)
-            VALUES (?, ?, ?, ?, ?)
-        """, ("bunsea", admin_hash, admin_salt, "Mr. Bunsea", "admin"))
-        admin_id = cursor.lastrowid
+    admin_hash, admin_salt = hash_password("password123")
+    tutor_hash, tutor_salt = hash_password("password123")
 
-        tutor_hash, tutor_salt = hash_password("password123")
-        cursor.execute("""
-            INSERT INTO users (username, password_hash, salt, display_name, role)
-            VALUES (?, ?, ?, ?, ?)
-        """, ("tutor_david", tutor_hash, tutor_salt, "Mr. David", "tutor"))
+    cursor.execute("""
+        INSERT OR IGNORE INTO users (username, password_hash, salt, display_name, role)
+        VALUES (?, ?, ?, ?, ?)
+    """, ("bunsea", admin_hash, admin_salt, "Mr. Bunsea", "admin"))
+
+    cursor.execute("""
+        INSERT OR IGNORE INTO users (username, password_hash, salt, display_name, role)
+        VALUES (?, ?, ?, ?, ?)
+    """, ("tutor_david", tutor_hash, tutor_salt, "Mr. David", "tutor"))
+
+    cursor.execute("SELECT id FROM users WHERE username = 'bunsea' LIMIT 1")
+    adm_row = cursor.fetchone()
+    if adm_row:
+        admin_id = adm_row['id']
     else:
         cursor.execute("SELECT id FROM users WHERE role = 'admin' ORDER BY id ASC LIMIT 1")
-        adm_row = cursor.fetchone()
-        if adm_row:
-            admin_id = adm_row['id']
+        fallback_adm = cursor.fetchone()
+        if fallback_adm:
+            admin_id = fallback_adm['id']
 
     # Link any unlinked classes to the primary admin account
     if admin_id is not None:

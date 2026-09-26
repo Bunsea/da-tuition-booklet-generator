@@ -509,5 +509,34 @@ class TestDatabase(unittest.TestCase):
         self.assertEqual(len(exam_linked), 1)
         self.assertEqual(exam_linked[0]["id"], exam_id)
 
+    def test_init_db_idempotency_and_concurrency(self):
+        """Verify calling init_db repeatedly and concurrently does not raise IntegrityError on users table."""
+        import threading
+
+        # Sequential repeated calls with force=True
+        for _ in range(5):
+            database.init_db(force=True)
+
+        # Verify admin user is still present and valid
+        bunsea = database.get_user_by_username("bunsea")
+        self.assertIsNotNone(bunsea)
+        self.assertEqual(bunsea["role"], "admin")
+
+        # Concurrent multithreaded calls
+        errors = []
+        def run_init():
+            try:
+                database.init_db(force=True)
+            except Exception as e:
+                errors.append(e)
+
+        threads = [threading.Thread(target=run_init) for _ in range(10)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        self.assertEqual(len(errors), 0, f"Concurrent init_db raised errors: {errors}")
+
 if __name__ == "__main__":
     unittest.main()
