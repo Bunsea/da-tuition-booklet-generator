@@ -103,16 +103,16 @@ def _get_exam_cost_info(exam: Dict[str, Any]) -> Tuple[float, str]:
     """Extract stored cost or compute an accurate estimate using Gemini Flash rates in AUD."""
     if exam.get("cost") is not None:
         try:
-            return float(exam["cost"]), str(exam.get("model") or "gemini-3.8-flash")
+            return float(exam["cost"]), str(exam.get("model") or "gemini-2.5-flash")
         except (ValueError, TypeError):
             pass
 
     num_q = exam.get("num_questions") or 10
     est_in_tokens = 6500
     est_out_tokens = (num_q * 220) + 500
-    est_cost_usd = ((est_in_tokens / 1_000_000) * 0.75) + ((est_out_tokens / 1_000_000) * 3.75)
+    est_cost_usd = ((est_in_tokens / 1_000_000) * 0.30) + ((est_out_tokens / 1_000_000) * 2.50)
     est_cost_aud = est_cost_usd * 1.55
-    return round(est_cost_aud, 5), str(exam.get("model") or "gemini-3.8-flash")
+    return round(est_cost_aud, 5), str(exam.get("model") or "gemini-2.5-flash")
 
 def get_exam_instructions(pdf_url: str, db_instructions: str = "") -> str:
     """Retrieve instructions from db field or storage companion file."""

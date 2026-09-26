@@ -1355,14 +1355,16 @@ def sanitize_for_latex(text: str) -> str:
     text_clean = re.sub(r"(?<!\\)\$(?=\s*\d+(?:\.\d+)?\s*\\?%)", "", text_clean)
 
     # Pre-convert currency dollars ($7500, $7 500, $ 50, $7,500.50, $100 000) to \$ so they are never misparsed as math mode
-    # Must NOT match percentages, closing dollars, decimal points, or comma-separated lists of math numbers like ($1, 2, 3, 4$)
+    # Must NOT match percentages, closing dollars, decimal points, math operators, or comma-separated lists of math numbers like ($1, 2, 3, 4$)
     curr_pat = re.compile(
         r"(?<!\\)\$"
         r"(?="
         r"\s*\d+(?:[,\s]\d{3})*(?:\.\d+)?"
         r"(?![0-9]|\.[0-9])"                 # Must not leave digits or decimal behind!
-        r"(?!\s*\$)"                         # Must not be followed by closing $ (e.g. $0.4$, $0.006$)
-        r"(?!\s*[,+\-*/=^<>](?:\s*\d|\s*[a-zA-Z]|\s*\\))"
+        r"(?!\s*\$)"                         # Must not be followed immediately by closing $ (e.g. $0.4$, $0.006$)
+        r"(?![^$\n]*\\[a-zA-Z])"             # If there is a LaTeX command like \mid or \times before the closing $, it is math!
+        r"(?!\s*[+\-*/=^<>|](?:\s*\d|\s*[a-zA-Z]|\s*\\))"
+        r"(?!\s*,\s*(?:\d|\b[a-zA-Z]\b|\\))"
         r"(?:"
           r"\s*%"
           r"|\s+[a-zA-Z]+"

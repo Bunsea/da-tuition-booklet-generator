@@ -1311,12 +1311,11 @@ class TestPdfGenerator(unittest.TestCase):
         self.assertEqual(subs_m[1][0], "b")
         self.assertIn("A cylinder has radius", stem_m)
 
-        # 3. Test format_latex_question_with_subparts formats parts on separate lines
+        # 3. Test format_latex_question_with_subparts formats parts in hung enumerate list
         formatted = pdf_generator.format_latex_question_with_subparts(multi_q, as_item=False)
         formatted_str = "\n".join(formatted)
-        self.assertIn(r"\textbf{(a)}", formatted_str)
-        self.assertIn(r"\textbf{(b)}", formatted_str)
-        self.assertIn(r"\par\nopagebreak", formatted_str)
+        self.assertIn(r"label=\textbf{(\alph*)}", formatted_str)
+        self.assertIn(r"\item Express the total surface area", formatted_str)
 
         # 4. Verify LaTeX source in theory booklet includes hyphenation suppression and minipage wrapping
         booklet = {
@@ -1724,12 +1723,12 @@ class TestPdfGenerator(unittest.TestCase):
         self.assertIn("450 000 000", tex_out)
         self.assertIn(r"\qmark{3}", tex_out)
 
-        # 2. Test format_latex_question_with_subparts formats roman subparts on separate lines
+        # 2. Test format_latex_question_with_subparts formats roman subparts in hung enumerate list
         lines = pdf_generator.format_latex_question_with_subparts(q_text, as_item=False)
         formatted_str = "\n".join(lines)
-        self.assertIn(r"\textbf{(i)}", formatted_str)
-        self.assertIn(r"\textbf{(ii)}", formatted_str)
-        self.assertIn(r"\textbf{(b)}", formatted_str)
+        self.assertIn(r"label=\textbf{(\roman*)}", formatted_str)
+        self.assertIn("620 000", formatted_str)
+        self.assertIn("450 000 000", formatted_str)
 
         # 3. Test ANSWER_SHEET_COLS exact horizontal centering
         self.assertEqual(pdf_generator.ANSWER_SHEET_COLS[0]["qn_x"], 36.1)

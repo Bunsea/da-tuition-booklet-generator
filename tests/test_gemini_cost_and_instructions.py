@@ -18,24 +18,29 @@ class TestGeminiCostAndInstructions(unittest.TestCase):
         database.DB_FILE = self.original_db
 
     def test_gemini_cost_estimation(self):
-        # USD calculation: $0.75 / 1M in, $3.75 / 1M out
-        expected_38_usd = (1000 / 1_000_000 * 0.75) + (2000 / 1_000_000 * 3.75)
-        cost_38_usd = ai_engine.estimate_gemini_cost(1000, 2000, model="gemini-3.8-flash", currency="USD")
-        self.assertAlmostEqual(cost_38_usd, round(expected_38_usd, 6), places=5)
+        # Gemini 2.5 Flash USD calculation: $0.30 / 1M in, $2.50 / 1M out
+        expected_25_usd = (1000 / 1_000_000 * 0.30) + (2000 / 1_000_000 * 2.50)
+        cost_25_usd = ai_engine.estimate_gemini_cost(1000, 2000, model="gemini-2.5-flash", currency="USD")
+        self.assertAlmostEqual(cost_25_usd, round(expected_25_usd, 6), places=5)
 
-        # AUD calculation: default currency is AUD (1.55x USD)
-        cost_38_aud = ai_engine.estimate_gemini_cost(1000, 2000, model="gemini-3.8-flash")
-        expected_38_aud = expected_38_usd * ai_engine.USD_TO_AUD_RATE
-        self.assertAlmostEqual(cost_38_aud, round(expected_38_aud, 5), places=5)
+        # Gemini 2.5 Flash AUD calculation: default currency is AUD (1.55x USD)
+        cost_25_aud = ai_engine.estimate_gemini_cost(1000, 2000, model="gemini-2.5-flash")
+        expected_25_aud = expected_25_usd * ai_engine.USD_TO_AUD_RATE
+        self.assertAlmostEqual(cost_25_aud, round(expected_25_aud, 5), places=5)
 
-        # gemini-3.7-flash: same rate
-        cost_37 = ai_engine.estimate_gemini_cost(1000, 2000, model="gemini-3.7-flash")
-        self.assertEqual(cost_38_aud, cost_37)
+        # Default model is gemini-2.5-flash
+        cost_default = ai_engine.estimate_gemini_cost(1000, 2000)
+        self.assertEqual(cost_default, cost_25_aud)
 
-        # gemini-3.5-flash: $0.35 / 1M in, $1.05 / 1M out (in AUD)
-        cost_35 = ai_engine.estimate_gemini_cost(1000, 2000, model="gemini-3.5-flash")
-        expected_35 = ((1000 / 1_000_000 * 0.35) + (2000 / 1_000_000 * 1.05)) * ai_engine.USD_TO_AUD_RATE
-        self.assertAlmostEqual(cost_35, round(expected_35, 5), places=5)
+        # Gemini 2.5 Flash-Lite: $0.10 / 1M in, $0.40 / 1M out
+        cost_lite = ai_engine.estimate_gemini_cost(1000, 2000, model="gemini-2.5-flash-lite")
+        expected_lite = ((1000 / 1_000_000 * 0.10) + (2000 / 1_000_000 * 0.40)) * ai_engine.USD_TO_AUD_RATE
+        self.assertAlmostEqual(cost_lite, round(expected_lite, 5), places=5)
+
+        # Legacy models backward compatibility
+        cost_38 = ai_engine.estimate_gemini_cost(1000, 2000, model="gemini-3.8-flash")
+        expected_38 = ((1000 / 1_000_000 * 0.75) + (2000 / 1_000_000 * 3.75)) * ai_engine.USD_TO_AUD_RATE
+        self.assertAlmostEqual(cost_38, round(expected_38, 5), places=5)
 
     def test_worksheet_instructions_and_cost_db(self):
         ws_id = database.save_worksheet(
@@ -112,16 +117,16 @@ class TestGeminiCostAndInstructions(unittest.TestCase):
         self.assertEqual(rb_updated["content"]["custom_instructions"], "Updated: Add related rates problems.")
 
     def test_cloud_sync_cost_helper(self):
-        exam_with_cost = {"cost": 0.0055, "model": "gemini-3.8-flash"}
+        exam_with_cost = {"cost": 0.0055, "model": "gemini-2.5-flash"}
         cost, model = cloud_sync._get_exam_cost_info(exam_with_cost)
         self.assertEqual(cost, 0.0055)
-        self.assertEqual(model, "gemini-3.8-flash")
+        self.assertEqual(model, "gemini-2.5-flash")
 
         # Estimation fallback
         exam_est = {"num_questions": 12}
         est_cost, est_model = cloud_sync._get_exam_cost_info(exam_est)
         self.assertGreater(est_cost, 0.0)
-        self.assertEqual(est_model, "gemini-3.8-flash")
+        self.assertEqual(est_model, "gemini-2.5-flash")
 
     def test_cloud_sync_resilient_missing_column(self):
         class MockStorageFile:
