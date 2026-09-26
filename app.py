@@ -1,3 +1,4 @@
+import streamlit as st
 import os
 import io
 import re
@@ -6,33 +7,32 @@ import time
 import base64
 import hashlib
 import zipfile
-import pypdfium2
-import pandas as pd
-import plotly.express as px
-import streamlit as st
 from datetime import datetime, date
 from typing import Optional, List, Dict, Any, Tuple
 from dotenv import load_dotenv
 
-# Configure persistent cache for matplotlib to eliminate 20s font scanning delay
+# st.set_page_config must be the FIRST Streamlit command executed
+st.set_page_config(
+    page_title="DA Tuition - Tutor Hub",
+    page_icon="🎓",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+import pypdfium2
+import pandas as pd
+import plotly.express as px
+
+# Configure persistent cache for matplotlib
 _WORKSPACE_CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".cache", "matplotlib")
 os.makedirs(_WORKSPACE_CACHE, exist_ok=True)
-import importlib
+
 import database
 import ai_engine
 import pdf_generator
 import cloud_sync
 import docx_generator
 import graph_generator
-
-# Guard against long-running Streamlit processes caching stale module versions
-if not hasattr(database, "get_topic_assessment_matrix") or not hasattr(database, "get_theory_linked_worksheets"):
-    importlib.reload(database)
-importlib.reload(pdf_generator)
-if not hasattr(ai_engine, "generate_topic_mastery_exam") or not hasattr(ai_engine, "generate_aligned_companion_worksheet"):
-    importlib.reload(ai_engine)
-if not hasattr(pdf_generator, "get_worksheet_download_filename"):
-    importlib.reload(pdf_generator)
 
 load_dotenv()
 
@@ -152,13 +152,6 @@ def get_worksheet_download_filename(worksheet: dict, sheet_type: str = "homework
 
 # Initialize Database
 database.init_db()
-
-st.set_page_config(
-    page_title="DA Tuition - Tutor Hub",
-    page_icon="🎓",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOGO_TRANSPARENT = os.path.join(BASE_DIR, "da_logo_transparent.png")
