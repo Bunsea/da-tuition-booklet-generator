@@ -6090,13 +6090,16 @@ def generate_student_report_pdf(
     accuracy_pct: float,
     mistakes: List[Dict[str, Any]],
     summary_text: str = "",
-    class_name: str = ""
+    class_name: str = "",
+    concept_breakdown: Optional[List[Dict[str, Any]]] = None
 ) -> bytes:
     """
     Generates official DA Tuition Student Performance Breakdown Report matching the official template:
     - Top header: Crest logo on left, centered PERFORMANCE BREAKDOWN & Term/Week subtitle.
     - Horizontal divider rule.
     - STUDENT NAME: [left] and Student Name: [right].
+    - CONCEPT MASTERY & DIAGNOSTIC BREAKDOWN (if concept_breakdown provided):
+      Table mapping each concept area to designated homework questions, correct count, accuracy %, and Strength/Weakness status.
     - AREAS FOR CORRECTION: heading.
     - Bordered light-gray table listing question, status, and correct answers in parentheses.
     - Centered bottom summary: Accuracy Percentage: X% and Total Score: X out of Y.
@@ -6227,7 +6230,76 @@ def generate_student_report_pdf(
         ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
     ]))
     story.append(meta_table)
-    story.append(Spacer(1, 18))
+    story.append(Spacer(1, 12))
+
+    # Optional Concept Breakdown Section
+    if concept_breakdown:
+        story.append(Paragraph("<b>CONCEPT MASTERY & DIAGNOSTIC BREAKDOWN:</b>", sec_head_style))
+        story.append(Spacer(1, 6))
+
+        c_head_style = ParagraphStyle(
+            'RepCHead',
+            parent=styles['Normal'],
+            fontName=REPORT_FONT_BOLD,
+            fontSize=8.5,
+            leading=11,
+            textColor=colors.HexColor("#374151")
+        )
+        c_cell_style = ParagraphStyle(
+            'RepCCell',
+            parent=styles['Normal'],
+            fontName=REPORT_FONT,
+            fontSize=8,
+            leading=11,
+            textColor=colors.HexColor("#1F2937")
+        )
+
+        c_rows = [[
+            Paragraph("<b>Concept Area</b>", c_head_style),
+            Paragraph("<b>Designated Questions</b>", c_head_style),
+            Paragraph("<b>Correct / Total</b>", c_head_style),
+            Paragraph("<b>Accuracy</b>", c_head_style),
+            Paragraph("<b>Status</b>", c_head_style)
+        ]]
+
+        for c in concept_breakdown:
+            c_name = c.get("concept_name", "General")
+            q_list = ", ".join([f"Q{q}" for q in c.get("questions_designated", [])])
+            corr = c.get("correct_count", 0)
+            tot = c.get("total_questions", 0)
+            acc = c.get("accuracy_pct", 0.0)
+            st_text = c.get("status", "Moderate")
+
+            if st_text == "Strength":
+                status_color = "#15803D"
+                status_label = "Strength"
+            elif st_text == "Weakness":
+                status_color = "#B91C1C"
+                status_label = "Weakness"
+            else:
+                status_color = "#B45309"
+                status_label = "Moderate"
+
+            c_rows.append([
+                Paragraph(f"<b>{c_name}</b>", c_cell_style),
+                Paragraph(q_list, c_cell_style),
+                Paragraph(f"{corr} / {tot}", c_cell_style),
+                Paragraph(f"{acc:.0f}%", c_cell_style),
+                Paragraph(f"<font color='{status_color}'><b>{status_label}</b></font>", c_cell_style)
+            ])
+
+        c_table = Table(c_rows, colWidths=[180, 115, 70, 60, 70])
+        c_table.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#E5E7EB")),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#F3F4F6")),
+            ('TOPPADDING', (0, 0), (-1, -1), 3.5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3.5),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        story.append(c_table)
+        story.append(Spacer(1, 12))
 
     # 4. AREAS FOR CORRECTION:
     story.append(Paragraph("<b>AREAS FOR CORRECTION:</b>", sec_head_style))

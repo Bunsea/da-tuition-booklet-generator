@@ -3144,21 +3144,9 @@ with tab2:
                     cls_obj = database.get_class_by_id(selected_class_id) if selected_class_id else None
                     class_display_name = cls_obj["name"] if cls_obj else ""
 
-                    # Generate PDF Report with Crest Logo
-                    report_bytes = pdf_generator.generate_student_report_pdf(
-                        student_name=student_name,
-                        term_week_header=f"Term {term_val} Week {week_val} Homework Report",
-                        score=score,
-                        total_marks=active_total_marks,
-                        accuracy_pct=accuracy_pct,
-                        mistakes=mistakes,
-                        summary_text=summary_text,
-                        class_name=class_display_name
-                    )
+                    # Save to DB first to register submission & mistakes
                     report_filename = f"DA_Report_{student_name.replace(' ', '_')}_T{term_val}W{week_val}.pdf"
-
-                    # Save to DB
-                    database.save_submission(
+                    sub_id = database.save_submission(
                         worksheet_id=active_ws_id,
                         student_name=student_name,
                         raw_file_name=file.name,
@@ -3169,6 +3157,21 @@ with tab2:
                         summary_text=summary_text,
                         mistakes=mistakes,
                         class_id=selected_class_id
+                    )
+
+                    sub_concepts = database.get_submission_concept_breakdown(sub_id) if sub_id else []
+
+                    # Generate PDF Report with Crest Logo and Concept Mastery Breakdown
+                    report_bytes = pdf_generator.generate_student_report_pdf(
+                        student_name=student_name,
+                        term_week_header=f"Term {term_val} Week {week_val} Homework Report",
+                        score=score,
+                        total_marks=active_total_marks,
+                        accuracy_pct=accuracy_pct,
+                        mistakes=mistakes,
+                        summary_text=summary_text,
+                        class_name=class_display_name,
+                        concept_breakdown=sub_concepts
                     )
 
                     results_list.append({
@@ -3501,6 +3504,26 @@ with tab3:
                         fig_hist.update_yaxes(range=[0, 105])
                         st.plotly_chart(fig_hist, use_container_width=True)
 
+                        # Concept-level Strengths and Weaknesses breakdown
+                        concept_matrix = database.get_student_concept_mastery_matrix(selected_stu)
+                        if concept_matrix:
+                            st.markdown("##### 🎯 Concept-Level Strengths & Weaknesses")
+                            st.caption("Aggregated performance per concept mapped to assigned questions and student accuracy.")
+                            
+                            c_cols = st.columns(min(len(concept_matrix), 3))
+                            for c_idx, c_info in enumerate(concept_matrix):
+                                col_target = c_cols[c_idx % len(c_cols)]
+                                with col_target:
+                                    if c_info["status"] == "Strength":
+                                        badge = "🟢 Strength"
+                                    elif c_info["status"] == "Weakness":
+                                        badge = "🔴 Weakness"
+                                    else:
+                                        badge = "🟡 Review"
+                                    st.markdown(f"**{c_info['concept_name']}**")
+                                    st.caption(f"{badge} • `{c_info['correct_count']}/{c_info['total_questions']}` correct ({round(c_info['accuracy_pct'])}%)")
+                                    st.progress(min(1.0, max(0.0, c_info['accuracy_pct'] / 100.0)))
+
                         weak_topics = database.get_student_weak_topics(selected_stu)
                         if weak_topics:
                             st.markdown(f"**Identified Weak Areas:** " + " • ".join([f"`{t}`" for t in weak_topics]))
@@ -3508,7 +3531,7 @@ with tab3:
                             st.write("🎉 Perfect track record!")
 
                         with st.expander(f"📄 Past Correction Reports for {selected_stu}", expanded=False):
-                            st.caption("Download or reprint performance breakdown sheets from previous submissions.")
+                            st.caption("Download or reprint performance breakdown sheets with concept diagnostics from previous submissions.")
                             for sub_item in history:
                                 sub_id = sub_item.get('id')
                                 ws_title = sub_item.get('worksheet_title') or "Homework"
@@ -3525,6 +3548,7 @@ with tab3:
                                     st.markdown(f"**{term_wk_str}** — Score: `{sub_score}/{sub_total}` ({round(sub_acc)}%) • *{graded_date}*")
                                 with row_col2:
                                     sub_mistakes = database.get_submission_mistakes(sub_id)
+                                    sub_concepts = database.get_submission_concept_breakdown(sub_id)
                                     rep_bytes = pdf_generator.generate_student_report_pdf(
                                         student_name=selected_stu,
                                         term_week_header=f"{term_wk_str} Homework Report",
@@ -3533,7 +3557,8 @@ with tab3:
                                         accuracy_pct=sub_acc,
                                         mistakes=sub_mistakes,
                                         summary_text=sub_item.get('summary_text', ''),
-                                        class_name=sub_item.get('class_name', '')
+                                        class_name=sub_item.get('class_name', ''),
+                                        concept_breakdown=sub_concepts
                                     )
                                     fname = f"DA_Report_{selected_stu.replace(' ', '_')}_{term_wk_str.replace(' ', '_')}.pdf"
                                     st.download_button(

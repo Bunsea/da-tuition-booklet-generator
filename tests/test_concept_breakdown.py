@@ -1,0 +1,126 @@
+import unittest
+import os
+import json
+import database
+import pdf_generator
+
+class TestConceptBreakdown(unittest.TestCase):
+    def setUp(self):
+        self.original_db = database.DB_FILE
+        database.DB_FILE = os.path.join(os.path.dirname(__file__), "test_concept_breakdown.db")
+        if os.path.exists(database.DB_FILE):
+            os.remove(database.DB_FILE)
+        database.init_db()
+
+    def tearDown(self):
+        if os.path.exists(database.DB_FILE):
+            os.remove(database.DB_FILE)
+        database.DB_FILE = self.original_db
+
+    def test_submission_and_student_concept_breakdown(self):
+        # 1. Create a worksheet with questions assigned to concepts
+        ws_id = database.save_worksheet(
+            title="Year 10 Coordinate Geometry Set 1",
+            term=1,
+            week=2,
+            year_level="Year 10",
+            topic="Coordinate Geometry",
+            difficulty="Medium",
+            questions=[
+                {"item_label": "1", "concept_name": "Distance Formula", "text": "Find distance", "correct_answer": "5"},
+                {"item_label": "2", "concept_name": "Distance Formula", "text": "Perimeter", "correct_answer": "12"},
+                {"item_label": "3", "concept_name": "Midpoint Formula", "text": "Find midpoint", "correct_answer": "(2, 3)"},
+                {"item_label": "4", "concept_name": "Gradient & Parallel Lines", "text": "Find gradient", "correct_answer": "2"}
+            ],
+            marking_key={"1": "5", "2": "12", "3": "(2, 3)", "4": "2"},
+            set_number=1
+        )
+        self.assertGreater(ws_id, 0)
+
+        # 2. Save submission with mistakes on Q2 and Q3
+        sub_id = database.save_submission(
+            worksheet_id=ws_id,
+            student_name="Alice Smith",
+            raw_file_name="alice_hw.pdf",
+            score=2.0,
+            total_marks=4.0,
+            accuracy_pct=50.0,
+            pdf_report_path="reports/alice.pdf",
+            summary_text="Good effort, review perimeter arithmetic and midpoint.",
+            mistakes=[
+                {
+                    "question_num": "2",
+                    "topic": "Coordinate Geometry",
+                    "concept_name": "Distance Formula",
+                    "status": "Incorrect",
+                    "marks_lost": 1.0,
+                    "student_answer": "11",
+                    "correct_answer": "12",
+                    "error_type": "Calculation Error"
+                },
+                {
+                    "question_num": "3",
+                    "topic": "Coordinate Geometry",
+                    "concept_name": "Midpoint Formula",
+                    "status": "Incorrect",
+                    "marks_lost": 1.0,
+                    "student_answer": "(2, 1)",
+                    "correct_answer": "(2, 3)",
+                    "error_type": "Calculation Error"
+                }
+            ]
+        )
+        self.assertGreater(sub_id, 0)
+
+        # 3. Test get_submission_concept_breakdown
+        breakdown = database.get_submission_concept_breakdown(sub_id)
+        self.assertEqual(len(breakdown), 3)
+
+        b_map = {b["concept_name"]: b for b in breakdown}
+        self.assertIn("Distance Formula", b_map)
+        self.assertIn("Midpoint Formula", b_map)
+        self.assertIn("Gradient & Parallel Lines", b_map)
+
+        # Distance Formula: 2 designated questions (1, 2), 1 correct, 1 incorrect -> 50% (Weakness)
+        dist = b_map["Distance Formula"]
+        self.assertEqual(dist["total_questions"], 2)
+        self.assertEqual(dist["correct_count"], 1)
+        self.assertEqual(dist["incorrect_count"], 1)
+        self.assertEqual(dist["accuracy_pct"], 50.0)
+        self.assertEqual(dist["status"], "Weakness")
+        self.assertEqual(dist["questions_designated"], ["1", "2"])
+
+        # Midpoint Formula: 1 designated question (3), 0 correct, 1 incorrect -> 0% (Weakness)
+        mid = b_map["Midpoint Formula"]
+        self.assertEqual(mid["total_questions"], 1)
+        self.assertEqual(mid["correct_count"], 0)
+        self.assertEqual(mid["incorrect_count"], 1)
+        self.assertEqual(mid["status"], "Weakness")
+
+        # Gradient & Parallel Lines: 1 designated question (4), 1 correct, 0 incorrect -> 100% (Strength)
+        grad = b_map["Gradient & Parallel Lines"]
+        self.assertEqual(grad["total_questions"], 1)
+        self.assertEqual(grad["correct_count"], 1)
+        self.assertEqual(grad["incorrect_count"], 0)
+        self.assertEqual(grad["accuracy_pct"], 100.0)
+        self.assertEqual(grad["status"], "Strength")
+
+        # 4. Test student concept mastery matrix
+        matrix = database.get_student_concept_mastery_matrix("Alice Smith")
+        self.assertEqual(len(matrix), 3)
+
+        # 5. Test PDF report generation with concept breakdown
+        pdf_bytes = pdf_generator.generate_student_report_pdf(
+            student_name="Alice Smith",
+            term_week_header="Term 1 Week 2: Coordinate Geometry",
+            score=2.0,
+            total_marks=4.0,
+            accuracy_pct=50.0,
+            mistakes=database.get_submission_mistakes(sub_id),
+            concept_breakdown=breakdown
+        )
+        self.assertTrue(pdf_bytes.startswith(b"%PDF"))
+        self.assertGreater(len(pdf_bytes), 1000)
+
+if __name__ == "__main__":
+    unittest.main()

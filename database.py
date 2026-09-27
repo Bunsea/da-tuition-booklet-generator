@@ -1089,6 +1089,176 @@ def get_student_weak_topics(student_name: str, limit: int = 5) -> List[str]:
     conn.close()
     return [r['topic'] for r in rows]
 
+def get_submission_concept_breakdown(submission_id: int) -> List[Dict[str, Any]]:
+    """
+    Computes concept-by-concept performance for a given submission:
+    Links designated questions from the assigned worksheet with the student's mistakes,
+    determining total questions, right/wrong count, accuracy %, and Strength/Weakness status.
+    """
+    sub = get_submission_by_id(submission_id)
+    if not sub:
+        return []
+    
+    ws_id = sub.get("worksheet_id")
+    ws = get_worksheet_by_id(ws_id) if ws_id else None
+    mistakes = get_submission_mistakes(submission_id)
+    
+    questions = []
+    if ws and ws.get("questions_json"):
+        try:
+            questions = json.loads(ws["questions_json"])
+        except Exception:
+            questions = []
+            
+    mistake_map = {}
+    for m in mistakes:
+        q_raw = str(m.get("question_num", "")).strip().lower()
+        clean_k = q_raw.replace("qn", "").replace("q", "").strip()
+        mistake_map[q_raw] = m
+        if clean_k:
+            mistake_map[clean_k] = m
+
+    concept_map = {}
+    for idx, q in enumerate(questions, 1):
+        q_label = str(q.get("item_label") or idx).strip()
+        c_name = q.get("concept_name") or q.get("subtopic") or (ws.get("topic") if ws else "General")
+        c_name = c_name.strip() if c_name else "General"
+        
+        if c_name not in concept_map:
+            concept_map[c_name] = {
+                "concept_name": c_name,
+                "topic": ws.get("topic", "") if ws else "",
+                "questions": [],
+                "correct_questions": [],
+                "incorrect_questions": [],
+                "mistakes": []
+            }
+        
+        concept_map[c_name]["questions"].append(q_label)
+        
+        q_lower = q_label.lower()
+        matched = mistake_map.get(q_lower) or mistake_map.get(f"qn {q_lower}")
+        if not matched:
+            for k, m in mistake_map.items():
+                if k == q_lower or k.endswith(f" {q_lower}") or k.endswith(f".{q_lower}"):
+                    matched = m
+                    break
+                    
+        if matched:
+            concept_map[c_name]["incorrect_questions"].append(q_label)
+            concept_map[c_name]["mistakes"].append(matched)
+        else:
+            concept_map[c_name]["correct_questions"].append(q_label)
+            
+    if not concept_map and mistakes:
+        for m in mistakes:
+            c_name = m.get("concept_name") or m.get("subtopic") or m.get("topic") or "General"
+            q_num = str(m.get("question_num", "?"))
+            if c_name not in concept_map:
+                concept_map[c_name] = {
+                    "concept_name": c_name,
+                    "topic": m.get("topic", ""),
+                    "questions": [],
+                    "correct_questions": [],
+                    "incorrect_questions": [],
+                    "mistakes": []
+                }
+            concept_map[c_name]["questions"].append(q_num)
+            concept_map[c_name]["incorrect_questions"].append(q_num)
+            concept_map[c_name]["mistakes"].append(m)
+
+    results = []
+    for c_name, data in concept_map.items():
+        tot = len(data["questions"])
+        corr = len(data["correct_questions"])
+        inc = len(data["incorrect_questions"])
+        acc = round((corr / tot) * 100, 1) if tot > 0 else 0.0
+        
+        if acc >= 80.0:
+            status = "Strength"
+        elif acc >= 60.0:
+            status = "Moderate"
+        else:
+            status = "Weakness"
+            
+        results.append({
+            "concept_name": c_name,
+            "topic": data["topic"],
+            "questions_designated": data["questions"],
+            "total_questions": tot,
+            "correct_count": corr,
+            "incorrect_count": inc,
+            "accuracy_pct": acc,
+            "status": status,
+            "mistakes": data["mistakes"]
+        })
+    return results
+
+def get_student_concept_mastery_matrix(student_name: str, topic: Optional[str] = None) -> List[Dict[str, Any]]:
+    """
+    Aggregates performance across all historical submissions for a student by concept.
+    Returns concept performance with total questions attempted, total correct, total incorrect,
+    cumulative accuracy, and overall classification (Strength vs Weakness).
+    """
+    history = get_student_history(student_name)
+    if not history:
+        return []
+
+    agg_map = {}
+    for sub in history:
+        sub_id = sub.get("id")
+        if not sub_id:
+            continue
+        breakdown = get_submission_concept_breakdown(sub_id)
+        for item in breakdown:
+            c_topic = item.get("topic", "")
+            if topic and c_topic.lower() != topic.lower():
+                continue
+            c_name = item.get("concept_name", "General")
+            if c_name not in agg_map:
+                agg_map[c_name] = {
+                    "concept_name": c_name,
+                    "topic": c_topic,
+                    "total_questions": 0,
+                    "correct_count": 0,
+                    "incorrect_count": 0,
+                    "submissions_count": 0,
+                    "worksheet_titles": set(),
+                    "recent_status": item.get("status")
+                }
+            agg_map[c_name]["total_questions"] += item.get("total_questions", 0)
+            agg_map[c_name]["correct_count"] += item.get("correct_count", 0)
+            agg_map[c_name]["incorrect_count"] += item.get("incorrect_count", 0)
+            agg_map[c_name]["submissions_count"] += 1
+            if sub.get("worksheet_title"):
+                agg_map[c_name]["worksheet_titles"].add(sub.get("worksheet_title"))
+
+    results = []
+    for c_name, d in agg_map.items():
+        tot = d["total_questions"]
+        corr = d["correct_count"]
+        inc = d["incorrect_count"]
+        acc = round((corr / tot) * 100, 1) if tot > 0 else 0.0
+        if acc >= 80.0:
+            status = "Strength"
+        elif acc >= 60.0:
+            status = "Moderate"
+        else:
+            status = "Weakness"
+        results.append({
+            "concept_name": c_name,
+            "topic": d["topic"],
+            "total_questions": tot,
+            "correct_count": corr,
+            "incorrect_count": inc,
+            "accuracy_pct": acc,
+            "status": status,
+            "submissions_count": d["submissions_count"],
+            "worksheets": list(d["worksheet_titles"])
+        })
+    results.sort(key=lambda x: (x["status"] != "Weakness", x["accuracy_pct"]))
+    return results
+
 # --- Lesson Cover Sheet & Longitudinal Tracking Operations ---
 
 def create_lesson_cover_sheet(data: Dict[str, Any]) -> int:
