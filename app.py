@@ -1144,29 +1144,66 @@ with tab1:
                                     ic_tea_ans_name = get_worksheet_download_filename(lic, sheet_type="in_class", mode="teacher_answers", theory_booklet=tb)
                                     st.download_button("Download Teacher Answer Key", data=ic_tea_ans_pdf, file_name=ic_tea_ans_name, mime="application/pdf", key=f"dl_c_tea_ans_ic_{lic['id']}", use_container_width=True)
 
-                st.markdown("##### ⚙️ Customize In-Class Question Counts per Concept")
-                st.caption("Select how many practice questions to generate for each specific concept:")
+                st.markdown("##### 📝 Select Total In-Class Practice Questions")
+                num_ic_concepts = len(tb_concepts_list) if tb_concepts_list else 3
+                default_total_ic = max(2, num_ic_concepts * 2)
+
+                col_ic_tot, col_ic_mode = st.columns([1, 1])
+                with col_ic_tot:
+                    total_ic_target = st.number_input(
+                        "Total Questions in In-Class Booklet",
+                        min_value=1,
+                        max_value=40,
+                        value=default_total_ic,
+                        step=1,
+                        key=f"total_ic_q_{tb_id}",
+                        help="Select total number of practice questions to generate across the concepts."
+                    )
+                with col_ic_mode:
+                    allocation_mode_ic = st.radio(
+                        "Distribution Mode",
+                        ["Evenly Distribute", "Custom per Concept"],
+                        index=0,
+                        key=f"ic_alloc_mode_{tb_id}",
+                        horizontal=True
+                    )
+
                 ic_counts = {}
                 if tb_concepts_list:
-                    ic_cols = st.columns(2)
-                    for c_idx, c in enumerate(tb_concepts_list, 1):
-                        c_name = c.get("concept_name") or c.get("name") or f"Concept {c_idx}"
-                        col_target = ic_cols[(c_idx - 1) % 2]
-                        with col_target:
-                            q_cnt = st.number_input(
-                                f"Concept {c_idx}: {c_name[:30]}{'...' if len(c_name)>30 else ''}",
-                                min_value=0, max_value=10, value=2, step=1,
-                                key=f"ic_q_cnt_{tb_id}_{c_idx}",
-                                help=f"Full concept name: {c_name}"
-                            )
-                            ic_counts[c_name] = q_cnt
+                    if allocation_mode_ic == "Evenly Distribute":
+                        base_count = total_ic_target // num_ic_concepts
+                        remainder = total_ic_target % num_ic_concepts
+                        
+                        alloc_summary = []
+                        for c_idx, c in enumerate(tb_concepts_list):
+                            c_name = c.get("concept_name") or c.get("name") or f"Concept {c_idx+1}"
+                            cnt = base_count + (1 if c_idx < remainder else 0)
+                            ic_counts[c_name] = cnt
+                            alloc_summary.append(f"**{c_name[:25]}**: `{cnt} Qs`")
+                        
+                        st.caption("Distribution across concepts: " + " • ".join(alloc_summary))
+                    else:
+                        st.caption("Customize the exact question count for each concept:")
+                        ic_cols = st.columns(2)
+                        for c_idx, c in enumerate(tb_concepts_list, 1):
+                            c_name = c.get("concept_name") or c.get("name") or f"Concept {c_idx}"
+                            col_target = ic_cols[(c_idx - 1) % 2]
+                            with col_target:
+                                q_cnt = st.number_input(
+                                    f"Concept {c_idx}: {c_name[:30]}{'...' if len(c_name)>30 else ''}",
+                                    min_value=0, max_value=15, value=2, step=1,
+                                    key=f"ic_q_cnt_{tb_id}_{c_idx}",
+                                    help=f"Full concept name: {c_name}"
+                                )
+                                ic_counts[c_name] = q_cnt
                 else:
-                    st.info("No explicit concepts found in booklet content; generating 2 questions per standard curriculum subtopic.")
+                    st.info("No explicit concepts found in booklet content; generating questions across standard curriculum subtopics.")
 
-                total_ic_questions = sum(ic_counts.values()) if ic_counts else 8
+                total_ic_questions = sum(ic_counts.values()) if ic_counts else total_ic_target
                 st.write(f"📊 **Total In-Class Questions Selected**: `{total_ic_questions}`")
 
-                if st.button("🚀 Generate Aligned In-Class Exercise Booklet", key=f"btn_gen_ic_{tb_id}", type="primary", use_container_width=True):
+                btn_ic_label = f"🚀 Generate Aligned In-Class Exercise Booklet ({total_ic_questions} Questions)"
+                if st.button(btn_ic_label, key=f"btn_gen_ic_{tb_id}", type="primary", use_container_width=True):
                     current_api_key = (st.session_state.get("gemini_api_key") or "").strip()
                     if not current_api_key:
                         st.error("🔑 Personal Gemini API Key required. Please configure your key in the sidebar.")
@@ -1268,29 +1305,66 @@ with tab1:
                 with col_hw_opt2:
                     st.caption("Each set produces distinct numerical twin problems, allowing re-tests or separated weekly homework sets.")
 
-                st.markdown("##### ⚙️ Customize Homework Question Counts per Concept")
-                st.caption("Select how many homework questions to generate for each specific concept:")
+                st.markdown("##### 📝 Select Total Homework Questions")
+                num_concepts = len(tb_concepts_list) if tb_concepts_list else 3
+                default_total_hw = max(3, num_concepts * 3)
+
+                col_tot_q, col_alloc_mode = st.columns([1, 1])
+                with col_tot_q:
+                    total_hw_target = st.number_input(
+                        "Total Questions in Homework Booklet",
+                        min_value=1,
+                        max_value=40,
+                        value=default_total_hw,
+                        step=1,
+                        key=f"total_hw_q_{tb_id}",
+                        help=f"Select total number of homework questions to generate across the concepts."
+                    )
+                with col_alloc_mode:
+                    allocation_mode = st.radio(
+                        "Distribution Mode",
+                        ["Evenly Distribute", "Custom per Concept"],
+                        index=0,
+                        key=f"hw_alloc_mode_{tb_id}",
+                        horizontal=True
+                    )
+
                 hw_counts = {}
                 if tb_concepts_list:
-                    hw_cols = st.columns(2)
-                    for c_idx, c in enumerate(tb_concepts_list, 1):
-                        c_name = c.get("concept_name") or c.get("name") or f"Concept {c_idx}"
-                        col_target = hw_cols[(c_idx - 1) % 2]
-                        with col_target:
-                            q_cnt = st.number_input(
-                                f"Concept {c_idx}: {c_name[:30]}{'...' if len(c_name)>30 else ''}",
-                                min_value=0, max_value=10, value=3, step=1,
-                                key=f"hw_q_cnt_{tb_id}_{c_idx}",
-                                help=f"Full concept name: {c_name}"
-                            )
-                            hw_counts[c_name] = q_cnt
+                    if allocation_mode == "Evenly Distribute":
+                        base_count = total_hw_target // num_concepts
+                        remainder = total_hw_target % num_concepts
+                        
+                        alloc_summary = []
+                        for c_idx, c in enumerate(tb_concepts_list):
+                            c_name = c.get("concept_name") or c.get("name") or f"Concept {c_idx+1}"
+                            cnt = base_count + (1 if c_idx < remainder else 0)
+                            hw_counts[c_name] = cnt
+                            alloc_summary.append(f"**{c_name[:25]}**: `{cnt} Qs`")
+                        
+                        st.caption("Distribution across concepts: " + " • ".join(alloc_summary))
+                    else:
+                        st.caption("Customize the exact question count for each concept:")
+                        hw_cols = st.columns(2)
+                        for c_idx, c in enumerate(tb_concepts_list, 1):
+                            c_name = c.get("concept_name") or c.get("name") or f"Concept {c_idx}"
+                            col_target = hw_cols[(c_idx - 1) % 2]
+                            with col_target:
+                                q_cnt = st.number_input(
+                                    f"Concept {c_idx}: {c_name[:30]}{'...' if len(c_name)>30 else ''}",
+                                    min_value=0, max_value=15, value=3, step=1,
+                                    key=f"hw_q_cnt_{tb_id}_{c_idx}",
+                                    help=f"Full concept name: {c_name}"
+                                )
+                                hw_counts[c_name] = q_cnt
                 else:
-                    st.info("No explicit concepts found in booklet content; generating 3 questions per standard curriculum subtopic.")
+                    st.info("No explicit concepts found in booklet content; generating questions across standard curriculum subtopics.")
 
-                total_hw_questions = sum(hw_counts.values()) if hw_counts else 12
+                total_hw_questions = sum(hw_counts.values()) if hw_counts else total_hw_target
                 st.write(f"📊 **Total Homework Questions Selected**: `{total_hw_questions}`")
 
-                if st.button(f"🚀 Generate Aligned Homework Booklet (Set {hw_set_sel})", key=f"btn_gen_hw_{tb_id}", type="primary", use_container_width=True):
+                btn_label = f"🚀 Generate Aligned Homework Booklet ({total_hw_questions} Questions - Set {hw_set_sel})"
+                if st.button(btn_label, key=f"btn_gen_hw_{tb_id}", type="primary", use_container_width=True):
                     current_api_key = (st.session_state.get("gemini_api_key") or "").strip()
                     if not current_api_key:
                         st.error("🔑 Personal Gemini API Key required. Please configure your key in the sidebar.")
