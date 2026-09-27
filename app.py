@@ -3544,12 +3544,12 @@ with tab3:
                                         key=f"dl_hist_rep_{sub_id}"
                                     )
 
-        st.markdown("---")
-        st.markdown("#### 📋 Detailed Submissions Log")
-        st.dataframe(
-            df_subs[["student_name", "class_name", "worksheet_title", "score", "total_marks", "accuracy_pct", "graded_at"]],
-            use_container_width=True
-        )
+            st.markdown("---")
+            st.markdown("#### 📋 Detailed Submissions Log")
+            st.dataframe(
+                df_subs[["student_name", "class_name", "worksheet_title", "score", "total_marks", "accuracy_pct", "graded_at"]],
+                use_container_width=True
+            )
 
 # ==========================================
 # TAB 4: REMEDIAL REVISION PACKS
