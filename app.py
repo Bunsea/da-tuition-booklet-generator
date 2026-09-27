@@ -1086,10 +1086,12 @@ with tab1:
             if not tb_concepts_list and isinstance(tb.get("content"), dict):
                 tb_concepts_list = tb["content"].get("concepts", [])
 
-            suite_tab_ic, suite_tab_hw, suite_tab_exam = st.tabs([
+            suite_tab_ic, suite_tab_hw, suite_tab_review, suite_tab_exam, suite_tab_prep = st.tabs([
                 "📝 In-Class Exercise Booklet",
                 "🏠 Homework Exercise Booklet",
-                "🎯 End-of-Topic Mastery Exam"
+                "🔁 Topic Review Booklet",
+                "🎯 Topic Test Booklet",
+                "📦 Exam Preparation Booklet"
             ])
 
             # === 1. IN-CLASS EXERCISE BOOKLET TAB ===
@@ -1408,7 +1410,81 @@ with tab1:
                             except Exception as e:
                                 st.error(f"Failed to generate Homework booklet: {e}")
 
-            # === 3. END-OF-TOPIC MASTERY EXAM TAB ===
+            # === 3. TOPIC REVIEW BOOKLET TAB ===
+            with suite_tab_review:
+                st.info("💡 **Diagnostic Revision & Consolidation**: Generates high-yield concept summaries, vital formula cheat-sheets, tutor secrets & exam shortcuts, common pitfall traps, worked exam-style mastery examples, and revision questions across all concepts in this Theory Booklet.")
+
+                all_revs = database.get_review_booklets()
+                matching_revs = [
+                    r for r in all_revs 
+                    if str(r.get("topic", "")).lower() == str(tb.get("topic", "")).lower()
+                    and str(r.get("year_level", "")).lower() == str(tb.get("year_level", "")).lower()
+                ]
+                if matching_revs:
+                    st.success(f"📋 **{len(matching_revs)} Topic Review Booklet(s)** found for this topic.")
+                    for mrb in matching_revs:
+                        with st.expander(f"🔁 Review Booklet #{mrb['id']}: {mrb.get('title', 'Topic Review')}", expanded=False):
+                            col_rb1, col_rb2 = st.columns(2)
+                            with col_rb1:
+                                if st.button("📥 Compile Student Review Booklet (PDF)", key=f"btn_c_stu_rb_{mrb['id']}", use_container_width=True):
+                                    rb_s_pdf = pdf_generator.generate_review_booklet_pdf(
+                                        booklet_data=mrb.get("content", mrb), mode="student",
+                                        term=mrb.get("term"), week=mrb.get("week"), font_theme="charter"
+                                    )
+                                    st.download_button("Download Student PDF", data=rb_s_pdf, file_name=f"DA_Review_Student_{mrb['id']}.pdf", mime="application/pdf", key=f"dl_c_stu_rb_{mrb['id']}", use_container_width=True)
+                            with col_rb2:
+                                if st.button("📥 Compile Teacher Solutions (PDF)", key=f"btn_c_tea_rb_{mrb['id']}", use_container_width=True):
+                                    rb_t_pdf = pdf_generator.generate_review_booklet_pdf(
+                                        booklet_data=mrb.get("content", mrb), mode="teacher",
+                                        term=mrb.get("term"), week=mrb.get("week"), font_theme="charter"
+                                    )
+                                    st.download_button("Download Teacher Solutions PDF", data=rb_t_pdf, file_name=f"DA_Review_Teacher_{mrb['id']}.pdf", mime="application/pdf", key=f"dl_c_tea_rb_{mrb['id']}", use_container_width=True)
+
+                col_rq1, col_rq2 = st.columns([1, 2])
+                with col_rq1:
+                    rev_q_per_c = st.number_input("Revision Questions per Concept", min_value=1, max_value=10, value=3, step=1, key=f"rev_q_per_c_{tb_id}")
+                with col_rq2:
+                    st.caption("Balanced distribution across Level 1 (Foundations), Level 2 (Application), and Level 3 (Extension / Trap questions).")
+
+                tot_rev_q = (len(tb_concepts_list) if tb_concepts_list else 4) * int(rev_q_per_c)
+                st.write(f"📊 **Total Revision Questions to Generate**: `{tot_rev_q}`")
+
+                if st.button("🚀 Generate Aligned Topic Review Booklet", key=f"btn_gen_rev_from_tb_{tb_id}", type="primary", use_container_width=True):
+                    current_api_key = (st.session_state.get("gemini_api_key") or "").strip()
+                    if not current_api_key:
+                        st.error("🔑 Personal Gemini API Key required. Please configure your key in the sidebar.")
+                    else:
+                        with st.spinner("Generating Aligned Topic Review & Revision Booklet via Gemini..."):
+                            try:
+                                rev_subtopics = [c.get("concept_name") or c.get("name") for c in tb_concepts_list] if tb_concepts_list else None
+                                rev_data = ai_engine.generate_review_booklet(
+                                    year_level=tb.get("year_level"),
+                                    topic=tb.get("topic"),
+                                    subtopics=rev_subtopics,
+                                    examples_per_concept=1,
+                                    practice_per_concept=int(rev_q_per_c),
+                                    term=tb.get("term"),
+                                    week=tb.get("week"),
+                                    textbook=tb.get("textbook", "CambridgeMATHS NSW"),
+                                    api_key=current_api_key
+                                )
+                                rev_id = database.save_review_booklet(
+                                    title=rev_data.get("title", f"{tb.get('topic')} Review Booklet"),
+                                    term=tb.get("term"),
+                                    week=tb.get("week"),
+                                    year_level=tb.get("year_level"),
+                                    topic=tb.get("topic"),
+                                    content=rev_data
+                                )
+                                rev_data["id"] = rev_id
+                                st.session_state["latest_review_booklet"] = rev_data
+                                st.session_state["latest_review_booklet_id"] = rev_id
+                                st.success(f"🎉 Successfully generated Topic Review Booklet #{rev_id}!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Failed to generate Topic Review Booklet: {e}")
+
+            # === 4. TOPIC TEST BOOKLET (MASTERY EXAM) TAB ===
             with suite_tab_exam:
                 st.info("💡 **Pedagogical Twin Alignment**: Tests every taught concept in this Theory Booklet with zero blind spots across tiered cognitive levels (Level 1 Memory, Level 2 Application, Level 3 Extension). Every question is tagged for automated gap analysis in Tab 3.")
 
@@ -1516,6 +1592,70 @@ with tab1:
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"Failed to generate End-of-Topic Exam: {e}")
+
+            # === 5. EXAM PREPARATION BOOKLET TAB ===
+            with suite_tab_prep:
+                st.info("💡 **HSC Senior Marker Exam Preparation Suite (Dual Booklets)**: Booklet 1 (Theory Summary, Visual Cheat-Sheets & Worked Past Papers) and Booklet 2 (Timed Practice Exam with Student and Teacher Editions).")
+
+                all_pkgs = database.get_exam_packages()
+                matching_pkgs = [
+                    p for p in all_pkgs
+                    if str(p.get("topic", "")).lower() == str(tb.get("topic", "")).lower()
+                    and str(p.get("year_level", "")).lower() == str(tb.get("year_level", "")).lower()
+                ]
+                if matching_pkgs:
+                    st.success(f"📋 **{len(matching_pkgs)} Exam Preparation Package(s)** found for this topic.")
+                    for mp in matching_pkgs:
+                        with st.expander(f"📦 Exam Package #{mp['id']}: {mp.get('title', 'Exam Package')}", expanded=False):
+                            mp_content = mp.get("content", mp)
+                            col_p1, col_p2 = st.columns(2)
+                            with col_p1:
+                                if st.button("📥 Compile Booklet 1 (Theory & Worked Past Papers)", key=f"btn_c_b1_{mp['id']}", use_container_width=True):
+                                    b1_pdf = pdf_generator.generate_exam_package_theory_pdf(
+                                        package_data=mp_content, term=mp.get("term"), week=mp.get("week"), font_theme="charter"
+                                    )
+                                    st.download_button("Download Booklet 1 PDF", data=b1_pdf, file_name=f"DA_ExamPack_Booklet1_{mp['id']}.pdf", mime="application/pdf", key=f"dl_c_b1_{mp['id']}", use_container_width=True)
+                            with col_p2:
+                                if st.button("📥 Compile Booklet 2 (Practice Exam & Solutions)", key=f"btn_c_b2_{mp['id']}", use_container_width=True):
+                                    b2_pdf = pdf_generator.generate_exam_package_practice_pdf(
+                                        package_data=mp_content, mode="teacher", term=mp.get("term"), week=mp.get("week"), font_theme="charter"
+                                    )
+                                    st.download_button("Download Booklet 2 PDF", data=b2_pdf, file_name=f"DA_ExamPack_Booklet2_{mp['id']}.pdf", mime="application/pdf", key=f"dl_c_b2_{mp['id']}", use_container_width=True)
+
+                st.caption(f"Compiles an authentic examination package covering all concepts of **{tb.get('topic')}** with senior HSC marker feedback & past paper style questions.")
+
+                if st.button("🚀 Generate Aligned Exam Preparation Package", key=f"btn_gen_pkg_from_tb_{tb_id}", type="primary", use_container_width=True):
+                    current_api_key = (st.session_state.get("gemini_api_key") or "").strip()
+                    if not current_api_key:
+                        st.error("🔑 Personal Gemini API Key required. Please configure your key in the sidebar.")
+                    else:
+                        with st.spinner("Generating Aligned Comprehensive Exam Package via Gemini..."):
+                            try:
+                                pkg_subtopics = [c.get("concept_name") or c.get("name") for c in tb_concepts_list] if tb_concepts_list else None
+                                pkg_data = ai_engine.generate_exam_package(
+                                    year_level=tb.get("year_level"),
+                                    topic=tb.get("topic"),
+                                    subtopics=pkg_subtopics,
+                                    term=tb.get("term"),
+                                    week=tb.get("week"),
+                                    textbook=tb.get("textbook", "CambridgeMATHS NSW"),
+                                    api_key=current_api_key
+                                )
+                                pkg_id = database.save_exam_package(
+                                    title=pkg_data.get("title", f"{tb.get('topic')} Exam Package"),
+                                    term=tb.get("term"),
+                                    week=tb.get("week"),
+                                    year_level=tb.get("year_level"),
+                                    topic=tb.get("topic"),
+                                    content=pkg_data
+                                )
+                                pkg_data["id"] = pkg_id
+                                st.session_state["latest_exam_package"] = pkg_data
+                                st.session_state["latest_exam_package_id"] = pkg_id
+                                st.success(f"🎉 Successfully generated Exam Preparation Package #{pkg_id}!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Failed to generate Exam Preparation Package: {e}")
 
             st.markdown("---")
             st.markdown("#### 👁️ PDF Preview")
