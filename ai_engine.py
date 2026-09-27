@@ -2554,7 +2554,7 @@ Respond with valid JSON ONLY:
     try:
         config = types.GenerateContentConfig(response_mime_type="application/json", temperature=0.1)
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-3.8-flash",
             contents=prompt,
             config=config
         )
@@ -2951,7 +2951,7 @@ Respond with valid JSON ONLY matching this structure:
 }}
 """
 
-    models_to_try = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash"]
+    models_to_try = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.5-flash", "gemini-2.5-flash"]
     last_err = None
 
     for model_name in models_to_try:
@@ -3077,7 +3077,7 @@ Respond with valid JSON ONLY:
 }}
 """
 
-    models_to_try = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash"]
+    models_to_try = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.5-flash", "gemini-2.5-flash"]
     last_err = None
 
     pdf_part = types.Part.from_bytes(data=student_pdf_bytes, mime_type="application/pdf")
@@ -3192,7 +3192,7 @@ Respond with valid JSON ONLY:
         temperature=0.3
     )
     response = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model="gemini-3.8-flash",
         contents=prompt,
         config=config
     )
@@ -3558,7 +3558,7 @@ Respond with valid JSON ONLY matching this exact structure:
 }}
 """
 
-    models_to_try = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash"]
+    models_to_try = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.5-flash", "gemini-2.5-flash"]
     last_err = None
 
     for model_name in models_to_try:
@@ -3776,7 +3776,7 @@ Respond with valid JSON ONLY:
 }}
 """
 
-    models_to_try = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash"]
+    models_to_try = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.5-flash", "gemini-2.5-flash"]
     last_err = None
 
     for model_name in models_to_try:
@@ -4002,7 +4002,7 @@ Respond with valid JSON ONLY:
 }}
 """
 
-    models_to_try = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash"]
+    models_to_try = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.5-flash", "gemini-2.5-flash"]
     last_err = None
 
     for model_name in models_to_try:
@@ -4313,7 +4313,7 @@ Respond with valid JSON ONLY matching this exact structure:
 }}
 """
 
-    models_to_try = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash"]
+    models_to_try = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.5-flash", "gemini-2.5-flash"]
     last_err = None
 
     for model_name in models_to_try:
@@ -4688,7 +4688,7 @@ OUTPUT SCHEMA:
 }}
 """
 
-    models_to_try = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash"]
+    models_to_try = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.5-flash", "gemini-2.5-flash"]
     last_err = None
 
     for model_name in models_to_try:
@@ -4804,9 +4804,11 @@ OUTPUT SCHEMA:
 USD_TO_AUD_RATE = 1.55
 
 
-def estimate_gemini_cost(prompt_tokens: int, candidates_tokens: int = 0, model: str = "gemini-2.5-flash", currency: str = "AUD") -> float:
+def estimate_gemini_cost(prompt_tokens: int, candidates_tokens: int = 0, model: str = "gemini-3.8-flash", currency: str = "AUD") -> float:
     """
     Estimates generation cost in AUD (or USD) based on official Gemini token pricing and AUD FX rate.
+    - Gemini 3.8 / 3.7 Flash: $0.75 / 1M input tokens, $3.75 / 1M output tokens (USD)
+    - Gemini 3.5 Flash: $0.35 / 1M input tokens, $1.05 / 1M output tokens (USD)
     - Gemini 2.5 Flash: $0.30 / 1M input tokens, $2.50 / 1M output tokens (USD)
     - Gemini 2.5 Flash-Lite: $0.10 / 1M input tokens, $0.40 / 1M output tokens (USD)
     - Gemini 2.0 Flash: $0.10 / 1M input tokens, $0.40 / 1M output tokens (USD)
@@ -4817,21 +4819,21 @@ def estimate_gemini_cost(prompt_tokens: int, candidates_tokens: int = 0, model: 
     model_lower = str(model).lower()
     if "flash-lite" in model_lower or "lite" in model_lower:
         cost = ((prompt_tokens / 1_000_000) * 0.10) + ((candidates_tokens / 1_000_000) * 0.40)
+    elif "3.8" in model_lower or "3.7" in model_lower:
+        cost = ((prompt_tokens / 1_000_000) * 0.75) + ((candidates_tokens / 1_000_000) * 3.75)
+    elif "3.5" in model_lower:
+        cost = ((prompt_tokens / 1_000_000) * 0.35) + ((candidates_tokens / 1_000_000) * 1.05)
     elif "2.5" in model_lower:
         cost = ((prompt_tokens / 1_000_000) * 0.30) + ((candidates_tokens / 1_000_000) * 2.50)
     elif "2.0" in model_lower:
         cost = ((prompt_tokens / 1_000_000) * 0.10) + ((candidates_tokens / 1_000_000) * 0.40)
     elif "1.5" in model_lower:
         cost = ((prompt_tokens / 1_000_000) * 0.075) + ((candidates_tokens / 1_000_000) * 0.30)
-    elif "3.8" in model_lower or "3.7" in model_lower:
-        cost = ((prompt_tokens / 1_000_000) * 0.75) + ((candidates_tokens / 1_000_000) * 3.75)
-    elif "3.5" in model_lower:
-        cost = ((prompt_tokens / 1_000_000) * 0.35) + ((candidates_tokens / 1_000_000) * 1.05)
     elif "pro" in model_lower:
         cost = ((prompt_tokens / 1_000_000) * 1.25) + ((candidates_tokens / 1_000_000) * 5.00)
     else:
-        # Default fallback to gemini-2.5-flash pricing
-        cost = ((prompt_tokens / 1_000_000) * 0.30) + ((candidates_tokens / 1_000_000) * 2.50)
+        # Default fallback to gemini-3.8-flash pricing
+        cost = ((prompt_tokens / 1_000_000) * 0.75) + ((candidates_tokens / 1_000_000) * 3.75)
 
     if currency.upper() == "AUD":
         return round(cost * USD_TO_AUD_RATE, 5)

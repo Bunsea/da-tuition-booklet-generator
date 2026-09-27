@@ -1038,7 +1038,7 @@ with tab1:
                             num_questions=len(tb.get("concepts", [])),
                             extra_instructions=tb.get("custom_instructions") or theory_custom_notes or "",
                             cost=tb.get("meta_cost", 0.0),
-                            model=tb.get("model_used", "gemini-2.5-flash")
+                            model=tb.get("model_used", "gemini-3.8-flash")
                         )
                         if ok:
                             st.success(msg)
@@ -1900,7 +1900,7 @@ with tab1:
                             set_number=ws_set_val,
                             extra_instructions=ws.get("custom_instructions") or custom_notes or "",
                             cost=ws.get("meta_cost", 0.0),
-                            model=ws.get("model_used", "gemini-2.5-flash")
+                            model=ws.get("model_used", "gemini-3.8-flash")
                         )
                         if ok:
                             st.success(msg)
@@ -2390,7 +2390,7 @@ with tab1:
                             num_questions=len(rb.get("concepts", [])),
                             extra_instructions=rb.get("custom_instructions") or rev_custom_instructions or "",
                             cost=rb.get("meta_cost", 0.0),
-                            model=rb.get("model_used", "gemini-2.5-flash")
+                            model=rb.get("model_used", "gemini-3.8-flash")
                         )
                         if ok:
                             st.success(msg)
