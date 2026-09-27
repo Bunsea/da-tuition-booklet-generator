@@ -900,8 +900,9 @@ with tab1:
                         
                         st.session_state["latest_theory_booklet"] = booklet_data
                         st.session_state["latest_theory_booklet_id"] = booklet_id
-                        st.session_state["latest_practice_ws_id"] = practice_ws_id
-                        st.success(f"🎉 Generated & Saved Theory Booklet #{booklet_id}: {booklet_data.get('title')}! Practice Worksheet #{practice_ws_id} registered for 1-click marking.")
+                        tb_gen_cost = booklet_data.get('meta_cost', 0.0)
+                        tb_gen_tokens = booklet_data.get('meta_tokens', 0)
+                        st.success(f"🎉 Generated & Saved Theory Booklet #{booklet_id}: {booklet_data.get('title')}! (💰 Cost: ${tb_gen_cost:.4f} AUD • {tb_gen_tokens:,} tokens) — Practice Worksheet #{practice_ws_id} registered.")
                     except Exception as e:
                         st.error(f"Error generating theory booklet: {e}")
 
@@ -1021,8 +1022,8 @@ with tab1:
                     )
                 st.caption("📖 **Private Tutoring Edition**: Complete pre-printed theory & formulas; zero working space boxes. Quick answers at back.")
 
-            if tb.get("meta_tokens"):
-                st.caption(f"⚡ Generated with **{tb.get('model_used', 'Gemini')}** • **{tb.get('meta_tokens', 0):,} tokens** • Est. cost: **${tb.get('meta_cost', 0.0):.4f} AUD**")
+            if tb.get("meta_cost") is not None or tb.get("meta_tokens"):
+                st.info(f"💰 **Generation Cost:** **${tb.get('meta_cost', 0.0):.4f} AUD** • **{tb.get('meta_tokens', 0):,} tokens** ({tb.get('model_used', 'Gemini 3.8 Flash')})")
 
             if cloud_sync.is_cloud_connected():
                 if st.button("☁️ Save Theory Booklet to DA Cloud Library", key=f"btn_cloud_save_tb_{tb.get('id', 0)}", use_container_width=True):
@@ -1243,7 +1244,9 @@ with tab1:
                                     assessment_type="in_class"
                                 )
                                 st.session_state["latest_worksheet"] = {**ic_data, "id": new_ic_id}
-                                st.success(f"🎉 Successfully generated In-Class Practice Booklet #{new_ic_id}!")
+                                ic_cost = ic_data.get('meta_cost', 0.0)
+                                ic_tokens = ic_data.get('meta_tokens', 0)
+                                st.success(f"🎉 Successfully generated In-Class Practice Booklet #{new_ic_id}! (💰 Cost: ${ic_cost:.4f} AUD • {ic_tokens:,} tokens)")
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"Failed to generate In-Class booklet: {e}")
@@ -1257,7 +1260,8 @@ with tab1:
                     st.success(f"📋 **{len(linked_hw)} Homework Booklet(s)** linked to this Theory Booklet.")
                     for lhw in linked_hw:
                         set_label = f"Set {lhw.get('set_number', 1)}"
-                        with st.expander(f"🏠 Homework Booklet #{lhw['id']} ({set_label}): {lhw['title']} ({lhw['total_questions']} Questions)", expanded=False):
+                        hw_cost_str = f" • 💰 ${lhw.get('cost', 0.0):.4f} AUD" if lhw.get('cost') else ""
+                        with st.expander(f"🏠 Homework Booklet #{lhw['id']} ({set_label}): {lhw['title']} ({lhw['total_questions']} Questions{hw_cost_str})", expanded=False):
                             lhw_qs = lhw.get("questions", [])
                             col_hw1, col_hw2, col_hw3, col_hw4 = st.columns(4)
                             with col_hw1:
@@ -1405,7 +1409,9 @@ with tab1:
                                     assessment_type="homework"
                                 )
                                 st.session_state["latest_worksheet"] = {**hw_data, "id": new_hw_id}
-                                st.success(f"🎉 Successfully generated Homework Booklet #{new_hw_id} (Set {hw_set_sel})!")
+                                hw_cost = hw_data.get('meta_cost', 0.0)
+                                hw_tokens = hw_data.get('meta_tokens', 0)
+                                st.success(f"🎉 Successfully generated Homework Booklet #{new_hw_id} (Set {hw_set_sel})! (💰 Cost: ${hw_cost:.4f} AUD • {hw_tokens:,} tokens)")
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"Failed to generate Homework booklet: {e}")
@@ -1423,7 +1429,9 @@ with tab1:
                 if matching_revs:
                     st.success(f"📋 **{len(matching_revs)} Topic Review Booklet(s)** found for this topic.")
                     for mrb in matching_revs:
-                        with st.expander(f"🔁 Review Booklet #{mrb['id']}: {mrb.get('title', 'Topic Review')}", expanded=False):
+                        rb_cnt = mrb.get("content", mrb)
+                        rb_c_str = f" • 💰 ${rb_cnt.get('meta_cost', 0.0):.4f} AUD" if rb_cnt.get('meta_cost') else ""
+                        with st.expander(f"🔁 Review Booklet #{mrb['id']}: {mrb.get('title', 'Topic Review')}{rb_c_str}", expanded=False):
                             col_rb1, col_rb2 = st.columns(2)
                             with col_rb1:
                                 if st.button("📥 Compile Student Review Booklet (PDF)", key=f"btn_c_stu_rb_{mrb['id']}", use_container_width=True):
@@ -1479,7 +1487,9 @@ with tab1:
                                 rev_data["id"] = rev_id
                                 st.session_state["latest_review_booklet"] = rev_data
                                 st.session_state["latest_review_booklet_id"] = rev_id
-                                st.success(f"🎉 Successfully generated Topic Review Booklet #{rev_id}!")
+                                rev_cost = rev_data.get('meta_cost', 0.0)
+                                rev_tokens = rev_data.get('meta_tokens', 0)
+                                st.success(f"🎉 Successfully generated Topic Review Booklet #{rev_id}! (💰 Cost: ${rev_cost:.4f} AUD • {rev_tokens:,} tokens)")
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"Failed to generate Topic Review Booklet: {e}")
@@ -1492,7 +1502,8 @@ with tab1:
                 if linked_exams:
                     st.success(f"📋 **{len(linked_exams)} End-of-Topic Mastery Exam(s)** linked to this Theory Booklet in the database.")
                     for le in linked_exams:
-                        with st.expander(f"📑 Exam #{le['id']}: {le['title']} ({le['total_questions']} Questions)", expanded=False):
+                        le_cost_str = f" • 💰 ${le.get('cost', 0.0):.4f} AUD" if le.get('cost') else ""
+                        with st.expander(f"📑 Exam #{le['id']}: {le['title']} ({le['total_questions']} Questions{le_cost_str})", expanded=False):
                             le_qs = le.get("questions", [])
                             col_le1, col_le2 = st.columns(2)
                             with col_le1:
@@ -1588,7 +1599,9 @@ with tab1:
                                 )
                                 st.session_state["latest_worksheet"] = {**exam_data, "id": new_ws_id}
                                 st.session_state["latest_exam_created_id"] = new_ws_id
-                                st.success(f"🎉 Successfully generated End-of-Topic Mastery Exam #{new_ws_id}! Head to Tab 2 to grade student submissions or see the newly linked exam above.")
+                                ex_cost = exam_data.get('meta_cost', 0.0)
+                                ex_tokens = exam_data.get('meta_tokens', 0)
+                                st.success(f"🎉 Successfully generated End-of-Topic Mastery Exam #{new_ws_id}! (💰 Cost: ${ex_cost:.4f} AUD • {ex_tokens:,} tokens) — Head to Tab 2 to grade submissions or see linked exam above.")
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"Failed to generate End-of-Topic Exam: {e}")
@@ -1606,8 +1619,9 @@ with tab1:
                 if matching_pkgs:
                     st.success(f"📋 **{len(matching_pkgs)} Exam Preparation Package(s)** found for this topic.")
                     for mp in matching_pkgs:
-                        with st.expander(f"📦 Exam Package #{mp['id']}: {mp.get('title', 'Exam Package')}", expanded=False):
-                            mp_content = mp.get("content", mp)
+                        mp_content = mp.get("content", mp)
+                        mp_cost_str = f" • 💰 ${mp_content.get('meta_cost', 0.0):.4f} AUD" if mp_content.get('meta_cost') else ""
+                        with st.expander(f"📦 Exam Package #{mp['id']}: {mp.get('title', 'Exam Package')}{mp_cost_str}", expanded=False):
                             col_p1, col_p2 = st.columns(2)
                             with col_p1:
                                 if st.button("📥 Compile Booklet 1 (Theory & Worked Past Papers)", key=f"btn_c_b1_{mp['id']}", use_container_width=True):
@@ -1652,7 +1666,9 @@ with tab1:
                                 pkg_data["id"] = pkg_id
                                 st.session_state["latest_exam_package"] = pkg_data
                                 st.session_state["latest_exam_package_id"] = pkg_id
-                                st.success(f"🎉 Successfully generated Exam Preparation Package #{pkg_id}!")
+                                pkg_cost = pkg_data.get('meta_cost', 0.0)
+                                pkg_tokens = pkg_data.get('meta_tokens', 0)
+                                st.success(f"🎉 Successfully generated Exam Preparation Package #{pkg_id}! (💰 Cost: ${pkg_cost:.4f} AUD • {pkg_tokens:,} tokens)")
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"Failed to generate Exam Preparation Package: {e}")
@@ -1952,7 +1968,9 @@ with tab1:
                         generated_data["id"] = ws_id
                         st.session_state["latest_worksheet"] = generated_data
                         st.session_state["latest_ws_id"] = ws_id
-                        st.success(f"🎉 Generated {len(generated_data.get('questions', []))} questions! Ready for printing.")
+                        ws_cost = generated_data.get('meta_cost', 0.0)
+                        ws_tokens = generated_data.get('meta_tokens', 0)
+                        st.success(f"🎉 Generated {len(generated_data.get('questions', []))} questions! (💰 Cost: ${ws_cost:.4f} AUD • {ws_tokens:,} tokens) — Ready for printing.")
                     except Exception as e:
                         st.error(f"Error generating worksheet: {e}")
 
@@ -1961,6 +1979,9 @@ with tab1:
             ws = st.session_state["latest_worksheet"]
             st.markdown("---")
             st.markdown(f"#### 📄 {ws.get('title')}")
+
+            if ws.get("meta_cost") is not None or ws.get("meta_tokens"):
+                st.info(f"💰 **Generation Cost:** **${ws.get('meta_cost', 0.0):.4f} AUD** • **{ws.get('meta_tokens', 0):,} tokens** ({ws.get('model_used', 'Gemini 3.8 Flash')})")
 
             # Extract question labels for matching answer sheet
             question_labels = [q.get("item_label", str(idx)) for idx, q in enumerate(ws.get("questions", []), 1)]
@@ -2095,9 +2116,6 @@ with tab1:
                     mime="application/json",
                     use_container_width=True
                 )
-
-            if ws.get("meta_tokens"):
-                st.caption(f"⚡ Generated with **{ws.get('model_used', 'Gemini')}** • **{ws.get('meta_tokens', 0):,} tokens** • Est. cost: **${ws.get('meta_cost', 0.0):.4f} AUD**")
 
             if cloud_sync.is_cloud_connected():
                 if st.button("☁️ Save Worksheet to DA Cloud Library", key=f"btn_cloud_save_ws_{ws.get('id', 0)}", use_container_width=True):
@@ -2400,7 +2418,9 @@ with tab1:
                         rev_data["id"] = rev_booklet_id
                         st.session_state["latest_review_booklet"] = rev_data
                         st.session_state["latest_review_booklet_id"] = rev_booklet_id
-                        st.success(f"🎉 Successfully created Topic Review Booklet: {rev_data.get('title')}!")
+                        rb_cost = rev_data.get('meta_cost', 0.0)
+                        rb_tokens = rev_data.get('meta_tokens', 0)
+                        st.success(f"🎉 Successfully created Topic Review Booklet: {rev_data.get('title')}! (💰 Cost: ${rb_cost:.4f} AUD • {rb_tokens:,} tokens)")
                     except Exception as e:
                         st.error(f"Error generating review booklet: {str(e)}")
 
@@ -2409,6 +2429,9 @@ with tab1:
             rb = st.session_state["latest_review_booklet"]
             st.markdown("---")
             st.markdown(f"### 📥 Download Generated Review Booklet: **{rb.get('title')}**")
+
+            if rb.get("meta_cost") is not None or rb.get("meta_tokens"):
+                st.info(f"💰 **Generation Cost:** **${rb.get('meta_cost', 0.0):.4f} AUD** • **{rb.get('meta_tokens', 0):,} tokens** ({rb.get('model_used', 'Gemini 3.8 Flash')})")
 
             rb_font_theme = "charter"
 
@@ -2586,9 +2609,6 @@ with tab1:
                         use_container_width=True
                     )
                     st.caption("JSON marking key compatible with homework/test grading engine.")
-
-            if rb.get("meta_tokens"):
-                st.caption(f"⚡ Generated with **{rb.get('model_used', 'Gemini')}** • **{rb.get('meta_tokens', 0):,} tokens** • Est. cost: **${rb.get('meta_cost', 0.0):.4f} AUD**")
 
             if cloud_sync.is_cloud_connected():
                 if st.button("☁️ Save Review Booklet to DA Cloud Library", key=f"btn_cloud_save_rb_{rb.get('id', 0)}", use_container_width=True):
@@ -2941,7 +2961,9 @@ with tab1:
                         pkg_data["id"] = pkg_id
                         st.session_state["latest_exam_package"] = pkg_data
                         st.session_state["latest_exam_package_id"] = pkg_id
-                        st.success(f"🎉 Successfully created Complete Exam Package: {pkg_data.get('title')}!")
+                        pkg_cost = pkg_data.get('meta_cost', 0.0)
+                        pkg_tokens = pkg_data.get('meta_tokens', 0)
+                        st.success(f"🎉 Successfully created Complete Exam Package: {pkg_data.get('title')}! (💰 Cost: ${pkg_cost:.4f} AUD • {pkg_tokens:,} tokens)")
                     except Exception as e:
                         st.error(f"Error generating exam package: {str(e)}")
 
@@ -2950,6 +2972,9 @@ with tab1:
             ep = st.session_state["latest_exam_package"]
             st.markdown("---")
             st.markdown(f"### 📥 Download Generated Exam Package: **{ep.get('title')}**")
+
+            if ep.get("meta_cost") is not None or ep.get("meta_tokens"):
+                st.info(f"💰 **Generation Cost:** **${ep.get('meta_cost', 0.0):.4f} AUD** • **{ep.get('meta_tokens', 0):,} tokens** ({ep.get('model_used', 'Gemini 3.8 Flash')})")
 
             col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
             with col_stat1:
@@ -3848,7 +3873,9 @@ with tab4:
                         sheet_saved_title = rem_worksheet.get("title", f"DA Tuition - {target_student} {selected_ws_mode} Practice Worksheet")
                         rem_worksheet["id"] = int(time.time())
                         st.session_state["latest_remedial"] = rem_worksheet
-                        st.success(f"🎉 Created personalized worksheet for {target_student}! Ready for printing.")
+                        rem_cost = rem_worksheet.get('meta_cost', 0.0)
+                        rem_tokens = rem_worksheet.get('meta_tokens', 0)
+                        st.success(f"🎉 Created personalized worksheet for {target_student}! (💰 Cost: ${rem_cost:.4f} AUD • {rem_tokens:,} tokens) — Ready for printing.")
                     except Exception as e:
                         st.error(f"Error generating revision pack: {e}")
 
@@ -3856,6 +3883,9 @@ with tab4:
             rws = st.session_state["latest_remedial"]
             st.markdown("---")
             st.markdown(f"#### 📄 {rws.get('title')}")
+
+            if rws.get("meta_cost") is not None or rws.get("meta_tokens"):
+                st.info(f"💰 **Generation Cost:** **${rws.get('meta_cost', 0.0):.4f} AUD** • **{rws.get('meta_tokens', 0):,} tokens** ({rws.get('model_used', 'Gemini 3.8 Flash')})")
 
             rem_cache_key = f"{rws.get('id', 0)}_{rws.get('title', '')}_{target_student}"
             if st.session_state.get("latest_rem_cache_key") != rem_cache_key or "latest_rem_pdf" not in st.session_state:

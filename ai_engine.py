@@ -3196,7 +3196,15 @@ Respond with valid JSON ONLY:
         contents=prompt,
         config=config
     )
+    prompt_tokens = getattr(response.usage_metadata, 'prompt_token_count', 0) if hasattr(response, 'usage_metadata') else 0
+    candidates_tokens = getattr(response.usage_metadata, 'candidates_token_count', 0) if hasattr(response, 'usage_metadata') else 0
+    total_tokens = getattr(response.usage_metadata, 'total_token_count', 0) if hasattr(response, 'usage_metadata') else 0
+    est_cost = estimate_gemini_cost(prompt_tokens, candidates_tokens, model="gemini-3.8-flash")
+
     data = clean_json_response(response.text)
+    data["meta_tokens"] = total_tokens
+    data["meta_cost"] = round(est_cost, 5)
+    data["model_used"] = "gemini-3.8-flash"
     if not data.get("title"):
         data["title"] = sheet_title
     data["worksheet_type"] = "Targeted NESA" if is_nesa else "Remedial"
