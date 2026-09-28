@@ -1992,17 +1992,12 @@ with tab1:
                 topic_input = selected_topic_choice
 
         with col3:
-            difficulty = st.selectbox(
-                "Difficulty Level",
-                DIFFICULTY_OPTIONS,
-                index=1,  # Default: Medium
-                key="select_difficulty"
-            )
-            col_mc1, col_mc2 = st.columns([1.2, 1])
-            with col_mc1:
-                use_mc = st.checkbox("Multiple Choice", value=False, key="ws_use_mc", help="Adds NESA-style Section 1 Multiple Choice questions with options (A), (B), (C), (D)")
-            with col_mc2:
-                num_mc = st.number_input("MC Qty", min_value=1, max_value=25, value=5, step=1, key="ws_num_mc", label_visibility="collapsed") if use_mc else 0
+            st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
+            use_mc = st.checkbox("Include Multiple Choice", value=False, key="ws_use_mc", help="Adds NESA-style Section 1 Multiple Choice questions with options (A), (B), (C), (D)")
+            if use_mc:
+                num_mc = st.number_input("Multiple Choice Quantity", min_value=1, max_value=25, value=5, step=1, key="ws_num_mc")
+            else:
+                num_mc = 0
 
         col4, col5 = st.columns([2, 2])
         with col4:
@@ -2070,13 +2065,16 @@ with tab1:
 
         st.markdown("---")
         for i, sub in enumerate(active_subtopics):
+            key_include = f"sub_inc_{subtopics_cache_key}_{i}"
             key_e = f"diff_e_{subtopics_cache_key}_{i}"
             key_m = f"diff_m_{subtopics_cache_key}_{i}"
             key_h = f"diff_h_{subtopics_cache_key}_{i}"
             key_eh = f"diff_eh_{subtopics_cache_key}_{i}"
             key_pe = f"diff_pe_{subtopics_cache_key}_{i}"
 
-            # Default initial values: 1 Easy, 1 Medium, 0 Hard, 0 Extremely Hard, 0 Past Exam
+            # Default initial values: Include=True, 1 Easy, 1 Medium, 0 Hard, 0 Extremely Hard, 0 Past Exam
+            if key_include not in st.session_state:
+                st.session_state[key_include] = True
             if key_e not in st.session_state:
                 st.session_state[key_e] = 1
             if key_m not in st.session_state:
@@ -2088,39 +2086,50 @@ with tab1:
             if key_pe not in st.session_state:
                 st.session_state[key_pe] = 0
 
-            cur_e = st.session_state[key_e]
-            cur_m = st.session_state[key_m]
-            cur_h = st.session_state[key_h]
-            cur_eh = st.session_state[key_eh]
-            cur_pe = st.session_state[key_pe]
+            is_included = st.session_state[key_include]
+
+            cur_e = st.session_state[key_e] if is_included else 0
+            cur_m = st.session_state[key_m] if is_included else 0
+            cur_h = st.session_state[key_h] if is_included else 0
+            cur_eh = st.session_state[key_eh] if is_included else 0
+            cur_pe = st.session_state[key_pe] if is_included else 0
             sub_sum = cur_e + cur_m + cur_h + cur_eh + cur_pe
 
-            st.markdown(f"**📌 {sub}** &nbsp; <span style='color: #666; font-size: 0.9em;'>(Subtotal: <b>{sub_sum}</b> questions)</span>", unsafe_allow_html=True)
-            c_e, c_m, c_h, c_eh, c_pe = st.columns(5)
-            with c_e:
-                cnt_e = st.number_input("🟢 Easy", min_value=0, max_value=20, step=1, key=key_e, help="Foundational 1-step problems (Commit to Memory)")
-            with c_m:
-                cnt_m = st.number_input("🟡 Medium", min_value=0, max_value=20, step=1, key=key_m, help="Standard 2-step textbook applications (Further Practice)")
-            with c_h:
-                cnt_h = st.number_input("🟠 Hard", min_value=0, max_value=20, step=1, key=key_h, help="Multi-step non-routine problem solving (Application)")
-            with c_eh:
-                cnt_eh = st.number_input("🔴 Extremely Hard", min_value=0, max_value=20, step=1, key=key_eh, help="Challenging extension problems (Thinking Creatively)")
-            with c_pe:
-                cnt_pe = st.number_input("🏆 Past Exam", min_value=0, max_value=20, step=1, key=key_pe, help="Authentic selective/independent trial & HSC exam questions (Exam Questions)")
+            header_col1, header_col2 = st.columns([0.05, 0.95])
+            with header_col1:
+                sub_checked = st.checkbox("Include subtopic", value=is_included, key=key_include, label_visibility="collapsed")
+            with header_col2:
+                if sub_checked:
+                    st.markdown(f"**📌 {sub}** &nbsp; <span style='color: #666; font-size: 0.9em;'>(Subtotal: <b>{sub_sum}</b> questions)</span>", unsafe_allow_html=True)
+                else:
+                    st.markdown(f"<span style='color: #9E9E9E; text-decoration: line-through;'><b>📌 {sub}</b></span> &nbsp; <span style='color: #BDBDBD; font-size: 0.85em;'>(Excluded from booklet)</span>", unsafe_allow_html=True)
 
-            subtopic_counts[sub] = {
-                "Easy": cnt_e,
-                "Medium": cnt_m,
-                "Hard": cnt_h,
-                "Extremely Hard": cnt_eh,
-                "Past Exam": cnt_pe
-            }
-            total_allocated_items += (cnt_e + cnt_m + cnt_h + cnt_eh + cnt_pe)
-            total_easy += cnt_e
-            total_med += cnt_m
-            total_hard += cnt_h
-            total_exhard += cnt_eh
-            total_pastexam += cnt_pe
+            if sub_checked:
+                c_e, c_m, c_h, c_eh, c_pe = st.columns(5)
+                with c_e:
+                    cnt_e = st.number_input("🟢 Easy", min_value=0, max_value=20, step=1, key=key_e, help="Foundational 1-step problems (Commit to Memory)")
+                with c_m:
+                    cnt_m = st.number_input("🟡 Medium", min_value=0, max_value=20, step=1, key=key_m, help="Standard 2-step textbook applications (Further Practice)")
+                with c_h:
+                    cnt_h = st.number_input("🟠 Hard", min_value=0, max_value=20, step=1, key=key_h, help="Multi-step non-routine problem solving (Application)")
+                with c_eh:
+                    cnt_eh = st.number_input("🔴 Extremely Hard", min_value=0, max_value=20, step=1, key=key_eh, help="Challenging extension problems (Thinking Creatively)")
+                with c_pe:
+                    cnt_pe = st.number_input("🏆 Past Exam", min_value=0, max_value=20, step=1, key=key_pe, help="Authentic selective/independent trial & HSC exam questions (Exam Questions)")
+
+                subtopic_counts[sub] = {
+                    "Easy": cnt_e,
+                    "Medium": cnt_m,
+                    "Hard": cnt_h,
+                    "Extremely Hard": cnt_eh,
+                    "Past Exam": cnt_pe
+                }
+                total_allocated_items += (cnt_e + cnt_m + cnt_h + cnt_eh + cnt_pe)
+                total_easy += cnt_e
+                total_med += cnt_m
+                total_hard += cnt_h
+                total_exhard += cnt_eh
+                total_pastexam += cnt_pe
 
         st.markdown("---")
         if total_allocated_items > 0:
@@ -2161,11 +2170,19 @@ with tab1:
                 total_to_gen = total_allocated_items + (num_mc if use_mc else 0)
                 with st.spinner(f"Generating {total_to_gen} Australian curriculum items with LaTeX formulas, worked solutions, and marking key ({ws_textbook})..."):
                     try:
+                        diff_parts = []
+                        if total_easy: diff_parts.append(f"{total_easy}E")
+                        if total_med: diff_parts.append(f"{total_med}M")
+                        if total_hard: diff_parts.append(f"{total_hard}H")
+                        if total_exhard: diff_parts.append(f"{total_exhard}EH")
+                        if total_pastexam: diff_parts.append(f"{total_pastexam}PE")
+                        diff_str = f"Mixed ({'/'.join(diff_parts)})" if diff_parts else "Differentiated (Tiered Levels)"
+
                         generated_data = ai_engine.generate_curriculum_worksheet(
                             topic=topic_input,
                             year_level=year_level,
                             subtopics_dict=subtopic_counts,
-                            difficulty=difficulty,
+                            difficulty=diff_str,
                             sheet_type=sheet_type,
                             term=int(term_num) if term_num is not None else None,
                             week=int(week_num) if week_num is not None else None,
@@ -2176,14 +2193,6 @@ with tab1:
                             use_search=use_search,
                             theory_reference_data=latest_tb if align_with_tb else None
                         )
-
-                        diff_parts = []
-                        if total_easy: diff_parts.append(f"{total_easy}E")
-                        if total_med: diff_parts.append(f"{total_med}M")
-                        if total_hard: diff_parts.append(f"{total_hard}H")
-                        if total_exhard: diff_parts.append(f"{total_exhard}EH")
-                        if total_pastexam: diff_parts.append(f"{total_pastexam}PE")
-                        diff_str = f"Mixed ({'/'.join(diff_parts)})" if diff_parts else difficulty
                         clean_topic = ai_engine.clean_topic_title(topic_input)
                         set_num_val = ws_set_number if sheet_type == "Homework" else 1
                         custom_title = f"{year_level} - {clean_topic} Homework Set {set_num_val}" if sheet_type == "Homework" else f"{year_level} - {clean_topic} In-Class Worksheet"

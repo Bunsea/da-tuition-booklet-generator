@@ -9401,28 +9401,44 @@ def detect_question_response_type(question_text: str, answer_text: str = "") -> 
     """
     Detects whether a question requires a diagram/sketch, extended reasoning/proof, or compact response.
     Returns: 'diagram', 'reasoning', or 'compact'.
+    Only triggers 'diagram' when the student is explicitly instructed to draw, sketch, construct,
+    plot, or complete a diagram/graph (not when a diagram is simply provided as part of the question stimulus).
     """
-    combined = f"{question_text} {answer_text}".lower()
+    q_lower = str(question_text or "").lower()
+    a_lower = str(answer_text or "").lower()
+    combined = f"{q_lower} {a_lower}"
 
-    # Diagram detection keywords
-    diagram_patterns = [
-        r"\b(?:draw|sketch|construct|plot)\b",
-        r"\b(?:flowchart|tree diagram|venn diagram|box plot|stem-and-leaf|histogram)\b",
-        r"\b(?:graph of|number line|cartesian plane|coordinate plane)\b",
-        r"\b(?:geometric figure|diagram below|label the diagram)\b",
-        r"\b(?:sketch the curve|plot the points)\b"
+    # Explicit drawing/sketching commands directed at the student
+    # Note: phrases like "as shown in the diagram below" or "refer to the diagram" MUST NOT trigger a canvas!
+    diagram_active_patterns = [
+        r"\b(?:draw|sketch|construct|plot)\s+(?:a|an|the|this|your|curves?|graphs?|diagrams?|flowcharts?|trees?|lines?|planes?|figures?|histograms?|polygons?)\b",
+        r"\b(?:draw|sketch|construct|plot)\b(?!\s+(?:from|using|the\s+conclusion|a\s+card|a\s+ticket|a\s+marble|a\s+ball|a\s+counter|a\s+letter|a\s+tile|a\s+token|cards?|marbles?|balls?)\b)",
+        r"\b(?:label|complete)\s+the\s+(?:diagram|figure|graph|tree|canvas|sketch|number\s+line)\b",
+        r"\b(?:draw\s+a\s+tree\s+diagram|draw\s+a\s+venn\s+diagram|draw\s+a\s+flowchart|draw\s+a\s+box\s+plot|sketch\s+the\s+curve|sketch\s+the\s+graph|plot\s+the\s+points)\b",
+        r"\b(?:on\s+the\s+(?:grid|cartesian\s+plane|axes|number\s+line)\s+(?:provided|below|draw|sketch))\b"
     ]
-    for pat in diagram_patterns:
-        if re.search(pat, combined):
-            return "diagram"
 
-    # Reasoning / Proof detection keywords
+    # Passive references to diagrams that should NOT trigger a drawing canvas:
+    # e.g., "as shown in the diagram below", "in the diagram below", "refer to the figure below"
+    has_active_diagram = False
+    for pat in diagram_active_patterns:
+        if re.search(pat, q_lower):
+            # Verify it's not a false positive like "draw a card" or "draw a marble"
+            if re.search(r"\bdraw(?:s|ing)?\s+(?:a\s+)?(?:card|marble|ball|ticket|counter|token|letter|name|slip|coin)\b", q_lower):
+                continue
+            has_active_diagram = True
+            break
+
+    if has_active_diagram:
+        return "diagram"
+
+    # Reasoning / Proof detection keywords: student is asked to prove, justify, or explain with steps
     reasoning_patterns = [
-        r"\b(?:prove that|proof|show that|demonstrate that)\b",
-        r"\b(?:justify your answer|give reasons?|state reasons?)\b",
-        r"\b(?:explain why|explain how|with reasons)\b",
-        r"\b(?:by mathematical induction|deduce that)\b",
-        r"\b(?:congruence proof|similarity proof)\b"
+        r"\b(?:prove\s+that|proof\b|show\s+that|demonstrate\s+that)\b",
+        r"\b(?:justify\s+your\s+answer|give\s+reasons?|state\s+reasons?|with\s+reasons)\b",
+        r"\b(?:explain\s+why|explain\s+how)\b",
+        r"\b(?:by\s+mathematical\s+induction|deduce\s+that)\b",
+        r"\b(?:congruence\s+proof|similarity\s+proof)\b"
     ]
     for pat in reasoning_patterns:
         if re.search(pat, combined):
