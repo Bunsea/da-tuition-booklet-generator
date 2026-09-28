@@ -153,6 +153,229 @@ def get_worksheet_download_filename(worksheet: dict, sheet_type: str = "homework
 # Initialize Database
 database.init_db()
 
+@st.cache_data(show_spinner=False)
+def get_cached_worksheet_pdf(
+    ws_id: int,
+    title: str,
+    year_level: str,
+    topic: str,
+    questions_json: str,
+    marking_key_json: str,
+    term: Optional[int],
+    week: Optional[int],
+    sheet_type: str,
+    mode: str,
+    set_number: int = 1
+) -> bytes:
+    """Cached compilation helper for worksheet PDFs across all editions."""
+    questions = json.loads(questions_json) if questions_json else []
+    marking_key = json.loads(marking_key_json) if marking_key_json else {}
+
+    if mode == "student":
+        return pdf_generator.generate_worksheet_pdf(
+            title=title, year_level=year_level, topic=topic,
+            questions=questions, include_solutions=False, sheet_type=sheet_type,
+            set_number=set_number, font_theme="charter"
+        )
+    elif mode == "teacher":
+        return pdf_generator.generate_worksheet_pdf(
+            title=title, year_level=year_level, topic=topic,
+            questions=questions, include_solutions=True, sheet_type=sheet_type,
+            set_number=set_number, font_theme="charter"
+        )
+    elif mode in ["answers", "student_answer_sheet"]:
+        labels, answers, _, items = pdf_generator.extract_worksheet_answer_sheet_data(questions, marking_key)
+        return pdf_generator.generate_answer_sheet_pdf(
+            question_labels=labels, answers=answers,
+            num_questions=len(labels), term=term, week=week,
+            is_teacher=False, items=items
+        )
+    elif mode in ["teacher_answers", "teacher_answer_key", "answer_key"]:
+        labels, answers, _, items = pdf_generator.extract_worksheet_answer_sheet_data(questions, marking_key)
+        return pdf_generator.generate_answer_sheet_pdf(
+            question_labels=labels, answers=answers,
+            num_questions=len(labels), term=term, week=week,
+            is_teacher=True, items=items
+        )
+    return b""
+
+
+@st.cache_data(show_spinner=False)
+def get_cached_review_pdf(
+    rb_id: int,
+    content_json: str,
+    term: Optional[int],
+    week: Optional[int],
+    mode: str
+) -> bytes:
+    """Cached compilation helper for Topic Review Booklets."""
+    booklet_data = json.loads(content_json) if content_json else {}
+    return pdf_generator.generate_review_booklet_pdf(
+        booklet_data=booklet_data, mode=mode,
+        term=term, week=week, font_theme="charter"
+    )
+
+
+@st.cache_data(show_spinner=False)
+def get_cached_exam_pkg_pdf(
+    pkg_id: int,
+    content_json: str,
+    booklet_type: str,
+    term: Optional[int],
+    week: Optional[int],
+    mode: str = "teacher"
+) -> bytes:
+    """Cached compilation helper for Exam Preparation Packages."""
+    package_data = json.loads(content_json) if content_json else {}
+    if booklet_type == "theory":
+        return pdf_generator.generate_exam_package_theory_pdf(
+            package_data=package_data, term=term, week=week, font_theme="charter"
+        )
+    else:
+        return pdf_generator.generate_exam_package_practice_pdf(
+            package_data=package_data, mode=mode, term=term, week=week, font_theme="charter"
+        )
+
+
+@st.cache_data(show_spinner=False)
+def build_worksheet_zip_package(
+    ws_id: int,
+    ws_data_json: str,
+    tb_data_json: Optional[str] = None
+) -> bytes:
+    """Builds a single ZIP file containing all 4 materials for the worksheet."""
+    ws = json.loads(ws_data_json)
+    tb = json.loads(tb_data_json) if tb_data_json else None
+
+    title = ws.get("title", "Worksheet")
+    year_level = ws.get("year_level", "")
+    topic = ws.get("topic", "")
+    questions = ws.get("questions", [])
+    q_json = json.dumps(questions)
+    mk_json = json.dumps(ws.get("marking_key", {}))
+    term = ws.get("term")
+    week = ws.get("week")
+    stype = ws.get("assessment_type") or ws.get("sheet_type") or "homework"
+    snum = ws.get("set_number", 1)
+
+    pdf_stu = get_cached_worksheet_pdf(ws_id, title, year_level, topic, q_json, mk_json, term, week, stype, "student", snum)
+    pdf_tea = get_cached_worksheet_pdf(ws_id, title, year_level, topic, q_json, mk_json, term, week, stype, "teacher", snum)
+    pdf_sans = get_cached_worksheet_pdf(ws_id, title, year_level, topic, q_json, mk_json, term, week, stype, "answers", snum)
+    pdf_tans = get_cached_worksheet_pdf(ws_id, title, year_level, topic, q_json, mk_json, term, week, stype, "teacher_answers", snum)
+
+    name_stu = get_worksheet_download_filename(ws, sheet_type=stype, mode="student", theory_booklet=tb)
+    name_tea = get_worksheet_download_filename(ws, sheet_type=stype, mode="teacher", theory_booklet=tb)
+    name_sans = get_worksheet_download_filename(ws, sheet_type=stype, mode="answers", theory_booklet=tb)
+    name_tans = get_worksheet_download_filename(ws, sheet_type=stype, mode="teacher_answers", theory_booklet=tb)
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        if pdf_stu:
+            zf.writestr(name_stu, pdf_stu)
+        if pdf_tea:
+            zf.writestr(name_tea, pdf_tea)
+        if pdf_sans:
+            zf.writestr(name_sans, pdf_sans)
+        if pdf_tans:
+            zf.writestr(name_tans, pdf_tans)
+
+    buf.seek(0)
+    return buf.getvalue()
+
+
+@st.cache_data(show_spinner=False)
+def build_review_zip_package(
+    rb_id: int,
+    rb_data_json: str
+) -> bytes:
+    """Builds a single ZIP file containing Student and Teacher Review Booklets."""
+    rb = json.loads(rb_data_json)
+    rb_cnt = rb.get("content", rb)
+    cnt_json = json.dumps(rb_cnt)
+    term = rb.get("term")
+    week = rb.get("week")
+
+    pdf_stu = get_cached_review_pdf(rb_id, cnt_json, term, week, "student")
+    pdf_tea = get_cached_review_pdf(rb_id, cnt_json, term, week, "teacher")
+
+    name_stu = get_review_booklet_download_filename(rb, mode="student")
+    name_tea = get_review_booklet_download_filename(rb, mode="teacher")
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        if pdf_stu:
+            zf.writestr(name_stu, pdf_stu)
+        if pdf_tea:
+            zf.writestr(name_tea, pdf_tea)
+
+    buf.seek(0)
+    return buf.getvalue()
+
+
+@st.cache_data(show_spinner=False)
+def build_exam_zip_package(
+    exam_id: int,
+    exam_data_json: str,
+    tb_data_json: Optional[str] = None
+) -> bytes:
+    """Builds a single ZIP file containing Student and Teacher Exam Papers."""
+    le = json.loads(exam_data_json)
+    tb = json.loads(tb_data_json) if tb_data_json else None
+
+    title = le.get("title", "Exam")
+    year_level = le.get("year_level", "")
+    topic = le.get("topic", "")
+    questions = le.get("questions", [])
+    q_json = json.dumps(questions)
+    mk_json = json.dumps(le.get("marking_key", {}))
+    term = le.get("term")
+    week = le.get("week")
+
+    pdf_stu = get_cached_worksheet_pdf(exam_id, title, year_level, topic, q_json, mk_json, term, week, "topic_exam", "student")
+    pdf_tea = get_cached_worksheet_pdf(exam_id, title, year_level, topic, q_json, mk_json, term, week, "topic_exam", "teacher")
+
+    name_stu = get_topic_exam_download_filename(le, mode="student", theory_booklet=tb)
+    name_tea = get_topic_exam_download_filename(le, mode="teacher", theory_booklet=tb)
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        if pdf_stu:
+            zf.writestr(name_stu, pdf_stu)
+        if pdf_tea:
+            zf.writestr(name_tea, pdf_tea)
+
+    buf.seek(0)
+    return buf.getvalue()
+
+
+@st.cache_data(show_spinner=False)
+def build_exam_pkg_zip_package(
+    pkg_id: int,
+    pkg_data_json: str
+) -> bytes:
+    """Builds a single ZIP file containing Booklet 1 and Booklet 2 for the Exam Package."""
+    pkg = json.loads(pkg_data_json)
+    mp_content = pkg.get("content", pkg)
+    cnt_json = json.dumps(mp_content)
+    term = pkg.get("term")
+    week = pkg.get("week")
+
+    pdf_b1 = get_cached_exam_pkg_pdf(pkg_id, cnt_json, "theory", term, week, "student")
+    pdf_b2 = get_cached_exam_pkg_pdf(pkg_id, cnt_json, "practice", term, week, "teacher")
+
+    name_b1 = get_exam_package_download_filename(pkg, booklet_type="theory", mode="student")
+    name_b2 = get_exam_package_download_filename(pkg, booklet_type="practice", mode="teacher")
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        if pdf_b1:
+            zf.writestr(name_b1, pdf_b1)
+        if pdf_b2:
+            zf.writestr(name_b2, pdf_b2)
+
+    buf.seek(0)
+    return buf.getvalue()
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOGO_TRANSPARENT = os.path.join(BASE_DIR, "da_logo_transparent.png")
 LOGO_FILE = LOGO_TRANSPARENT if os.path.exists(LOGO_TRANSPARENT) else os.path.join(BASE_DIR, "da_logo.png")
@@ -1105,45 +1328,39 @@ with tab1:
                     for lic in linked_in_class:
                         with st.expander(f"📝 In-Class Booklet #{lic['id']}: {lic['title']} ({lic['total_questions']} Questions)", expanded=False):
                             lic_qs = lic.get("questions", [])
+                            lic_title = lic["title"]
+                            lic_year = lic["year_level"]
+                            lic_topic = lic["topic"]
+                            lic_term = lic.get("term")
+                            lic_week = lic.get("week")
+                            lic_q_json = json.dumps(lic_qs)
+                            lic_mk_json = json.dumps(lic.get("marking_key") or {})
+
+                            stu_pdf = get_cached_worksheet_pdf(lic['id'], lic_title, lic_year, lic_topic, lic_q_json, lic_mk_json, lic_term, lic_week, "in_class", "student")
+                            tea_pdf = get_cached_worksheet_pdf(lic['id'], lic_title, lic_year, lic_topic, lic_q_json, lic_mk_json, lic_term, lic_week, "in_class", "teacher")
+                            sans_pdf = get_cached_worksheet_pdf(lic['id'], lic_title, lic_year, lic_topic, lic_q_json, lic_mk_json, lic_term, lic_week, "in_class", "answers")
+                            tans_pdf = get_cached_worksheet_pdf(lic['id'], lic_title, lic_year, lic_topic, lic_q_json, lic_mk_json, lic_term, lic_week, "in_class", "teacher_answers")
+
+                            name_stu = get_worksheet_download_filename(lic, sheet_type="in_class", mode="student", theory_booklet=tb)
+                            name_tea = get_worksheet_download_filename(lic, sheet_type="in_class", mode="teacher", theory_booklet=tb)
+                            name_sans = get_worksheet_download_filename(lic, sheet_type="in_class", mode="answers", theory_booklet=tb)
+                            name_tans = get_worksheet_download_filename(lic, sheet_type="in_class", mode="teacher_answers", theory_booklet=tb)
+
                             col_ic1, col_ic2, col_ic3, col_ic4 = st.columns(4)
                             with col_ic1:
-                                if st.button(f"📥 Compile Student Worksheet", key=f"btn_c_stu_ic_{lic['id']}", use_container_width=True):
-                                    ic_stu_pdf = pdf_generator.generate_worksheet_pdf(
-                                        title=lic["title"], year_level=lic["year_level"], topic=lic["topic"],
-                                        questions=lic_qs, include_solutions=False, sheet_type="In-Class",
-                                        font_theme="charter"
-                                    )
-                                    ic_stu_name = get_worksheet_download_filename(lic, sheet_type="in_class", mode="student", theory_booklet=tb)
-                                    st.download_button("Download Student PDF", data=ic_stu_pdf, file_name=ic_stu_name, mime="application/pdf", key=f"dl_c_stu_ic_{lic['id']}", use_container_width=True)
+                                st.download_button("📥 Student Worksheet", data=stu_pdf, file_name=name_stu, mime="application/pdf", key=f"dl_c_stu_ic_{lic['id']}", use_container_width=True)
                             with col_ic2:
-                                if st.button(f"📥 Compile Teacher Solutions", key=f"btn_c_tea_ic_{lic['id']}", use_container_width=True):
-                                    ic_tea_pdf = pdf_generator.generate_worksheet_pdf(
-                                        title=lic["title"], year_level=lic["year_level"], topic=lic["topic"],
-                                        questions=lic_qs, include_solutions=True, sheet_type="In-Class",
-                                        font_theme="charter"
-                                    )
-                                    ic_tea_name = get_worksheet_download_filename(lic, sheet_type="in_class", mode="teacher", theory_booklet=tb)
-                                    st.download_button("Download Solutions PDF", data=ic_tea_pdf, file_name=ic_tea_name, mime="application/pdf", key=f"dl_c_tea_ic_{lic['id']}", use_container_width=True)
+                                st.download_button("📥 Teacher Solutions", data=tea_pdf, file_name=name_tea, mime="application/pdf", key=f"dl_c_tea_ic_{lic['id']}", use_container_width=True)
                             with col_ic3:
-                                if st.button(f"📥 Compile Student Answer Sheet", key=f"btn_c_ans_ic_{lic['id']}", use_container_width=True):
-                                    ic_labels, ic_answers, _, ic_items = pdf_generator.extract_worksheet_answer_sheet_data(lic_qs, lic.get("marking_key"))
-                                    ic_ans_pdf = pdf_generator.generate_answer_sheet_pdf(
-                                        question_labels=ic_labels, answers=ic_answers,
-                                        num_questions=len(ic_labels), term=lic.get("term"), week=lic.get("week"),
-                                        is_teacher=False, items=ic_items
-                                    )
-                                    ic_ans_name = get_worksheet_download_filename(lic, sheet_type="in_class", mode="answers", theory_booklet=tb)
-                                    st.download_button("Download Student Answer Sheet", data=ic_ans_pdf, file_name=ic_ans_name, mime="application/pdf", key=f"dl_c_ans_ic_{lic['id']}", use_container_width=True)
+                                st.download_button("📥 Student Answer Sheet", data=sans_pdf, file_name=name_sans, mime="application/pdf", key=f"dl_c_ans_ic_{lic['id']}", use_container_width=True)
                             with col_ic4:
-                                if st.button(f"🔑 Compile Teacher Answer Key", key=f"btn_c_tea_ans_ic_{lic['id']}", use_container_width=True):
-                                    ic_labels, ic_answers, _, ic_items = pdf_generator.extract_worksheet_answer_sheet_data(lic_qs, lic.get("marking_key"))
-                                    ic_tea_ans_pdf = pdf_generator.generate_answer_sheet_pdf(
-                                        question_labels=ic_labels, answers=ic_answers,
-                                        num_questions=len(ic_labels), term=lic.get("term"), week=lic.get("week"),
-                                        is_teacher=True, items=ic_items
-                                    )
-                                    ic_tea_ans_name = get_worksheet_download_filename(lic, sheet_type="in_class", mode="teacher_answers", theory_booklet=tb)
-                                    st.download_button("Download Teacher Answer Key", data=ic_tea_ans_pdf, file_name=ic_tea_ans_name, mime="application/pdf", key=f"dl_c_tea_ans_ic_{lic['id']}", use_container_width=True)
+                                st.download_button("🔑 Teacher Answer Key", data=tans_pdf, file_name=name_tans, mime="application/pdf", key=f"dl_c_tea_ans_ic_{lic['id']}", use_container_width=True)
+
+                            # 1-Click ZIP bundle
+                            ic_zip_bytes = build_worksheet_zip_package(lic['id'], json.dumps(lic), json.dumps(tb) if tb else None)
+                            clean_ic_topic = re.sub(r'^(?:Chapter|Unit|Topic\s*)?(?:\d+[\.\:\-]\s*|\d+[A-Za-z][\.\:\-]\s*|\d+\s+)', '', str(lic_topic)).strip()
+                            zip_ic_filename = f"{clean_ic_topic} In-Class Complete Package.zip".replace("_", " ")
+                            st.download_button("📦 Download All as ZIP (Complete In-Class Package)", data=ic_zip_bytes, file_name=zip_ic_filename, mime="application/zip", key=f"dl_zip_ic_{lic['id']}", use_container_width=True)
 
                 st.markdown("##### 📝 Select Total In-Class Practice Questions")
                 num_ic_concepts = len(tb_concepts_list) if tb_concepts_list else 3
@@ -1261,45 +1478,40 @@ with tab1:
                         hw_cost_str = f" • 💰 ${lhw.get('cost', 0.0):.4f} AUD" if lhw.get('cost') else ""
                         with st.expander(f"🏠 Homework Booklet #{lhw['id']} ({set_label}): {lhw['title']} ({lhw['total_questions']} Questions{hw_cost_str})", expanded=False):
                             lhw_qs = lhw.get("questions", [])
+                            lhw_title = lhw["title"]
+                            lhw_year = lhw["year_level"]
+                            lhw_topic = lhw["topic"]
+                            lhw_term = lhw.get("term")
+                            lhw_week = lhw.get("week")
+                            lhw_set_num = lhw.get("set_number", 1)
+                            lhw_q_json = json.dumps(lhw_qs)
+                            lhw_mk_json = json.dumps(lhw.get("marking_key") or {})
+
+                            hw_stu_pdf = get_cached_worksheet_pdf(lhw['id'], lhw_title, lhw_year, lhw_topic, lhw_q_json, lhw_mk_json, lhw_term, lhw_week, "homework", "student", lhw_set_num)
+                            hw_tea_pdf = get_cached_worksheet_pdf(lhw['id'], lhw_title, lhw_year, lhw_topic, lhw_q_json, lhw_mk_json, lhw_term, lhw_week, "homework", "teacher", lhw_set_num)
+                            hw_sans_pdf = get_cached_worksheet_pdf(lhw['id'], lhw_title, lhw_year, lhw_topic, lhw_q_json, lhw_mk_json, lhw_term, lhw_week, "homework", "answers", lhw_set_num)
+                            hw_tans_pdf = get_cached_worksheet_pdf(lhw['id'], lhw_title, lhw_year, lhw_topic, lhw_q_json, lhw_mk_json, lhw_term, lhw_week, "homework", "teacher_answers", lhw_set_num)
+
+                            hw_stu_name = get_worksheet_download_filename(lhw, sheet_type="homework", mode="student", theory_booklet=tb)
+                            hw_tea_name = get_worksheet_download_filename(lhw, sheet_type="homework", mode="teacher", theory_booklet=tb)
+                            hw_sans_name = get_worksheet_download_filename(lhw, sheet_type="homework", mode="answers", theory_booklet=tb)
+                            hw_tea_ans_name = get_worksheet_download_filename(lhw, sheet_type="homework", mode="teacher_answers", theory_booklet=tb)
+
                             col_hw1, col_hw2, col_hw3, col_hw4 = st.columns(4)
                             with col_hw1:
-                                if st.button(f"📥 Compile Student Worksheet", key=f"btn_c_stu_hw_{lhw['id']}", use_container_width=True):
-                                    hw_stu_pdf = pdf_generator.generate_worksheet_pdf(
-                                        title=lhw["title"], year_level=lhw["year_level"], topic=lhw["topic"],
-                                        questions=lhw_qs, include_solutions=False, sheet_type="Homework",
-                                        set_number=lhw.get("set_number", 1), font_theme="charter"
-                                    )
-                                    hw_stu_name = get_worksheet_download_filename(lhw, sheet_type="homework", mode="student", theory_booklet=tb)
-                                    st.download_button("Download Student PDF", data=hw_stu_pdf, file_name=hw_stu_name, mime="application/pdf", key=f"dl_c_stu_hw_{lhw['id']}", use_container_width=True)
+                                st.download_button("📥 Student Worksheet", data=hw_stu_pdf, file_name=hw_stu_name, mime="application/pdf", key=f"dl_c_stu_hw_{lhw['id']}", use_container_width=True)
                             with col_hw2:
-                                if st.button(f"📥 Compile Teacher Solutions", key=f"btn_c_tea_hw_{lhw['id']}", use_container_width=True):
-                                    hw_tea_pdf = pdf_generator.generate_worksheet_pdf(
-                                        title=lhw["title"], year_level=lhw["year_level"], topic=lhw["topic"],
-                                        questions=lhw_qs, include_solutions=True, sheet_type="Homework",
-                                        set_number=lhw.get("set_number", 1), font_theme="charter"
-                                    )
-                                    hw_tea_name = get_worksheet_download_filename(lhw, sheet_type="homework", mode="teacher", theory_booklet=tb)
-                                    st.download_button("Download Solutions PDF", data=hw_tea_pdf, file_name=hw_tea_name, mime="application/pdf", key=f"dl_c_tea_hw_{lhw['id']}", use_container_width=True)
+                                st.download_button("📥 Teacher Solutions", data=hw_tea_pdf, file_name=hw_tea_name, mime="application/pdf", key=f"dl_c_tea_hw_{lhw['id']}", use_container_width=True)
                             with col_hw3:
-                                if st.button(f"📥 Compile Student Answer Sheet", key=f"btn_c_ans_hw_{lhw['id']}", use_container_width=True):
-                                    hw_labels, hw_answers, _, hw_items = pdf_generator.extract_worksheet_answer_sheet_data(lhw_qs, lhw.get("marking_key"))
-                                    hw_ans_pdf = pdf_generator.generate_answer_sheet_pdf(
-                                        question_labels=hw_labels, answers=hw_answers,
-                                        num_questions=len(hw_labels), term=lhw.get("term"), week=lhw.get("week"),
-                                        is_teacher=False, items=hw_items
-                                    )
-                                    hw_ans_name = get_worksheet_download_filename(lhw, sheet_type="homework", mode="answers", theory_booklet=tb)
-                                    st.download_button("Download Student Answer Sheet", data=hw_ans_pdf, file_name=hw_ans_name, mime="application/pdf", key=f"dl_c_ans_hw_{lhw['id']}", use_container_width=True)
+                                st.download_button("📥 Student Answer Sheet", data=hw_sans_pdf, file_name=hw_sans_name, mime="application/pdf", key=f"dl_c_ans_hw_{lhw['id']}", use_container_width=True)
                             with col_hw4:
-                                if st.button(f"🔑 Compile Teacher Answer Key", key=f"btn_c_tea_ans_hw_{lhw['id']}", use_container_width=True):
-                                    hw_labels, hw_answers, _, hw_items = pdf_generator.extract_worksheet_answer_sheet_data(lhw_qs, lhw.get("marking_key"))
-                                    hw_tea_ans_pdf = pdf_generator.generate_answer_sheet_pdf(
-                                        question_labels=hw_labels, answers=hw_answers,
-                                        num_questions=len(hw_labels), term=lhw.get("term"), week=lhw.get("week"),
-                                        is_teacher=True, items=hw_items
-                                    )
-                                    hw_tea_ans_name = get_worksheet_download_filename(lhw, sheet_type="homework", mode="teacher_answers", theory_booklet=tb)
-                                    st.download_button("Download Teacher Answer Key", data=hw_tea_ans_pdf, file_name=hw_tea_ans_name, mime="application/pdf", key=f"dl_c_tea_ans_hw_{lhw['id']}", use_container_width=True)
+                                st.download_button("🔑 Teacher Answer Key", data=hw_tans_pdf, file_name=hw_tea_ans_name, mime="application/pdf", key=f"dl_c_tea_ans_hw_{lhw['id']}", use_container_width=True)
+
+                            # 1-Click ZIP bundle
+                            hw_zip_bytes = build_worksheet_zip_package(lhw['id'], json.dumps(lhw), json.dumps(tb) if tb else None)
+                            clean_hw_topic = re.sub(r'^(?:Chapter|Unit|Topic\s*)?(?:\d+[\.\:\-]\s*|\d+[A-Za-z][\.\:\-]\s*|\d+\s+)', '', str(lhw_topic)).strip()
+                            zip_hw_filename = f"{clean_hw_topic} Homework {set_label} Complete Package.zip".replace("_", " ")
+                            st.download_button(f"📦 Download All as ZIP (Complete Homework {set_label} Package)", data=hw_zip_bytes, file_name=zip_hw_filename, mime="application/zip", key=f"dl_zip_hw_{lhw['id']}", use_container_width=True)
 
                 col_hw_opt1, col_hw_opt2 = st.columns([1, 2])
                 with col_hw_opt1:
@@ -1425,24 +1637,30 @@ with tab1:
                 if matching_revs:
                     st.success(f"📋 **{len(matching_revs)} Topic Review Booklet(s)** found for this topic.")
                     for mrb in matching_revs:
-                        rb_cnt = mrb.get("content", mrb)
-                        rb_c_str = f" • 💰 ${rb_cnt.get('meta_cost', 0.0):.4f} AUD" if rb_cnt.get('meta_cost') else ""
-                        with st.expander(f"🔁 Review Booklet #{mrb['id']}: {mrb.get('title', 'Topic Review')}{rb_c_str}", expanded=False):
-                            col_rb1, col_rb2 = st.columns(2)
-                            with col_rb1:
-                                if st.button("📥 Compile Student Review Booklet (PDF)", key=f"btn_c_stu_rb_{mrb['id']}", use_container_width=True):
-                                    rb_s_pdf = pdf_generator.generate_review_booklet_pdf(
-                                        booklet_data=mrb.get("content", mrb), mode="student",
-                                        term=mrb.get("term"), week=mrb.get("week"), font_theme="charter"
-                                    )
-                                    st.download_button("Download Student PDF", data=rb_s_pdf, file_name=f"DA_Review_Student_{mrb['id']}.pdf", mime="application/pdf", key=f"dl_c_stu_rb_{mrb['id']}", use_container_width=True)
-                            with col_rb2:
-                                if st.button("📥 Compile Teacher Solutions (PDF)", key=f"btn_c_tea_rb_{mrb['id']}", use_container_width=True):
-                                    rb_t_pdf = pdf_generator.generate_review_booklet_pdf(
-                                        booklet_data=mrb.get("content", mrb), mode="teacher",
-                                        term=mrb.get("term"), week=mrb.get("week"), font_theme="charter"
-                                    )
-                                    st.download_button("Download Teacher Solutions PDF", data=rb_t_pdf, file_name=f"DA_Review_Teacher_{mrb['id']}.pdf", mime="application/pdf", key=f"dl_c_tea_rb_{mrb['id']}", use_container_width=True)
+                            rb_cnt = mrb.get("content", mrb)
+                            rb_c_str = f" • 💰 ${rb_cnt.get('meta_cost', 0.0):.4f} AUD" if rb_cnt.get('meta_cost') else ""
+                            with st.expander(f"🔁 Review Booklet #{mrb['id']}: {mrb.get('title', 'Topic Review')}{rb_c_str}", expanded=False):
+                                rb_cnt_json = json.dumps(rb_cnt)
+                                rb_term = mrb.get("term")
+                                rb_week = mrb.get("week")
+
+                                rb_s_pdf = get_cached_review_pdf(mrb['id'], rb_cnt_json, rb_term, rb_week, "student")
+                                rb_t_pdf = get_cached_review_pdf(mrb['id'], rb_cnt_json, rb_term, rb_week, "teacher")
+
+                                rb_stu_name = get_review_booklet_download_filename(mrb, mode="student")
+                                rb_tea_name = get_review_booklet_download_filename(mrb, mode="teacher")
+
+                                col_rb1, col_rb2 = st.columns(2)
+                                with col_rb1:
+                                    st.download_button("📥 Student Review Booklet (PDF)", data=rb_s_pdf, file_name=rb_stu_name, mime="application/pdf", key=f"dl_c_stu_rb_{mrb['id']}", use_container_width=True)
+                                with col_rb2:
+                                    st.download_button("📥 Teacher Solutions (PDF)", data=rb_t_pdf, file_name=rb_tea_name, mime="application/pdf", key=f"dl_c_tea_rb_{mrb['id']}", use_container_width=True)
+
+                                # 1-Click ZIP bundle
+                                rb_zip_bytes = build_review_zip_package(mrb['id'], json.dumps(mrb))
+                                clean_rb_topic = re.sub(r'^(?:Chapter|Unit|Topic\s*)?(?:\d+[\.\:\-]\s*|\d+[A-Za-z][\.\:\-]\s*|\d+\s+)', '', str(mrb.get('topic') or tb.get('topic') or 'Topic Review')).strip()
+                                zip_rb_filename = f"{clean_rb_topic} Review Complete Package.zip".replace("_", " ")
+                                st.download_button("📦 Download All as ZIP (Complete Review Package)", data=rb_zip_bytes, file_name=zip_rb_filename, mime="application/zip", key=f"dl_zip_rb_{mrb['id']}", use_container_width=True)
 
                 col_rq1, col_rq2 = st.columns([1, 2])
                 with col_rq1:
@@ -1501,25 +1719,31 @@ with tab1:
                         le_cost_str = f" • 💰 ${le.get('cost', 0.0):.4f} AUD" if le.get('cost') else ""
                         with st.expander(f"📑 Exam #{le['id']}: {le['title']} ({le['total_questions']} Questions{le_cost_str})", expanded=False):
                             le_qs = le.get("questions", [])
+                            le_title = le["title"]
+                            le_year = le["year_level"]
+                            le_topic = le["topic"]
+                            le_term = le.get("term")
+                            le_week = le.get("week")
+                            le_q_json = json.dumps(le_qs)
+                            le_mk_json = json.dumps(le.get("marking_key") or {})
+
+                            exam_pdf = get_cached_worksheet_pdf(le['id'], le_title, le_year, le_topic, le_q_json, le_mk_json, le_term, le_week, "topic_exam", "student")
+                            sol_pdf = get_cached_worksheet_pdf(le['id'], le_title, le_year, le_topic, le_q_json, le_mk_json, le_term, le_week, "topic_exam", "teacher")
+
+                            stu_dl_name = get_topic_exam_download_filename(le, mode="student", theory_booklet=tb)
+                            tea_dl_name = get_topic_exam_download_filename(le, mode="teacher", theory_booklet=tb)
+
                             col_le1, col_le2 = st.columns(2)
                             with col_le1:
-                                if st.button(f"📥 Compile Student Exam Paper (PDF)", key=f"btn_c_stu_{le['id']}", use_container_width=True):
-                                    exam_pdf = pdf_generator.generate_worksheet_pdf(
-                                        title=le["title"], year_level=le["year_level"], topic=le["topic"],
-                                        questions=le_qs, include_solutions=False, sheet_type="Topic Mastery Exam",
-                                        font_theme="charter"
-                                    )
-                                    stu_dl_name = get_topic_exam_download_filename(le, mode="student", theory_booklet=tb)
-                                    st.download_button("Download Student Exam PDF", data=exam_pdf, file_name=stu_dl_name, mime="application/pdf", key=f"dl_c_stu_{le['id']}", use_container_width=True)
+                                st.download_button("📥 Student Exam Paper (PDF)", data=exam_pdf, file_name=stu_dl_name, mime="application/pdf", key=f"dl_c_stu_{le['id']}", use_container_width=True)
                             with col_le2:
-                                if st.button(f"📥 Compile Teacher Solutions (PDF)", key=f"btn_c_tea_{le['id']}", use_container_width=True):
-                                    sol_pdf = pdf_generator.generate_worksheet_pdf(
-                                        title=le["title"], year_level=le["year_level"], topic=le["topic"],
-                                        questions=le_qs, include_solutions=True, sheet_type="Topic Mastery Exam",
-                                        font_theme="charter"
-                                    )
-                                    tea_dl_name = get_topic_exam_download_filename(le, mode="teacher", theory_booklet=tb)
-                                    st.download_button("Download Teacher Solutions PDF", data=sol_pdf, file_name=tea_dl_name, mime="application/pdf", key=f"dl_c_tea_{le['id']}", use_container_width=True)
+                                st.download_button("📥 Teacher Solutions (PDF)", data=sol_pdf, file_name=tea_dl_name, mime="application/pdf", key=f"dl_c_tea_{le['id']}", use_container_width=True)
+
+                            # 1-Click ZIP bundle
+                            exam_zip_bytes = build_exam_zip_package(le['id'], json.dumps(le), json.dumps(tb) if tb else None)
+                            clean_exam_topic = re.sub(r'^(?:Chapter|Unit|Topic\s*)?(?:\d+[\.\:\-]\s*|\d+[A-Za-z][\.\:\-]\s*|\d+\s+)', '', str(le_topic)).strip()
+                            zip_exam_filename = f"{clean_exam_topic} Mastery Exam Complete Package.zip".replace("_", " ")
+                            st.download_button("📦 Download All as ZIP (Complete Exam Package)", data=exam_zip_bytes, file_name=zip_exam_filename, mime="application/zip", key=f"dl_zip_exam_{le['id']}", use_container_width=True)
 
                 col_ex_g1, col_ex_g2 = st.columns([2.5, 1])
                 with col_ex_g1:
@@ -1618,19 +1842,27 @@ with tab1:
                         mp_content = mp.get("content", mp)
                         mp_cost_str = f" • 💰 ${mp_content.get('meta_cost', 0.0):.4f} AUD" if mp_content.get('meta_cost') else ""
                         with st.expander(f"📦 Exam Package #{mp['id']}: {mp.get('title', 'Exam Package')}{mp_cost_str}", expanded=False):
+                            mp_cnt_json = json.dumps(mp_content)
+                            mp_term = mp.get("term")
+                            mp_week = mp.get("week")
+
+                            b1_pdf = get_cached_exam_pkg_pdf(mp['id'], mp_cnt_json, "theory", mp_term, mp_week, "student")
+                            b2_pdf = get_cached_exam_pkg_pdf(mp['id'], mp_cnt_json, "practice", mp_term, mp_week, "teacher")
+
+                            b1_name = get_exam_package_download_filename(mp, booklet_type="theory", mode="student")
+                            b2_name = get_exam_package_download_filename(mp, booklet_type="practice", mode="teacher")
+
                             col_p1, col_p2 = st.columns(2)
                             with col_p1:
-                                if st.button("📥 Compile Booklet 1 (Theory & Worked Past Papers)", key=f"btn_c_b1_{mp['id']}", use_container_width=True):
-                                    b1_pdf = pdf_generator.generate_exam_package_theory_pdf(
-                                        package_data=mp_content, term=mp.get("term"), week=mp.get("week"), font_theme="charter"
-                                    )
-                                    st.download_button("Download Booklet 1 PDF", data=b1_pdf, file_name=f"DA_ExamPack_Booklet1_{mp['id']}.pdf", mime="application/pdf", key=f"dl_c_b1_{mp['id']}", use_container_width=True)
+                                st.download_button("📥 Booklet 1 (Theory & Worked Past Papers)", data=b1_pdf, file_name=b1_name, mime="application/pdf", key=f"dl_c_b1_{mp['id']}", use_container_width=True)
                             with col_p2:
-                                if st.button("📥 Compile Booklet 2 (Practice Exam & Solutions)", key=f"btn_c_b2_{mp['id']}", use_container_width=True):
-                                    b2_pdf = pdf_generator.generate_exam_package_practice_pdf(
-                                        package_data=mp_content, mode="teacher", term=mp.get("term"), week=mp.get("week"), font_theme="charter"
-                                    )
-                                    st.download_button("Download Booklet 2 PDF", data=b2_pdf, file_name=f"DA_ExamPack_Booklet2_{mp['id']}.pdf", mime="application/pdf", key=f"dl_c_b2_{mp['id']}", use_container_width=True)
+                                st.download_button("📥 Booklet 2 (Practice Exam & Solutions)", data=b2_pdf, file_name=b2_name, mime="application/pdf", key=f"dl_c_b2_{mp['id']}", use_container_width=True)
+
+                            # 1-Click ZIP bundle
+                            pkg_zip_bytes = build_exam_pkg_zip_package(mp['id'], json.dumps(mp))
+                            clean_pkg_topic = re.sub(r'^(?:Chapter|Unit|Topic\s*)?(?:\d+[\.\:\-]\s*|\d+[A-Za-z][\.\:\-]\s*|\d+\s+)', '', str(mp.get('topic') or tb.get('topic') or 'Exam Package')).strip()
+                            zip_pkg_filename = f"{clean_pkg_topic} Exam Package Complete Suite.zip".replace("_", " ")
+                            st.download_button("📦 Download All as ZIP (Complete Exam Package Suite)", data=pkg_zip_bytes, file_name=zip_pkg_filename, mime="application/zip", key=f"dl_zip_pkg_{mp['id']}", use_container_width=True)
 
                 st.caption(f"Compiles an authentic examination package covering all concepts of **{tb.get('topic')}** with senior HSC marker feedback & past paper style questions.")
 
