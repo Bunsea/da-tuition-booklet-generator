@@ -1356,11 +1356,18 @@ with tab1:
                             with col_ic4:
                                 st.download_button("🔑 Teacher Answer Key", data=tans_pdf, file_name=name_tans, mime="application/pdf", key=f"dl_c_tea_ans_ic_{lic['id']}", use_container_width=True)
 
-                            # 1-Click ZIP bundle
-                            ic_zip_bytes = build_worksheet_zip_package(lic['id'], json.dumps(lic), json.dumps(tb) if tb else None)
-                            clean_ic_topic = re.sub(r'^(?:Chapter|Unit|Topic\s*)?(?:\d+[\.\:\-]\s*|\d+[A-Za-z][\.\:\-]\s*|\d+\s+)', '', str(lic_topic)).strip()
-                            zip_ic_filename = f"{clean_ic_topic} In-Class Complete Package.zip".replace("_", " ")
-                            st.download_button("📦 Download All as ZIP (Complete In-Class Package)", data=ic_zip_bytes, file_name=zip_ic_filename, mime="application/zip", key=f"dl_zip_ic_{lic['id']}", use_container_width=True)
+                            # 1-Click ZIP bundle & 1-Click Marking Navigation
+                            col_ic_z, col_ic_m = st.columns([1.5, 1])
+                            with col_ic_z:
+                                ic_zip_bytes = build_worksheet_zip_package(lic['id'], json.dumps(lic), json.dumps(tb) if tb else None)
+                                clean_ic_topic = re.sub(r'^(?:Chapter|Unit|Topic\s*)?(?:\d+[\.\:\-]\s*|\d+[A-Za-z][\.\:\-]\s*|\d+\s+)', '', str(lic_topic)).strip()
+                                zip_ic_filename = f"{clean_ic_topic} In-Class Complete Package.zip".replace("_", " ")
+                                st.download_button("📦 Download All as ZIP (Complete In-Class Package)", data=ic_zip_bytes, file_name=zip_ic_filename, mime="application/zip", key=f"dl_zip_ic_{lic['id']}", use_container_width=True)
+                            with col_ic_m:
+                                if st.button(f"⚡ Mark Submissions for In-Class #{lic['id']}", key=f"btn_mark_sub_ic_{lic['id']}", use_container_width=True):
+                                    st.session_state["preselected_marking_ws_id"] = lic['id']
+                                    st.session_state["active_tab_hint"] = "marking"
+                                    st.info(f"✅ Selected In-Class Booklet #{lic['id']}! Head to **Tab 2 (1-Click AI Homework Marking)** to grade student scans.")
 
                 st.markdown("##### 📝 Select Total In-Class Practice Questions")
                 num_ic_concepts = len(tb_concepts_list) if tb_concepts_list else 3
@@ -1507,11 +1514,18 @@ with tab1:
                             with col_hw4:
                                 st.download_button("🔑 Teacher Answer Key", data=hw_tans_pdf, file_name=hw_tea_ans_name, mime="application/pdf", key=f"dl_c_tea_ans_hw_{lhw['id']}", use_container_width=True)
 
-                            # 1-Click ZIP bundle
-                            hw_zip_bytes = build_worksheet_zip_package(lhw['id'], json.dumps(lhw), json.dumps(tb) if tb else None)
-                            clean_hw_topic = re.sub(r'^(?:Chapter|Unit|Topic\s*)?(?:\d+[\.\:\-]\s*|\d+[A-Za-z][\.\:\-]\s*|\d+\s+)', '', str(lhw_topic)).strip()
-                            zip_hw_filename = f"{clean_hw_topic} Homework {set_label} Complete Package.zip".replace("_", " ")
-                            st.download_button(f"📦 Download All as ZIP (Complete Homework {set_label} Package)", data=hw_zip_bytes, file_name=zip_hw_filename, mime="application/zip", key=f"dl_zip_hw_{lhw['id']}", use_container_width=True)
+                            # 1-Click ZIP bundle & 1-Click Marking Navigation
+                            col_hw_z, col_hw_m = st.columns([1.5, 1])
+                            with col_hw_z:
+                                hw_zip_bytes = build_worksheet_zip_package(lhw['id'], json.dumps(lhw), json.dumps(tb) if tb else None)
+                                clean_hw_topic = re.sub(r'^(?:Chapter|Unit|Topic\s*)?(?:\d+[\.\:\-]\s*|\d+[A-Za-z][\.\:\-]\s*|\d+\s+)', '', str(lhw_topic)).strip()
+                                zip_hw_filename = f"{clean_hw_topic} Homework {set_label} Complete Package.zip".replace("_", " ")
+                                st.download_button(f"📦 Download All as ZIP (Complete Homework {set_label} Package)", data=hw_zip_bytes, file_name=zip_hw_filename, mime="application/zip", key=f"dl_zip_hw_{lhw['id']}", use_container_width=True)
+                            with col_hw_m:
+                                if st.button(f"⚡ Mark Submissions for Homework #{lhw['id']}", key=f"btn_mark_sub_hw_{lhw['id']}", use_container_width=True):
+                                    st.session_state["preselected_marking_ws_id"] = lhw['id']
+                                    st.session_state["active_tab_hint"] = "marking"
+                                    st.info(f"✅ Selected Homework #{lhw['id']} ({set_label})! Head to **Tab 2 (1-Click AI Homework Marking)** to grade student scans.")
 
                 col_hw_opt1, col_hw_opt2 = st.columns([1, 2])
                 with col_hw_opt1:
@@ -1739,11 +1753,18 @@ with tab1:
                             with col_le2:
                                 st.download_button("📥 Teacher Solutions (PDF)", data=sol_pdf, file_name=tea_dl_name, mime="application/pdf", key=f"dl_c_tea_{le['id']}", use_container_width=True)
 
-                            # 1-Click ZIP bundle
-                            exam_zip_bytes = build_exam_zip_package(le['id'], json.dumps(le), json.dumps(tb) if tb else None)
-                            clean_exam_topic = re.sub(r'^(?:Chapter|Unit|Topic\s*)?(?:\d+[\.\:\-]\s*|\d+[A-Za-z][\.\:\-]\s*|\d+\s+)', '', str(le_topic)).strip()
-                            zip_exam_filename = f"{clean_exam_topic} Mastery Exam Complete Package.zip".replace("_", " ")
-                            st.download_button("📦 Download All as ZIP (Complete Exam Package)", data=exam_zip_bytes, file_name=zip_exam_filename, mime="application/zip", key=f"dl_zip_exam_{le['id']}", use_container_width=True)
+                            # 1-Click ZIP bundle & 1-Click Marking Navigation
+                            col_ex_z, col_ex_m = st.columns([1.5, 1])
+                            with col_ex_z:
+                                exam_zip_bytes = build_exam_zip_package(le['id'], json.dumps(le), json.dumps(tb) if tb else None)
+                                clean_exam_topic = re.sub(r'^(?:Chapter|Unit|Topic\s*)?(?:\d+[\.\:\-]\s*|\d+[A-Za-z][\.\:\-]\s*|\d+\s+)', '', str(le_topic)).strip()
+                                zip_exam_filename = f"{clean_exam_topic} Mastery Exam Complete Package.zip".replace("_", " ")
+                                st.download_button("📦 Download All as ZIP (Complete Exam Package)", data=exam_zip_bytes, file_name=zip_exam_filename, mime="application/zip", key=f"dl_zip_exam_{le['id']}", use_container_width=True)
+                            with col_ex_m:
+                                if st.button(f"⚡ Mark Submissions for Exam #{le['id']}", key=f"btn_mark_sub_exam_{le['id']}", use_container_width=True):
+                                    st.session_state["preselected_marking_ws_id"] = le['id']
+                                    st.session_state["active_tab_hint"] = "marking"
+                                    st.info(f"✅ Selected Mastery Exam #{le['id']}! Head to **Tab 2 (1-Click AI Homework Marking)** to grade student scans.")
 
                 col_ex_g1, col_ex_g2 = st.columns([2.5, 1])
                 with col_ex_g1:
@@ -2359,27 +2380,35 @@ with tab1:
                     use_container_width=True
                 )
 
-            if cloud_sync.is_cloud_connected():
-                if st.button("☁️ Save Worksheet to DA Cloud Library", key=f"btn_cloud_save_ws_{ws.get('id', 0)}", use_container_width=True):
-                    with st.spinner("Saving to DA Cloud Library (Supabase)..."):
-                        ok, msg = cloud_sync.save_exam_to_cloud(
-                            subject=f"{ws.get('year_level', '')} Maths",
-                            year_level=ws.get('year_level', ''),
-                            topic=ws_item_topic,
-                            teacher_name=current_user.get("display_name", "DA Tutor"),
-                            pdf_bytes=worksheet_pdf_bytes,
-                            docx_bytes=worksheet_docx_bytes,
-                            difficulty=ws.get("difficulty", "Medium"),
-                            num_questions=len(ws.get("questions", [])),
-                            set_number=ws_set_val,
-                            extra_instructions=ws.get("custom_instructions") or custom_notes or "",
-                            cost=ws.get("meta_cost", 0.0),
-                            model=ws.get("model_used", "gemini-3.8-flash")
-                        )
-                        if ok:
-                            st.success(msg)
-                        else:
-                            st.error(msg)
+            col_ws_mark, col_ws_save = st.columns([1, 1])
+            with col_ws_mark:
+                if st.button("⚡ Mark Student Submissions in Tab 2", key=f"btn_mark_now_ws_{ws.get('id', 0)}", type="primary", use_container_width=True):
+                    st.session_state["preselected_marking_ws_id"] = ws.get("id")
+                    st.session_state["active_tab_hint"] = "marking"
+                    st.info(f"✅ Pre-selected **{ws.get('title', 'Worksheet')}**! Please click **Tab 2 (1-Click AI Homework Marking)** above to grade student submissions.")
+
+            with col_ws_save:
+                if cloud_sync.is_cloud_connected():
+                    if st.button("☁️ Save Worksheet to DA Cloud Library", key=f"btn_cloud_save_ws_{ws.get('id', 0)}", use_container_width=True):
+                        with st.spinner("Saving to DA Cloud Library (Supabase)..."):
+                            ok, msg = cloud_sync.save_exam_to_cloud(
+                                subject=f"{ws.get('year_level', '')} Maths",
+                                year_level=ws.get('year_level', ''),
+                                topic=ws_item_topic,
+                                teacher_name=current_user.get("display_name", "DA Tutor"),
+                                pdf_bytes=worksheet_pdf_bytes,
+                                docx_bytes=worksheet_docx_bytes,
+                                difficulty=ws.get("difficulty", "Medium"),
+                                num_questions=len(ws.get("questions", [])),
+                                set_number=ws_set_val,
+                                extra_instructions=ws.get("custom_instructions") or custom_notes or "",
+                                cost=ws.get("meta_cost", 0.0),
+                                model=ws.get("model_used", "gemini-3.8-flash")
+                            )
+                            if ok:
+                                st.success(msg)
+                            else:
+                                st.error(msg)
 
             st.markdown("---")
             st.markdown("#### 👁️ PDF Preview")
@@ -3508,54 +3537,142 @@ with tab2:
             week_val = latest_sess_ws.get("week", 1) or 1
             st.success(f"Loaded {len(active_key)} question parts from active session worksheet: **{worksheet_title}** (Total Marks: {int(active_total_marks)})")
         else:
-            ws_options = {}
-            for w in worksheets_list:
-                atype = w.get("assessment_type", "homework")
-                if atype == "theory_practice":
-                    tag = "📖 [THEORY PRACTICE] "
-                elif atype == "topic_exam":
-                    tag = "🎯 [TOPIC EXAM] "
-                elif atype == "in_class":
-                    tag = "📝 [IN-CLASS] "
-                else:
-                    tag = "🏠 [HOMEWORK] "
-                
-                t_val = w.get("term")
-                w_val = w.get("week")
-                tw_str = f"Term {t_val} Wk {w_val}" if t_val and w_val else "General Resource"
-                ws_options[f"#{w['id']} - {tag}{tw_str}: {w['title']} ({w.get('total_questions', 0)} Qs)"] = w['id']
+            # 1. Determine Class Year Level for smart auto-filtering
+            class_year_tag = None
+            if selected_class_label and selected_class_id:
+                m_yr = re.search(r'\b(?:Yr|Year)\s*(\d{1,2})\b', selected_class_label, re.IGNORECASE)
+                if m_yr:
+                    class_year_tag = f"Year {m_yr.group(1)}"
 
-            ws_keys = list(ws_options.keys())
-            preselected_ws_id = st.session_state.get("preselected_marking_ws_id")
-            default_idx = 0
-            if preselected_ws_id:
-                for idx, k in enumerate(ws_keys):
-                    if ws_options[k] == preselected_ws_id:
-                        default_idx = idx
+            # 2. Extract available years, types, terms across existing worksheets
+            all_years = sorted(list({w.get("year_level") for w in worksheets_list if w.get("year_level")}))
+            year_filter_options = ["All Years"] + all_years
+            default_year_idx = 0
+            if class_year_tag:
+                for y_idx, y_opt in enumerate(year_filter_options):
+                    if class_year_tag.lower() in y_opt.lower():
+                        default_year_idx = y_idx
                         break
 
-            selected_label = st.selectbox("Select Assignment:", ws_keys, index=default_idx)
-            selected_ws_id = ws_options[selected_label]
-            full_ws = database.get_worksheet_by_id(selected_ws_id)
-            if full_ws:
-                _, _, active_key, _ = pdf_generator.extract_worksheet_answer_sheet_data(
-                    full_ws.get("questions", []), full_ws.get("marking_key")
+            # 3. Filter Bar (Year Level, Type, Search)
+            f_col1, f_col2, f_col3 = st.columns([1.2, 1.2, 1.6])
+            with f_col1:
+                sel_year_filter = st.selectbox(
+                    "🎓 Filter Year Level",
+                    year_filter_options,
+                    index=default_year_idx,
+                    key="tab2_filter_year"
                 )
-                calculated_marks = sum(int(q.get('marks', 1)) for q in full_ws.get("questions", []))
-                active_total_marks = float(calculated_marks or len(active_key) or full_ws.get("total_questions", 10))
-                active_ws_id = full_ws["id"]
-                worksheet_title = full_ws["title"]
-                term_val = full_ws["term"]
-                week_val = full_ws["week"]
-                
-                src_tb_id = full_ws.get("source_theory_id")
-                tb_badge = ""
-                if src_tb_id:
-                    src_tb = database.get_theory_booklet_by_id(src_tb_id)
-                    if src_tb:
-                        tb_badge = f" • Linked to Theory Booklet: **#{src_tb_id} ({src_tb.get('title')})**"
-                
-                st.success(f"Loaded {len(active_key)} question parts from **{worksheet_title}** (Total Marks: {int(active_total_marks)}){tb_badge}")
+            with f_col2:
+                sel_type_filter = st.selectbox(
+                    "📂 Filter Booklet Type",
+                    ["All Types", "🏠 Homework", "📝 In-Class", "🎯 Topic Exam", "📖 Theory Practice"],
+                    index=0,
+                    key="tab2_filter_type"
+                )
+            with f_col3:
+                sel_search = st.text_input(
+                    "🔍 Search Topic / Keyword",
+                    placeholder="e.g. Permutations, Quadratics...",
+                    key="tab2_filter_search"
+                )
+
+            # 4. Filter Worksheets
+            filtered_ws = []
+            for w in worksheets_list:
+                # Year filter
+                if sel_year_filter != "All Years":
+                    w_yr = str(w.get("year_level", "")).lower()
+                    if sel_year_filter.lower() not in w_yr:
+                        continue
+
+                # Type filter
+                atype = w.get("assessment_type", "homework")
+                if sel_type_filter == "🏠 Homework" and atype != "homework":
+                    continue
+                if sel_type_filter == "📝 In-Class" and atype != "in_class":
+                    continue
+                if sel_type_filter == "🎯 Topic Exam" and atype != "topic_exam":
+                    continue
+                if sel_type_filter == "📖 Theory Practice" and atype != "theory_practice":
+                    continue
+
+                # Search query filter
+                if sel_search.strip():
+                    q_term = sel_search.strip().lower()
+                    combined_searchable = f"{w.get('title', '')} {w.get('topic', '')} {w.get('year_level', '')}".lower()
+                    if q_term not in combined_searchable:
+                        continue
+
+                filtered_ws.append(w)
+
+            if not filtered_ws:
+                st.warning("🔍 No assignments matched your active filters. Try selecting 'All Years' or clearing your search query.")
+            else:
+                ws_options = {}
+                for w in filtered_ws:
+                    atype = w.get("assessment_type", "homework")
+                    if atype == "theory_practice":
+                        type_badge = "📖 Theory"
+                    elif atype == "topic_exam":
+                        type_badge = "🎯 Exam"
+                    elif atype == "in_class":
+                        type_badge = "📝 In-Class"
+                    else:
+                        s_num = w.get("set_number", 1)
+                        type_badge = f"🏠 Homework Set {s_num}"
+
+                    t_val = w.get("term")
+                    w_val = w.get("week")
+                    time_badge = f"[T{t_val}W{w_val}]" if (t_val and w_val) else "[General]"
+                    
+                    # Clean Topic Name (strips duplicate curriculum prefixes)
+                    raw_topic = w.get("topic") or w.get("title") or "Mathematics"
+                    clean_top = re.sub(r'^(?:Chapter|Unit|Topic\s*)?(?:\d+[\.\:\-]\s*|\d+[A-Za-z][\.\:\-]\s*|\d+\s+)', '', str(raw_topic)).strip()
+                    clean_top = re.sub(r'^(?:Year\s+\d+\s*(?:\([^\)]+\))?\s*(?:Mathematics)?\s*[\-\–\—\:]\s*)', '', clean_top, flags=re.IGNORECASE).strip()
+                    clean_top = re.sub(r'\s*(?:Homework|In-Class|Worksheet|Mastery Exam|Theory & Practice Booklet|Theory Booklet)[\s\S]*$', '', clean_top, flags=re.IGNORECASE).strip()
+                    if not clean_top:
+                        clean_top = w.get("title", "Worksheet")
+
+                    w_yr_short = str(w.get("year_level", "")).replace("Mathematics", "Maths").strip()
+                    clean_label = f"{time_badge} {type_badge} • {w_yr_short} — {clean_top} ({w.get('total_questions', 0)} Qs) [ID #{w['id']}]"
+                    ws_options[clean_label] = w['id']
+
+                ws_keys = list(ws_options.keys())
+                preselected_ws_id = st.session_state.get("preselected_marking_ws_id")
+                default_idx = 0
+                if preselected_ws_id:
+                    for idx, k in enumerate(ws_keys):
+                        if ws_options[k] == preselected_ws_id:
+                            default_idx = idx
+                            break
+
+                selected_label = st.selectbox(
+                    f"Select Assignment ({len(filtered_ws)} available):",
+                    ws_keys,
+                    index=default_idx
+                )
+                selected_ws_id = ws_options[selected_label]
+                full_ws = database.get_worksheet_by_id(selected_ws_id)
+                if full_ws:
+                    _, _, active_key, _ = pdf_generator.extract_worksheet_answer_sheet_data(
+                        full_ws.get("questions", []), full_ws.get("marking_key")
+                    )
+                    calculated_marks = sum(int(q.get('marks', 1)) for q in full_ws.get("questions", []))
+                    active_total_marks = float(calculated_marks or len(active_key) or full_ws.get("total_questions", 10))
+                    active_ws_id = full_ws["id"]
+                    worksheet_title = full_ws["title"]
+                    term_val = full_ws["term"]
+                    week_val = full_ws["week"]
+                    
+                    src_tb_id = full_ws.get("source_theory_id")
+                    tb_badge = ""
+                    if src_tb_id:
+                        src_tb = database.get_theory_booklet_by_id(src_tb_id)
+                        if src_tb:
+                            tb_badge = f" • Linked to Theory Booklet: **#{src_tb_id} ({src_tb.get('title')})**"
+                    
+                    st.success(f"Loaded {len(active_key)} question parts from **{worksheet_title}** (Total Marks: {int(active_total_marks)}){tb_badge}")
     else:
         c1, c2, c3 = st.columns(3)
         with c1:
