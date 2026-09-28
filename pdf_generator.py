@@ -5805,18 +5805,35 @@ def generate_answer_sheet_pdf(
     num_questions: int = 40,
     term: Optional[int] = None,
     week: Optional[int] = None,
-    is_teacher: bool = False
+    is_teacher: bool = False,
+    items: Optional[List[Dict[str, Any]]] = None
 ) -> bytes:
     """
     Generates official DA Tuition Answer Sheet (Student Blank or Teacher Key).
-    If Answer Sheet Template.pdf exists, overlays question labels (and answers for teacher edition)
-    directly onto the template's authentic gold crest grid using LaTeX vector math rendering.
-    Falls back to dynamic ReportLab generation if template is absent.
+    If questions contain items requiring diagrams/sketches or mathematical proofs/reasoning,
+    it dynamically generates an adaptive layout providing dedicated sketch canvases (100pt)
+    and ruled reasoning boxes (60pt) alongside compact items.
+    Otherwise, if all items are compact and Answer Sheet Template.pdf exists,
+    it overlays question labels directly onto the template's gold crest grid.
     """
     if question_labels and len(question_labels) > 0:
         labels = [str(l).strip() for l in question_labels]
     else:
         labels = [str(i) for i in range(1, num_questions + 1)]
+
+    # Check whether any item requires dedicated drawing or reasoning space
+    has_adaptive_content = False
+    if items:
+        has_adaptive_content = any(it.get("type") in ["diagram", "reasoning"] for it in items)
+
+    # If adaptive layout is needed, build using dynamic ReportLab engine
+    if has_adaptive_content and items:
+        return _build_adaptive_answer_sheet_pdf(
+            items=items,
+            term=term,
+            week=week,
+            is_teacher=is_teacher
+        )
 
     total_qs = len(labels)
     total_pages = 2 if total_qs > 54 else 1
@@ -5959,7 +5976,7 @@ def generate_answer_sheet_pdf(
         except Exception:
             pass
 
-    # ReportLab dynamic fallback
+    # ReportLab dynamic standard grid fallback
     buffer = BytesIO()
     doc = SimpleDocTemplate(
         buffer,
@@ -6055,11 +6072,224 @@ def generate_answer_sheet_pdf(
     doc.build(story)
     return buffer.getvalue()
 
+
+def _build_adaptive_answer_sheet_pdf(
+    items: List[Dict[str, Any]],
+    term: Optional[int] = None,
+    week: Optional[int] = None,
+    is_teacher: bool = False
+) -> bytes:
+    """
+    Renders an adaptive DA Tuition Answer Sheet with tailored workspaces:
+    - Compact items: rendered in efficient 3-column rows
+    - Reasoning items: rendered in dedicated wide boxes with ruled working rows
+    - Diagram items: rendered in generous boxed sketch canvases (height 100pt)
+    """
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=24,
+        leftMargin=24,
+        topMargin=24,
+        bottomMargin=24
+    )
+
+    styles = getSampleStyleSheet()
+    ans_style = ParagraphStyle(
+        'AdaptiveAnsStyle',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=8.5,
+        leading=10.5,
+        alignment=1, # Center
+        textColor=colors.HexColor("#0F2240")
+    )
+    teacher_exp_style = ParagraphStyle(
+        'TeacherExpStyle',
+        parent=styles['Normal'],
+        fontName='Helvetica-Oblique',
+        fontSize=8.5,
+        leading=11.0,
+        textColor=colors.HexColor("#0F2240")
+    )
+    prompt_style = ParagraphStyle(
+        'PromptStyle',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=8.0,
+        leading=10.0,
+        textColor=colors.HexColor("#555555")
+    )
+
+    badge = " [TEACHER ANSWER KEY]" if is_teacher else ""
+    tw_sub = f"Term: <b>{term}</b> &nbsp; Week: <b>{week}</b>" if (term and week) else "Term: ____ &nbsp; Week: ____"
+    logo_element = get_proportional_logo(target_height=42.0, max_width=70.0)
+
+    # Group items into adaptive chunks and partition across pages
+    # Available page height = ~794pt - margins(48pt) - header(55pt) = ~690pt
+    MAX_PAGE_HEIGHT = 680.0
+    pages_blocks: List[List[Any]] = [[]]
+    cur_page_h = 0.0
+
+    idx = 0
+    while idx < len(items):
+        item = items[idx]
+        itype = item.get("type", "compact")
+
+        if itype == "compact":
+            # Collect consecutive compact items up to 9 items (3 rows of 3 cols)
+            compact_group = []
+            while idx < len(items) and items[idx].get("type") == "compact" and len(compact_group) < 9:
+                compact_group.append(items[idx])
+                idx += 1
+
+            rows_count = (len(compact_group) + 2) // 3
+            block_h = 18.0 + rows_count * 28.0 + 8.0
+
+            if cur_page_h + block_h > MAX_PAGE_HEIGHT and pages_blocks[-1]:
+                pages_blocks.append([])
+                cur_page_h = 0.0
+
+            # Build compact sub-table
+            grid_data = [["Qn", "Answer", "Qn", "Answer", "Qn", "Answer"]]
+            padded = compact_group + [{"label": "", "answer": ""}] * (rows_count * 3 - len(compact_group))
+            for r in range(rows_count):
+                row = []
+                for c in range(3):
+                    cell_it = padded[r * 3 + c]
+                    c_lbl = cell_it.get("label", "")
+                    raw_ans = clean_answer_for_answer_sheet(cell_it.get("answer", "")) if is_teacher else ""
+                    c_ans = Paragraph(raw_ans, ans_style) if raw_ans else ""
+                    row.extend([c_lbl, c_ans])
+                grid_data.append(row)
+
+            col_widths = [35, 147, 35, 147, 35, 148]
+            t = Table(grid_data, colWidths=col_widths, rowHeights=[18.0] + [28.0] * rows_count)
+            t.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#EEEEEE")),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 8.5),
+            ]))
+            pages_blocks[-1].append(t)
+            pages_blocks[-1].append(Spacer(1, 8))
+            cur_page_h += block_h
+
+        elif itype == "reasoning":
+            block_h = 75.0
+            if cur_page_h + block_h > MAX_PAGE_HEIGHT and pages_blocks[-1]:
+                pages_blocks.append([])
+                cur_page_h = 0.0
+
+            lbl = item.get("label", "")
+            raw_ans = clean_answer_for_answer_sheet(item.get("answer", ""))
+            header_cell = Paragraph(f"<b>Question {lbl}</b> — <i>Mathematical Reasoning & Proof</i>", styles['Normal'])
+
+            if is_teacher and raw_ans:
+                content_cell = Paragraph(f"<b>Model Proof / Justification:</b><br/>{raw_ans}", teacher_exp_style)
+            else:
+                content_cell = Paragraph(
+                    "<font color='#B38600'>[ Working & Reasoning Space — state theorems, steps, and reasons ]</font><br/><br/>"
+                    "____________________________________________________________________________________________<br/><br/>"
+                    "____________________________________________________________________________________________",
+                    prompt_style
+                )
+
+            t = Table([[header_cell], [content_cell]], colWidths=[547], rowHeights=[20.0, 52.0])
+            t.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#F5F1EB")),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('GRID', (0, 0), (-1, -1), 1, colors.HexColor("#B38600")),
+                ('TOPPADDING', (0, 0), (-1, -1), 4),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                ('LEFTPADDING', (0, 0), (-1, -1), 8),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+            ]))
+            pages_blocks[-1].append(t)
+            pages_blocks[-1].append(Spacer(1, 8))
+            cur_page_h += block_h
+            idx += 1
+
+        elif itype == "diagram":
+            block_h = 125.0
+            if cur_page_h + block_h > MAX_PAGE_HEIGHT and pages_blocks[-1]:
+                pages_blocks.append([])
+                cur_page_h = 0.0
+
+            lbl = item.get("label", "")
+            raw_ans = clean_answer_for_answer_sheet(item.get("answer", ""))
+            header_cell = Paragraph(f"<b>Question {lbl}</b> — <i>Diagram, Graph & Sketch Canvas</i>", styles['Normal'])
+
+            if is_teacher and raw_ans:
+                content_cell = Paragraph(
+                    f"<b>Key Sketch Elements / Target Features:</b><br/>{raw_ans}<br/><br/>"
+                    "<font color='#666666'><i>(Evaluate student's diagram: correct axis labels, coordinates, vertex, intercepts, curvature)</i></font>",
+                    teacher_exp_style
+                )
+            else:
+                content_cell = Paragraph(
+                    "<font color='#0F2240'><b>[ Drawing & Construction Canvas ]</b> — draw with ruler, pencil, and label all key features.</font>",
+                    prompt_style
+                )
+
+            t = Table([[header_cell], [content_cell]], colWidths=[547], rowHeights=[20.0, 100.0])
+            t.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#EAEFF5")),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('GRID', (0, 0), (-1, -1), 1, colors.HexColor("#0F2240")),
+                ('TOPPADDING', (0, 0), (-1, -1), 4),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                ('LEFTPADDING', (0, 0), (-1, -1), 8),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+            ]))
+            pages_blocks[-1].append(t)
+            pages_blocks[-1].append(Spacer(1, 8))
+            cur_page_h += block_h
+            idx += 1
+
+    total_pages = len(pages_blocks)
+    story: List[Any] = []
+
+    for p_idx, page_flowables in enumerate(pages_blocks):
+        p_num = p_idx + 1
+        page_hdr_data = [
+            [
+                logo_element if logo_element else Paragraph("<b>DA TUITION</b>", styles['Normal']),
+                Paragraph(f"<b>Answer Sheet{badge}</b><br/>Name: ________________________", styles['Normal']),
+                Paragraph(f"Class Time: ____________<br/>{tw_sub}", styles['Normal']),
+                Paragraph(f"Page <b>{p_num} / {total_pages}</b>", styles['Normal'])
+            ]
+        ]
+        hdr_table = Table(page_hdr_data, colWidths=[75, 195, 190, 87])
+        hdr_table.setStyle(TableStyle([
+            ('BOX', (0, 0), (-1, -1), 1, colors.black),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#CCCCCC")),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ]))
+        story.append(hdr_table)
+        story.append(Spacer(1, 8))
+
+        for fl in page_flowables:
+            story.append(fl)
+
+        if p_num < total_pages:
+            story.append(PageBreak())
+
+    doc.build(story)
+    return buffer.getvalue()
+
+
 def generate_blank_answer_sheet_pdf(
     question_labels: Optional[List[str]] = None,
     num_questions: int = 40,
     term: Optional[int] = None,
-    week: Optional[int] = None
+    week: Optional[int] = None,
+    items: Optional[List[Dict[str, Any]]] = None
 ) -> bytes:
     """Generates official DA Tuition Student Blank Answer Sheet with prefilled question numbers."""
     return generate_answer_sheet_pdf(
@@ -6068,7 +6298,8 @@ def generate_blank_answer_sheet_pdf(
         num_questions=num_questions,
         term=term,
         week=week,
-        is_teacher=False
+        is_teacher=False,
+        items=items
     )
 
 def generate_teacher_answer_sheet_pdf(
@@ -6076,7 +6307,8 @@ def generate_teacher_answer_sheet_pdf(
     answers: Optional[List[str]] = None,
     num_questions: int = 40,
     term: Optional[int] = None,
-    week: Optional[int] = None
+    week: Optional[int] = None,
+    items: Optional[List[Dict[str, Any]]] = None
 ) -> bytes:
     """Generates official DA Tuition Teacher Answer Sheet with prefilled question numbers AND answers."""
     return generate_answer_sheet_pdf(
@@ -6085,7 +6317,8 @@ def generate_teacher_answer_sheet_pdf(
         num_questions=num_questions,
         term=term,
         week=week,
-        is_teacher=True
+        is_teacher=True,
+        items=items
     )
 
 def _format_correction_fraction(val_str: str) -> str:
@@ -9164,15 +9397,55 @@ def extract_review_booklet_answer_sheet_data(booklet_data: Dict[str, Any]) -> Tu
     return labels, answers, marking_key
 
 
-def extract_worksheet_answer_sheet_data(questions: List[Dict[str, Any]], marking_key: Optional[Dict[str, Any]] = None) -> Tuple[List[str], List[str], Dict[str, Any]]:
+def detect_question_response_type(question_text: str, answer_text: str = "") -> str:
+    """
+    Detects whether a question requires a diagram/sketch, extended reasoning/proof, or compact response.
+    Returns: 'diagram', 'reasoning', or 'compact'.
+    """
+    combined = f"{question_text} {answer_text}".lower()
+
+    # Diagram detection keywords
+    diagram_patterns = [
+        r"\b(?:draw|sketch|construct|plot)\b",
+        r"\b(?:flowchart|tree diagram|venn diagram|box plot|stem-and-leaf|histogram)\b",
+        r"\b(?:graph of|number line|cartesian plane|coordinate plane)\b",
+        r"\b(?:geometric figure|diagram below|label the diagram)\b",
+        r"\b(?:sketch the curve|plot the points)\b"
+    ]
+    for pat in diagram_patterns:
+        if re.search(pat, combined):
+            return "diagram"
+
+    # Reasoning / Proof detection keywords
+    reasoning_patterns = [
+        r"\b(?:prove that|proof|show that|demonstrate that)\b",
+        r"\b(?:justify your answer|give reasons?|state reasons?)\b",
+        r"\b(?:explain why|explain how|with reasons)\b",
+        r"\b(?:by mathematical induction|deduce that)\b",
+        r"\b(?:congruence proof|similarity proof)\b"
+    ]
+    for pat in reasoning_patterns:
+        if re.search(pat, combined):
+            return "reasoning"
+
+    return "compact"
+
+
+def extract_worksheet_answer_sheet_data(
+    questions: List[Dict[str, Any]],
+    marking_key: Optional[Dict[str, Any]] = None
+) -> Tuple[List[str], List[str], Dict[str, Any], List[Dict[str, Any]]]:
     """
     Expands multi-part questions (e.g. Question 1 with subparts (a), (b), (c))
     into individual subpart entries: 1(a), 1(b), 1(c) for Answer Sheets and Marking Keys.
-    Returns: (labels, answers, marking_key)
+    Returns: (labels, answers, marking_key, items)
+    where items is a list of dicts with:
+      {'label': lbl, 'answer': ans, 'type': 'compact'|'reasoning'|'diagram', 'prompt': prompt_text}
     """
     labels = []
     answers = []
     expanded_key = {}
+    items = []
     raw_key = marking_key or {}
 
     for idx, q in enumerate(questions, 1):
@@ -9193,21 +9466,43 @@ def extract_worksheet_answer_sheet_data(questions: List[Dict[str, Any]], marking
                     sub_ans = subparts_a[s_idx][1]
                 else:
                     sub_ans = q_ans if len(subparts_q) == 1 else ""
+
+                item_type = detect_question_response_type(sub_txt or q_text, sub_ans)
                 labels.append(full_lbl)
                 answers.append(sub_ans)
                 expanded_key[full_lbl] = sub_ans
+                items.append({
+                    "label": full_lbl,
+                    "answer": sub_ans,
+                    "type": item_type,
+                    "prompt": sub_txt or q_text
+                })
         elif subparts_a and len(subparts_a) >= 2:
             for sub_lbl, sub_ans in subparts_a:
                 full_lbl = f"{q_label}({sub_lbl})"
+                item_type = detect_question_response_type(q_text, sub_ans)
                 labels.append(full_lbl)
                 answers.append(sub_ans)
                 expanded_key[full_lbl] = sub_ans
+                items.append({
+                    "label": full_lbl,
+                    "answer": sub_ans,
+                    "type": item_type,
+                    "prompt": q_text
+                })
         else:
+            item_type = detect_question_response_type(q_text, q_ans)
             labels.append(q_label)
             answers.append(q_ans)
             expanded_key[q_label] = q_ans
+            items.append({
+                "label": q_label,
+                "answer": q_ans,
+                "type": item_type,
+                "prompt": q_text
+            })
 
-    return labels, answers, expanded_key
+    return labels, answers, expanded_key, items
 
 
 def get_review_booklet_download_filename(booklet: dict, mode: str = "student", prefix: Optional[str] = None, extension: str = "pdf") -> str:

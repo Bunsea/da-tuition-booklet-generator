@@ -1126,21 +1126,21 @@ with tab1:
                                     st.download_button("Download Solutions PDF", data=ic_tea_pdf, file_name=ic_tea_name, mime="application/pdf", key=f"dl_c_tea_ic_{lic['id']}", use_container_width=True)
                             with col_ic3:
                                 if st.button(f"📥 Compile Student Answer Sheet", key=f"btn_c_ans_ic_{lic['id']}", use_container_width=True):
-                                    ic_labels, ic_answers, _ = pdf_generator.extract_worksheet_answer_sheet_data(lic_qs, lic.get("marking_key"))
+                                    ic_labels, ic_answers, _, ic_items = pdf_generator.extract_worksheet_answer_sheet_data(lic_qs, lic.get("marking_key"))
                                     ic_ans_pdf = pdf_generator.generate_answer_sheet_pdf(
                                         question_labels=ic_labels, answers=ic_answers,
                                         num_questions=len(ic_labels), term=lic.get("term"), week=lic.get("week"),
-                                        is_teacher=False
+                                        is_teacher=False, items=ic_items
                                     )
                                     ic_ans_name = get_worksheet_download_filename(lic, sheet_type="in_class", mode="answers", theory_booklet=tb)
                                     st.download_button("Download Student Answer Sheet", data=ic_ans_pdf, file_name=ic_ans_name, mime="application/pdf", key=f"dl_c_ans_ic_{lic['id']}", use_container_width=True)
                             with col_ic4:
                                 if st.button(f"🔑 Compile Teacher Answer Key", key=f"btn_c_tea_ans_ic_{lic['id']}", use_container_width=True):
-                                    ic_labels, ic_answers, _ = pdf_generator.extract_worksheet_answer_sheet_data(lic_qs, lic.get("marking_key"))
+                                    ic_labels, ic_answers, _, ic_items = pdf_generator.extract_worksheet_answer_sheet_data(lic_qs, lic.get("marking_key"))
                                     ic_tea_ans_pdf = pdf_generator.generate_answer_sheet_pdf(
                                         question_labels=ic_labels, answers=ic_answers,
                                         num_questions=len(ic_labels), term=lic.get("term"), week=lic.get("week"),
-                                        is_teacher=True
+                                        is_teacher=True, items=ic_items
                                     )
                                     ic_tea_ans_name = get_worksheet_download_filename(lic, sheet_type="in_class", mode="teacher_answers", theory_booklet=tb)
                                     st.download_button("Download Teacher Answer Key", data=ic_tea_ans_pdf, file_name=ic_tea_ans_name, mime="application/pdf", key=f"dl_c_tea_ans_ic_{lic['id']}", use_container_width=True)
@@ -1282,21 +1282,21 @@ with tab1:
                                     st.download_button("Download Solutions PDF", data=hw_tea_pdf, file_name=hw_tea_name, mime="application/pdf", key=f"dl_c_tea_hw_{lhw['id']}", use_container_width=True)
                             with col_hw3:
                                 if st.button(f"📥 Compile Student Answer Sheet", key=f"btn_c_ans_hw_{lhw['id']}", use_container_width=True):
-                                    hw_labels, hw_answers, _ = pdf_generator.extract_worksheet_answer_sheet_data(lhw_qs, lhw.get("marking_key"))
+                                    hw_labels, hw_answers, _, hw_items = pdf_generator.extract_worksheet_answer_sheet_data(lhw_qs, lhw.get("marking_key"))
                                     hw_ans_pdf = pdf_generator.generate_answer_sheet_pdf(
                                         question_labels=hw_labels, answers=hw_answers,
                                         num_questions=len(hw_labels), term=lhw.get("term"), week=lhw.get("week"),
-                                        is_teacher=False
+                                        is_teacher=False, items=hw_items
                                     )
                                     hw_ans_name = get_worksheet_download_filename(lhw, sheet_type="homework", mode="answers", theory_booklet=tb)
                                     st.download_button("Download Student Answer Sheet", data=hw_ans_pdf, file_name=hw_ans_name, mime="application/pdf", key=f"dl_c_ans_hw_{lhw['id']}", use_container_width=True)
                             with col_hw4:
                                 if st.button(f"🔑 Compile Teacher Answer Key", key=f"btn_c_tea_ans_hw_{lhw['id']}", use_container_width=True):
-                                    hw_labels, hw_answers, _ = pdf_generator.extract_worksheet_answer_sheet_data(lhw_qs, lhw.get("marking_key"))
+                                    hw_labels, hw_answers, _, hw_items = pdf_generator.extract_worksheet_answer_sheet_data(lhw_qs, lhw.get("marking_key"))
                                     hw_tea_ans_pdf = pdf_generator.generate_answer_sheet_pdf(
                                         question_labels=hw_labels, answers=hw_answers,
                                         num_questions=len(hw_labels), term=lhw.get("term"), week=lhw.get("week"),
-                                        is_teacher=True
+                                        is_teacher=True, items=hw_items
                                     )
                                     hw_tea_ans_name = get_worksheet_download_filename(lhw, sheet_type="homework", mode="teacher_answers", theory_booklet=tb)
                                     st.download_button("Download Teacher Answer Key", data=hw_tea_ans_pdf, file_name=hw_tea_ans_name, mime="application/pdf", key=f"dl_c_tea_ans_hw_{lhw['id']}", use_container_width=True)
@@ -1980,7 +1980,7 @@ with tab1:
                 st.info(f"💰 **Generation Cost:** **${ws.get('meta_cost', 0.0):.4f} AUD** • **{ws.get('meta_tokens', 0):,} tokens** ({ws.get('model_used', 'Gemini 3.8 Flash')})")
 
             # Extract question labels and answers (expanded for multi-part questions: 1(a), 1(b), etc.)
-            question_labels, ws_answers, ws_expanded_key = pdf_generator.extract_worksheet_answer_sheet_data(
+            question_labels, ws_answers, ws_expanded_key, ws_items = pdf_generator.extract_worksheet_answer_sheet_data(
                 ws.get("questions", []), ws.get("marking_key")
             )
             ws_item_topic = ws.get("topic", topic_input)
@@ -2016,14 +2016,16 @@ with tab1:
                         question_labels=question_labels,
                         num_questions=len(question_labels),
                         term=ws.get("term"),
-                        week=ws.get("week")
+                        week=ws.get("week"),
+                        items=ws_items
                     )
                     _ws_t_ans = pdf_generator.generate_teacher_answer_sheet_pdf(
                         question_labels=question_labels,
                         answers=ws_answers,
                         num_questions=len(question_labels),
                         term=ws.get("term"),
-                        week=ws.get("week")
+                        week=ws.get("week"),
+                        items=ws_items
                     )
                     st.session_state["latest_ws_cache_key"] = ws_cache_key
                     st.session_state["latest_ws_artifacts"] = {
@@ -3254,7 +3256,7 @@ with tab2:
         if not worksheets_list and not latest_sess_ws:
             st.warning("No generated worksheets found. Generate one in Tab 1 or switch to 'Custom / Ad-hoc Key'.")
         elif latest_sess_ws and not worksheets_list:
-            _, _, active_key = pdf_generator.extract_worksheet_answer_sheet_data(
+            _, _, active_key, _ = pdf_generator.extract_worksheet_answer_sheet_data(
                 latest_sess_ws.get("questions", []), latest_sess_ws.get("marking_key")
             )
             calculated_marks = sum(int(q.get('marks', 1)) for q in latest_sess_ws.get("questions", []))
@@ -3295,7 +3297,7 @@ with tab2:
             selected_ws_id = ws_options[selected_label]
             full_ws = database.get_worksheet_by_id(selected_ws_id)
             if full_ws:
-                _, _, active_key = pdf_generator.extract_worksheet_answer_sheet_data(
+                _, _, active_key, _ = pdf_generator.extract_worksheet_answer_sheet_data(
                     full_ws.get("questions", []), full_ws.get("marking_key")
                 )
                 calculated_marks = sum(int(q.get('marks', 1)) for q in full_ws.get("questions", []))
