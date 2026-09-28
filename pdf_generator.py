@@ -2377,14 +2377,13 @@ def split_question_subparts(text: str) -> tuple:
 
     # Allowed subpart markers:
     # 1. Parenthesized lowercase letter (a-h) or roman numerals (i, ii, iii, iv, v, vi), optional markdown bold
-    # 2. Must be preceded by start of text or whitespace/punctuation (never a letter/digit/backslash/underscore)
+    # 2. Or lowercase letter followed by closing parenthesis, period, or colon: a) or a. or a:
+    # Must be preceded by start of text or whitespace/punctuation (never a letter/digit/backslash/underscore)
     pattern = re.compile(
-        r'(?:(?<=\A)|(?<=[\s.,;:?!\n]))(?:\*{1,2})?\(([a-h]|i{1,3}|iv|v|vi)\)(?:\*{1,2})?\s*',
+        r'(?:(?<=\A)|(?<=[\s.,;:?!\n]))(?:\*{1,2})?(?:\(([a-h]|i{1,3}|iv|v|vi)\)|([a-h])[\)\.\:])(?:\*{1,2})?\s*',
         re.IGNORECASE
     )
     matches = list(pattern.finditer(text))
-    if not matches:
-        return text, []
 
     skip_words = {"part", "subpart", "in", "from", "for", "to", "of", "see", "using", "and", "or", "by", "with", "into", "substitute", "step"}
     valid_candidates = []
@@ -2399,21 +2398,18 @@ def split_question_subparts(text: str) -> tuple:
             continue
         valid_candidates.append(m)
 
-    if not valid_candidates:
-        return text, []
-
-    labels = [m.group(1).lower() for m in valid_candidates]
+    labels = [(m.group(1) or m.group(2)).lower() for m in valid_candidates]
     alpha_seq = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
     roman_seq = ['i', 'ii', 'iii', 'iv', 'v', 'vi']
 
     valid_matches = []
-    if labels[0] == 'a':
+    if labels and labels[0] == 'a':
         expected_idx = 0
         for m, lbl in zip(valid_candidates, labels):
             if expected_idx < len(alpha_seq) and lbl == alpha_seq[expected_idx]:
                 valid_matches.append(m)
                 expected_idx += 1
-    elif labels[0] == 'i':
+    elif labels and labels[0] == 'i':
         expected_idx = 0
         for m, lbl in zip(valid_candidates, labels):
             if expected_idx < len(roman_seq) and lbl == roman_seq[expected_idx]:
@@ -2421,23 +2417,42 @@ def split_question_subparts(text: str) -> tuple:
                 expected_idx += 1
 
     # A single match in the middle of text (not starting at 0) without a following subpart is not a subpart sequence
-    if not valid_matches or (len(valid_matches) < 2 and valid_matches[0].start() > 0):
-        return text, []
+    if valid_matches and not (len(valid_matches) < 2 and valid_matches[0].start() > 0):
+        stem = text[:valid_matches[0].start()].strip()
+        stem = re.sub(r'\*+$', '', stem).strip()
+        subparts = []
+        for i in range(len(valid_matches)):
+            m = valid_matches[i]
+            lbl = (m.group(1) or m.group(2)).lower()
+            start = m.end()
+            end = valid_matches[i+1].start() if i + 1 < len(valid_matches) else len(text)
+            part_content = text[start:end].strip()
+            part_content = re.sub(r'^[:.]\s*', '', part_content)
+            part_content = re.sub(r'[\s;,]+$', '', part_content)
+            subparts.append((lbl, part_content))
+        return stem, subparts
 
-    stem = text[:valid_matches[0].start()].strip()
-    stem = re.sub(r'\*+$', '', stem).strip()
-    subparts = []
-    for i in range(len(valid_matches)):
-        m = valid_matches[i]
-        lbl = m.group(1).lower()
-        start = m.end()
-        end = valid_matches[i+1].start() if i + 1 < len(valid_matches) else len(text)
-        part_content = text[start:end].strip()
-        part_content = re.sub(r'^[:.]\s*', '', part_content)
-        part_content = re.sub(r'[\s;,]+$', '', part_content)
-        subparts.append((lbl, part_content))
+    # Fallback: Multi-line questions where separate lines are separate subpart questions
+    # (e.g. Stem: Flowchart... Line 1: Write... Line 2: In your expression from part (a)... Line 3: If the flowchart...)
+    raw_lines = [l.strip() for l in text.splitlines() if l.strip()]
+    if len(raw_lines) >= 3:
+        action_verb_pat = re.compile(
+            r"^(?:(?:For\s+part\s+\([a-h]\)|In\s+(?:your\s+)?(?:part\s+\([a-h]\)|expression|answer|working|result))[,:\s]+)?"
+            r"(?:Write|State|Find|Determine|Calculate|Evaluate|Simplify|Solve|Identify|Explain|Show|Hence|If|Consider|Describe|Draw|Sketch|Compare|Express|Name|Give|List|Factorise|Expand)\b",
+            re.IGNORECASE
+        )
+        has_part_ref = any(re.search(r"\bpart\s*\([a-h]\)", l, re.IGNORECASE) for l in raw_lines[1:])
+        has_verbs = sum(1 for l in raw_lines[1:] if action_verb_pat.search(l))
+        if has_part_ref or has_verbs >= len(raw_lines[1:]) - 1:
+            stem = raw_lines[0]
+            subparts = []
+            for idx, ql in enumerate(raw_lines[1:]):
+                lbl = alpha_seq[idx] if idx < len(alpha_seq) else str(idx + 1)
+                clean_ql = re.sub(r"^(?:\([a-hA-H0-9]+\)|[a-hA-H0-9]+[\.\:\)])\s*", "", ql).strip()
+                subparts.append((lbl, clean_ql))
+            return stem, subparts
 
-    return stem, subparts
+    return text, []
 
 
 def split_stem_bullet_items(text: str) -> tuple:
@@ -5956,64 +5971,86 @@ def generate_answer_sheet_pdf(
     )
 
     styles = getSampleStyleSheet()
+    ans_style = ParagraphStyle(
+        'AnsStyle',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=8,
+        leading=9.5,
+        alignment=1, # Center
+        textColor=colors.HexColor("#0F2240")
+    )
     story = []
 
     logo_element = get_proportional_logo(target_height=48.0, max_width=70.0)
     badge = " [TEACHER ANSWER KEY]" if is_teacher else ""
     tw_sub = f"Term: <b>{term}</b> &nbsp; Week: <b>{week}</b>" if (term and week) else "Term: ____ &nbsp; Week: ____"
-    header_table_data = [
-        [
-            logo_element if logo_element else Paragraph("<b>DA TUITION</b>", styles['Normal']),
-            Paragraph(f"<b>Answer Sheet{badge}</b><br/>Name: ________________________", styles['Normal']),
-            Paragraph(f"Class Time: ____________<br/>{tw_sub}", styles['Normal']),
-            Paragraph("Page <b>1 / 1</b>", styles['Normal'])
-        ]
-    ]
-    hdr_table = Table(header_table_data, colWidths=[75, 195, 190, 87])
-    hdr_table.setStyle(TableStyle([
-        ('BOX', (0, 0), (-1, -1), 1, colors.black),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#CCCCCC")),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('TOPPADDING', (0, 0), (-1, -1), 4),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-    ]))
-    story.append(hdr_table)
-    story.append(Spacer(1, 8))
 
     rows_per_col = 22
-    total_slots = rows_per_col * 3
+    slots_per_page = rows_per_col * 3 # 66 items per page
+    num_pages_needed = max(1, (len(labels) + slots_per_page - 1) // slots_per_page)
 
-    active_labels = list(labels)
-    while len(active_labels) < total_slots:
-        active_labels.append("")
+    for p_idx in range(num_pages_needed):
+        p_num = p_idx + 1
+        page_hdr_data = [
+            [
+                logo_element if logo_element else Paragraph("<b>DA TUITION</b>", styles['Normal']),
+                Paragraph(f"<b>Answer Sheet{badge}</b><br/>Name: ________________________", styles['Normal']),
+                Paragraph(f"Class Time: ____________<br/>{tw_sub}", styles['Normal']),
+                Paragraph(f"Page <b>{p_num} / {num_pages_needed}</b>", styles['Normal'])
+            ]
+        ]
+        hdr_table = Table(page_hdr_data, colWidths=[75, 195, 190, 87])
+        hdr_table.setStyle(TableStyle([
+            ('BOX', (0, 0), (-1, -1), 1, colors.black),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#CCCCCC")),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ]))
+        story.append(hdr_table)
+        story.append(Spacer(1, 8))
 
-    active_answers = list(answers) if answers else []
-    while len(active_answers) < total_slots:
-        active_answers.append("")
+        p_start = p_idx * slots_per_page
+        p_labels = labels[p_start : p_start + slots_per_page]
+        p_answers = (answers[p_start : p_start + slots_per_page] if answers else [])
 
-    grid_data = []
-    grid_data.append(["Qn", "Answer", "Qn", "Answer", "Qn", "Answer"])
+        while len(p_labels) < slots_per_page:
+            p_labels.append("")
+        while len(p_answers) < slots_per_page:
+            p_answers.append("")
 
-    for r in range(rows_per_col):
-        q1 = active_labels[r] if r < len(active_labels) else ""
-        a1 = clean_answer_for_answer_sheet(active_answers[r]) if (is_teacher and r < len(active_answers)) else ""
-        q2 = active_labels[r + rows_per_col] if (r + rows_per_col) < len(active_labels) else ""
-        a2 = clean_answer_for_answer_sheet(active_answers[r + rows_per_col]) if (is_teacher and (r + rows_per_col) < len(active_answers)) else ""
-        q3 = active_labels[r + 2 * rows_per_col] if (r + 2 * rows_per_col) < len(active_labels) else ""
-        a3 = clean_answer_for_answer_sheet(active_answers[r + 2 * rows_per_col]) if (is_teacher and (r + 2 * rows_per_col) < len(active_answers)) else ""
-        grid_data.append([q1, a1, q2, a2, q3, a3])
+        grid_data = [["Qn", "Answer", "Qn", "Answer", "Qn", "Answer"]]
 
-    col_widths = [35, 147, 35, 147, 35, 148]
-    grid_table = Table(grid_data, colWidths=col_widths, rowHeights=[18] + [28] * rows_per_col)
-    grid_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#EEEEEE")),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 8.5),
-    ]))
-    story.append(grid_table)
+        for r in range(rows_per_col):
+            q1 = p_labels[r] if r < len(p_labels) else ""
+            raw_a1 = clean_answer_for_answer_sheet(p_answers[r]) if (is_teacher and r < len(p_answers)) else ""
+            a1 = Paragraph(raw_a1, ans_style) if raw_a1 else ""
+
+            q2 = p_labels[r + rows_per_col] if (r + rows_per_col) < len(p_labels) else ""
+            raw_a2 = clean_answer_for_answer_sheet(p_answers[r + rows_per_col]) if (is_teacher and (r + rows_per_col) < len(p_answers)) else ""
+            a2 = Paragraph(raw_a2, ans_style) if raw_a2 else ""
+
+            q3 = p_labels[r + 2 * rows_per_col] if (r + 2 * rows_per_col) < len(p_labels) else ""
+            raw_a3 = clean_answer_for_answer_sheet(p_answers[r + 2 * rows_per_col]) if (is_teacher and (r + 2 * rows_per_col) < len(p_answers)) else ""
+            a3 = Paragraph(raw_a3, ans_style) if raw_a3 else ""
+
+            grid_data.append([q1, a1, q2, a2, q3, a3])
+
+        col_widths = [35, 147, 35, 147, 35, 148]
+        grid_table = Table(grid_data, colWidths=col_widths, rowHeights=[18] + [28] * rows_per_col)
+        grid_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#EEEEEE")),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8.5),
+        ]))
+        story.append(grid_table)
+
+        if p_num < num_pages_needed:
+            story.append(PageBreak())
 
     doc.build(story)
     return buffer.getvalue()
@@ -9125,6 +9162,52 @@ def extract_review_booklet_answer_sheet_data(booklet_data: Dict[str, Any]) -> Tu
             total_idx += 1
 
     return labels, answers, marking_key
+
+
+def extract_worksheet_answer_sheet_data(questions: List[Dict[str, Any]], marking_key: Optional[Dict[str, Any]] = None) -> Tuple[List[str], List[str], Dict[str, Any]]:
+    """
+    Expands multi-part questions (e.g. Question 1 with subparts (a), (b), (c))
+    into individual subpart entries: 1(a), 1(b), 1(c) for Answer Sheets and Marking Keys.
+    Returns: (labels, answers, marking_key)
+    """
+    labels = []
+    answers = []
+    expanded_key = {}
+    raw_key = marking_key or {}
+
+    for idx, q in enumerate(questions, 1):
+        q_label = str(q.get("item_label") or idx).strip()
+        q_text = str(q.get("text") or q.get("question") or "").strip()
+        q_ans = str(q.get("correct_answer") or q.get("final_answer") or raw_key.get(q_label, "")).strip()
+
+        _, subparts_q = split_question_subparts(q_text)
+        _, subparts_a = split_question_subparts(q_ans)
+
+        if subparts_q:
+            ans_dict = dict(subparts_a) if subparts_a else {}
+            for s_idx, (sub_lbl, sub_txt) in enumerate(subparts_q):
+                full_lbl = f"{q_label}({sub_lbl})"
+                if sub_lbl in ans_dict:
+                    sub_ans = ans_dict[sub_lbl]
+                elif s_idx < len(subparts_a):
+                    sub_ans = subparts_a[s_idx][1]
+                else:
+                    sub_ans = q_ans if len(subparts_q) == 1 else ""
+                labels.append(full_lbl)
+                answers.append(sub_ans)
+                expanded_key[full_lbl] = sub_ans
+        elif subparts_a and len(subparts_a) >= 2:
+            for sub_lbl, sub_ans in subparts_a:
+                full_lbl = f"{q_label}({sub_lbl})"
+                labels.append(full_lbl)
+                answers.append(sub_ans)
+                expanded_key[full_lbl] = sub_ans
+        else:
+            labels.append(q_label)
+            answers.append(q_ans)
+            expanded_key[q_label] = q_ans
+
+    return labels, answers, expanded_key
 
 
 def get_review_booklet_download_filename(booklet: dict, mode: str = "student", prefix: Optional[str] = None, extension: str = "pdf") -> str:
