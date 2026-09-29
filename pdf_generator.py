@@ -7573,6 +7573,7 @@ def build_latex_theory_booklet_source(
     tex_lines.append(r"\noindent")
 
     quick_answers = []
+    q_counter = 1  # Global question counter across all Sets/concepts
 
     for c_idx, concept in enumerate(concepts, 1):
         raw_c_name = concept.get("concept_name") or concept.get("title") or concept.get("name") or f"Concept {c_idx}"
@@ -7705,7 +7706,6 @@ def build_latex_theory_booklet_source(
         if practice_questions:
             practice_questions = ensure_concept_practice_question_variety(practice_questions, c_name, topic)
             part_groups = group_booklet_questions_by_part(practice_questions)
-            q_counter = 1
             for part_title, part_qs in part_groups:
                 if len(concepts) == 1:
                     heading_str = f"Practice ({part_title})"
@@ -8708,6 +8708,7 @@ def build_latex_review_booklet_source(
     tex_lines.append(r"\noindent")
 
     quick_answers = []
+    q_counter = 1  # Global question counter across all Sets/concepts
 
     for c_idx, concept in enumerate(concepts, 1):
         raw_c_name = concept.get("concept_name") or concept.get("name", f"Review Concept {c_idx}")
@@ -8820,7 +8821,6 @@ def build_latex_review_booklet_source(
         # 4. Revision Practice Questions
         if review_questions:
             part_groups = group_booklet_questions_by_part(review_questions)
-            q_counter = 1
             for part_title, part_qs in part_groups:
                 if len(concepts) == 1:
                     heading_str = f"Revision ({part_title})"

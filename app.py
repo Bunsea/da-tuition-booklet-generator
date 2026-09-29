@@ -3730,8 +3730,8 @@ with tab2:
                         marking_key=active_key,
                         total_marks=active_total_marks,
                         worksheet_title=worksheet_title,
-                        term=int(term_val),
-                        week=int(week_val),
+                        term=int(term_val) if term_val is not None else 1,
+                        week=int(week_val) if week_val is not None else 1,
                         api_key=current_api_key,
                         questions_metadata=q_meta
                     )
