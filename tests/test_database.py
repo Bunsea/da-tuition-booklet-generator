@@ -82,6 +82,29 @@ class TestDatabase(unittest.TestCase):
         self.assertEqual(len(summary), 1)
         self.assertEqual(summary[0]["class_name"], "Year 8 Math - Sun 2pm")
 
+    def test_generated_homework_is_saved_once_for_marking(self):
+        worksheet = {
+            "id": 1790699533,  # An older session's timestamp was not a database ID.
+            "title": "Year 11 (Extension) - Permutations Homework Set 3",
+            "term": 3,
+            "week": 8,
+            "year_level": "Year 11 (Extension)",
+            "topic": "Permutations",
+            "difficulty": "Mixed",
+            "sheet_type": "Homework",
+            "set_number": 3,
+            "questions": [{"item_label": "1", "text": "How many arrangements?", "marks": 1}],
+            "marking_key": {"1": "24"},
+        }
+        saved_id = database.ensure_generated_worksheet_saved(worksheet)
+        worksheet["id"] = saved_id
+        self.assertEqual(database.ensure_generated_worksheet_saved(worksheet), saved_id)
+        matches = [w for w in database.get_worksheets() if w["id"] == saved_id]
+        self.assertEqual(len(matches), 1)
+        self.assertEqual(matches[0]["assessment_type"], "homework")
+        self.assertEqual(matches[0]["set_number"], 3)
+        self.assertEqual(database.get_worksheet_by_id(saved_id)["marking_key"], {"1": "24"})
+
     def test_user_authentication(self):
         # Default seeded users
         bunsea = database.authenticate_user("bunsea", "password123")

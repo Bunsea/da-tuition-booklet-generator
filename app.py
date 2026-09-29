@@ -2245,14 +2245,16 @@ with tab1:
                         generated_data["topic"] = clean_topic
                         generated_data["set_number"] = set_num_val
                         generated_data["sheet_type"] = sheet_type
+                        generated_data["source_theory_id"] = latest_tb.get("id") if align_with_tb else None
 
-                        ws_id = int(time.time())
+                        ws_id = database.ensure_generated_worksheet_saved(generated_data)
                         generated_data["id"] = ws_id
                         st.session_state["latest_worksheet"] = generated_data
                         st.session_state["latest_ws_id"] = ws_id
+                        st.session_state["preselected_marking_ws_id"] = ws_id
                         ws_cost = generated_data.get('meta_cost', 0.0)
                         ws_tokens = generated_data.get('meta_tokens', 0)
-                        st.success(f"🎉 Generated {len(generated_data.get('questions', []))} questions! (💰 Cost: ${ws_cost:.4f} AUD • {ws_tokens:,} tokens) — Ready for printing.")
+                        st.success(f"🎉 Generated and saved Homework Set {set_num_val} as assignment #{ws_id}! (💰 Cost: ${ws_cost:.4f} AUD • {ws_tokens:,} tokens) — Ready for marking and printing." if sheet_type == "Homework" else f"🎉 Generated and saved worksheet #{ws_id}! (💰 Cost: ${ws_cost:.4f} AUD • {ws_tokens:,} tokens) — Ready for marking and printing.")
                     except Exception as e:
                         st.error(f"Error generating worksheet: {e}")
 
@@ -3517,6 +3519,16 @@ with tab2:
                 st.info("💡 You currently have no classes assigned to your account. Set up your class in **Tab 5 (Classes & Rolls)** or ask an Admin to assign one to you.")
 
     with col_ws:
+        latest_sess_ws = st.session_state.get("latest_worksheet")
+        if latest_sess_ws:
+            try:
+                saved_ws_id = database.ensure_generated_worksheet_saved(latest_sess_ws)
+                if latest_sess_ws.get("id") != saved_ws_id:
+                    latest_sess_ws["id"] = saved_ws_id
+                    st.session_state["latest_ws_id"] = saved_ws_id
+                    st.session_state["preselected_marking_ws_id"] = saved_ws_id
+            except Exception as exc:
+                st.error(f"Could not save the current worksheet for marking: {exc}")
         worksheets_list = database.get_worksheets()
         marking_mode = st.radio("Marking Key Source:", ["Use a generated Worksheet", "Custom / Ad-hoc Key"], horizontal=True)
 
@@ -5009,4 +5021,3 @@ with tab6:
                             type="primary",
                             use_container_width=True
                         )
-

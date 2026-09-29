@@ -548,6 +548,44 @@ def save_worksheet(title: str, term: Optional[int], week: Optional[int], year_le
     conn.close()
     return worksheet_id
 
+
+def ensure_generated_worksheet_saved(worksheet: Dict[str, Any]) -> int:
+    """Persist a generated worksheet once and return its database ID.
+
+    Older app sessions used a timestamp as an ID without saving the worksheet.
+    This also recovers those sessions when the marking tab is opened.
+    """
+    existing_id = worksheet.get("id")
+    if existing_id is not None:
+        try:
+            existing = get_worksheet_by_id(int(existing_id))
+        except (TypeError, ValueError):
+            existing = None
+        if (existing and existing.get("title") == worksheet.get("title")
+                and existing.get("questions") == (worksheet.get("questions") or [])
+                and existing.get("set_number") == (worksheet.get("set_number") or 1)):
+            return int(existing["id"])
+
+    sheet_type = str(worksheet.get("sheet_type") or "Homework")
+    assessment_type = "homework" if sheet_type.lower() == "homework" else "in_class"
+    return save_worksheet(
+        title=worksheet.get("title") or "Untitled Worksheet",
+        term=worksheet.get("term"),
+        week=worksheet.get("week"),
+        year_level=worksheet.get("year_level") or "",
+        topic=worksheet.get("topic") or "",
+        difficulty=worksheet.get("difficulty") or "Mixed",
+        questions=worksheet.get("questions") or [],
+        marking_key=worksheet.get("marking_key") or {},
+        set_number=worksheet.get("set_number") or 1,
+        custom_instructions=worksheet.get("custom_instructions") or worksheet.get("extra_instructions") or "",
+        cost=worksheet.get("meta_cost"),
+        model=worksheet.get("model_used"),
+        tokens=worksheet.get("meta_tokens"),
+        source_theory_id=worksheet.get("source_theory_id"),
+        assessment_type=assessment_type,
+    )
+
 def update_worksheet_instructions(worksheet_id: int, instructions_text: str) -> bool:
     """Updates the custom instructions / notes for a saved worksheet."""
     conn = get_connection()
@@ -1705,5 +1743,3 @@ def get_topic_assessment_matrix(worksheet_id: int, class_id: Optional[int] = Non
         "teaching_gaps": teaching_gaps,
         "student_records": student_records
     }
-
-
