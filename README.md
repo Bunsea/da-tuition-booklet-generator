@@ -22,7 +22,7 @@ This is still one app. Each feature folder is an isolated working copy of its co
 ./feature-workspaces.sh run attendance
 ```
 
-Open `feature-workspaces/attendance` or `feature-workspaces/report-layout` as a separate project in your coding tool. Use a different feature name for each new task. The run command starts each feature on its own port, beginning at 8502; the main app uses 8501. Ask Codex to merge a finished feature into `main` when ready. Feature folders contain local copies of `.env` and the database, so keep them private and avoid entering real student data during tests.
+Open `feature-workspaces/attendance` or `feature-workspaces/report-layout` as a separate project in your coding tool. Use a different feature name for each new task. The run command starts each feature on its own port, beginning at 8502; the main app uses 8501. Feature folders reuse the main Python environment when available. Ask Codex to merge a finished feature into `main` when ready. Feature folders contain local copies of `.env` and the database, so keep them private and avoid entering real student data during tests.
 
 ### 1. Launch the Application
 Run the launcher script in Terminal:

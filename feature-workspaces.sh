@@ -52,6 +52,9 @@ if [[ "$command_name" == "new" ]]; then
             cp -p "$ROOT/$local_file" "$target/$local_file"
         fi
     done
+    if [[ -x "$ROOT/.venv/bin/streamlit" ]]; then
+        ln -s "$ROOT/.venv" "$target/.venv"
+    fi
     echo "Created $target"
     echo "Open this folder in your coding tool to work on $feature_name."
     exit 0
