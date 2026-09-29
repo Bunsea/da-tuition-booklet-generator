@@ -7,6 +7,38 @@ import pypdf
 import io
 
 class TestPdfGenerator(unittest.TestCase):
+    def test_answer_space_uses_student_instructions_only(self):
+        question = (
+            "Five people are to be seated around a circular dining table as shown "
+            "in the diagram below. In how many different arrangements can they be seated "
+            "if rotations are considered identical?\n"
+            r"\begin{tikzpicture}\draw (0,0) circle (1);\end{tikzpicture}"
+        )
+        self.assertEqual(
+            pdf_generator.detect_question_response_type(question, "Draw a table, then show that the answer is 24."),
+            "compact"
+        )
+        self.assertEqual(
+            pdf_generator.detect_question_response_type("Draw a diagram of the seating arrangement."),
+            "diagram"
+        )
+        self.assertEqual(
+            pdf_generator.detect_question_response_type("Explain why rotations give the same arrangement."),
+            "reasoning"
+        )
+        questions = [
+            {"item_label": "3", "text": question, "correct_answer": "24"},
+            {"item_label": "4", "text": "Explain why rotations are identical.", "correct_answer": "Fix one person."},
+        ]
+        labels, answers, _, items = pdf_generator.extract_worksheet_answer_sheet_data(questions)
+        self.assertEqual([item["type"] for item in items], ["compact", "reasoning"])
+        teacher_pdf = pdf_generator.generate_teacher_answer_sheet_pdf(
+            question_labels=labels, answers=answers, items=items
+        )
+        text = "".join(page.extract_text() for page in pypdf.PdfReader(io.BytesIO(teacher_pdf)).pages)
+        self.assertIn("Question 2", text)
+        self.assertNotIn("Question 1 — Diagram", text)
+
     def test_proportional_logo(self):
         rl_img = pdf_generator.get_proportional_logo(target_height=48.0, max_width=70.0)
         self.assertIsNotNone(rl_img)
@@ -2177,9 +2209,6 @@ class TestPdfGenerator(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-
-
 
 
 

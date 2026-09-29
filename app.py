@@ -2304,7 +2304,7 @@ with tab1:
             student_ans_pdf_bytes = _cached_ws["s_ans_pdf"]
             teacher_ans_pdf_bytes = _cached_ws["t_ans_pdf"]
 
-            p_col1, p_col2, p_col3 = st.columns(3)
+            p_col1, p_col2 = st.columns(2)
             with p_col1:
                 ws_dl_name = ai_engine.get_worksheet_download_filename(
                     topic=ws_item_topic,
@@ -2362,24 +2362,6 @@ with tab1:
                     mime="application/pdf",
                     use_container_width=True
                 )
-            with p_col3:
-                export_mkey = _cached_ws.get("expanded_key") or ws.get("marking_key", {})
-                key_json_str = json.dumps(export_mkey, indent=2)
-                key_file_name = ai_engine.get_worksheet_download_filename(
-                    topic=ws_item_topic,
-                    sheet_type=ws_sheet_type,
-                    set_number=ws_set_val,
-                    prefix="Marking Key",
-                    extension="json"
-                )
-                st.download_button(
-                    "📥 Export Marking Key (JSON)",
-                    data=key_json_str,
-                    file_name=key_file_name,
-                    mime="application/json",
-                    use_container_width=True
-                )
-
             col_ws_mark, col_ws_save = st.columns([1, 1])
             with col_ws_mark:
                 if st.button("⚡ Mark Student Submissions in Tab 2", key=f"btn_mark_now_ws_{ws.get('id', 0)}", type="primary", use_container_width=True):

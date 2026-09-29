@@ -1,5 +1,7 @@
 .env
+.streamlit/credentials.toml
 .venv/
+feature-workspaces/
 __pycache__/
 *.pyc
 *.db

@@ -4970,7 +4970,7 @@ def build_latex_worksheet_source(
                     if stem:
                         stem_lines = format_stem_with_bullet_items(stem, as_item=False)
                         stem_body = "\n".join(stem_lines)
-                        tex_lines.append(f"\\item[\\textbf{{{item_label}.}}] {stem_body}")
+                        tex_lines.append(f"\\item[\\textbf{{{item_label}.}}] {{\\raggedright {stem_body}\\par}}")
                     else:
                         tex_lines.append(f"\\item[\\textbf{{{item_label}.}}] \\leavevmode")
 
@@ -5028,7 +5028,7 @@ def build_latex_worksheet_source(
                 else:
                     stem_lines = format_stem_with_bullet_items(raw_text, as_item=False)
                     q_body = "\n".join(stem_lines)
-                    tex_lines.append(f"\\item[\\textbf{{{item_label}.}}] {q_body} \\qmark{{{marks}}}")
+                    tex_lines.append(f"\\item[\\textbf{{{item_label}.}}] {{\\raggedright {q_body} \\qmark{{{marks}}}\\par}}")
                     if q_diag and str(q_diag).strip():
                         tex_lines.append(r"\vspace{0.15cm}")
                         tex_lines.append(sanitize_tikz_diagram(str(q_diag).strip()))
@@ -9430,15 +9430,18 @@ def detect_question_response_type(question_text: str, answer_text: str = "") -> 
     Only triggers 'diagram' when the student is explicitly instructed to draw, sketch, construct,
     plot, or complete a diagram/graph (not when a diagram is simply provided as part of the question stimulus).
     """
-    q_lower = str(question_text or "").lower()
-    a_lower = str(answer_text or "").lower()
-    combined = f"{q_lower} {a_lower}"
+    # A supplied TikZ diagram contains commands such as \draw. Those describe
+    # the printed figure; they are not instructions for the student to draw it.
+    question_prose = re.sub(
+        r"\\begin\{tikzpicture\}[\s\S]*?\\end\{tikzpicture\}",
+        " ", str(question_text or ""), flags=re.IGNORECASE
+    )
+    q_lower = question_prose.lower()
 
     # Explicit drawing/sketching commands directed at the student
     # Note: phrases like "as shown in the diagram below" or "refer to the diagram" MUST NOT trigger a canvas!
     diagram_active_patterns = [
         r"\b(?:draw|sketch|construct|plot)\s+(?:a|an|the|this|your|curves?|graphs?|diagrams?|flowcharts?|trees?|lines?|planes?|figures?|histograms?|polygons?)\b",
-        r"\b(?:draw|sketch|construct|plot)\b(?!\s+(?:from|using|the\s+conclusion|a\s+card|a\s+ticket|a\s+marble|a\s+ball|a\s+counter|a\s+letter|a\s+tile|a\s+token|cards?|marbles?|balls?)\b)",
         r"\b(?:label|complete)\s+the\s+(?:diagram|figure|graph|tree|canvas|sketch|number\s+line)\b",
         r"\b(?:draw\s+a\s+tree\s+diagram|draw\s+a\s+venn\s+diagram|draw\s+a\s+flowchart|draw\s+a\s+box\s+plot|sketch\s+the\s+curve|sketch\s+the\s+graph|plot\s+the\s+points)\b",
         r"\b(?:on\s+the\s+(?:grid|cartesian\s+plane|axes|number\s+line)\s+(?:provided|below|draw|sketch))\b"
@@ -9461,13 +9464,13 @@ def detect_question_response_type(question_text: str, answer_text: str = "") -> 
     # Reasoning / Proof detection keywords: student is asked to prove, justify, or explain with steps
     reasoning_patterns = [
         r"\b(?:prove\s+that|proof\b|show\s+that|demonstrate\s+that)\b",
-        r"\b(?:justify\s+your\s+answer|give\s+reasons?|state\s+reasons?|with\s+reasons)\b",
-        r"\b(?:explain\s+why|explain\s+how)\b",
+        r"\b(?:justify(?:\s+your\s+answer)?|give\s+reasons?|state\s+reasons?|with\s+reasons)\b",
+        r"\b(?:explain\b|show\s+your\s+working)\b",
         r"\b(?:by\s+mathematical\s+induction|deduce\s+that)\b",
         r"\b(?:congruence\s+proof|similarity\s+proof)\b"
     ]
     for pat in reasoning_patterns:
-        if re.search(pat, combined):
+        if re.search(pat, q_lower):
             return "reasoning"
 
     return "compact"

@@ -11,6 +11,19 @@ A unified, tutor-friendly platform that solves all 5 major workflow bottlenecks 
 
 ## Quick Start
 
+### Work on features at the same time
+
+This is still one app. Each feature folder is an isolated working copy of its code, with a separate branch and local database. The main app remains in this folder.
+
+```bash
+./feature-workspaces.sh new attendance
+./feature-workspaces.sh new report-layout
+./feature-workspaces.sh list
+./feature-workspaces.sh run attendance
+```
+
+Open `feature-workspaces/attendance` or `feature-workspaces/report-layout` as a separate project in your coding tool. Use a different feature name for each new task. The run command starts each feature on its own port, beginning at 8502; the main app uses 8501. Ask Codex to merge a finished feature into `main` when ready. Feature folders contain local copies of `.env` and the database, so keep them private and avoid entering real student data during tests.
+
 ### 1. Launch the Application
 Run the launcher script in Terminal:
 ```bash
