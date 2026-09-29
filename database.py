@@ -616,14 +616,32 @@ def get_worksheet_by_id(worksheet_id: int) -> Optional[Dict[str, Any]]:
         return d
     return None
 
-def delete_worksheet(worksheet_id: int):
+def delete_worksheet(worksheet_id: int) -> bool:
+    """Delete an unmarked worksheet without discarding student results."""
     conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM mistakes WHERE worksheet_id = ?", (worksheet_id,))
-    cursor.execute("DELETE FROM submissions WHERE worksheet_id = ?", (worksheet_id,))
-    cursor.execute("DELETE FROM worksheets WHERE id = ?", (worksheet_id,))
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        exists = conn.execute("SELECT 1 FROM worksheets WHERE id = ?", (worksheet_id,)).fetchone()
+        if not exists:
+            conn.rollback()
+            return False
+        submission_count = conn.execute(
+            "SELECT COUNT(*) FROM submissions WHERE worksheet_id = ?", (worksheet_id,)
+        ).fetchone()[0]
+        if submission_count:
+            raise ValueError(
+                f"This worksheet has {submission_count} marked submission(s). "
+                "Keep it to preserve student marks and reports."
+            )
+        conn.execute("DELETE FROM mistakes WHERE worksheet_id = ?", (worksheet_id,))
+        conn.execute("DELETE FROM worksheets WHERE id = ?", (worksheet_id,))
+        conn.commit()
+        return True
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 # --- Theory Booklet Operations ---
 def save_theory_booklet(title: str, term: Optional[int], week: Optional[int], year_level: str, topic: str, content: Dict[str, Any]) -> int:

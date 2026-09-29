@@ -105,6 +105,24 @@ class TestDatabase(unittest.TestCase):
         self.assertEqual(matches[0]["set_number"], 3)
         self.assertEqual(database.get_worksheet_by_id(saved_id)["marking_key"], {"1": "24"})
 
+    def test_delete_unmarked_worksheet(self):
+        ws_id = database.save_worksheet("Old worksheet", 1, 1, "Year 8", "Algebra", "Easy", [], {})
+        self.assertTrue(database.delete_worksheet(ws_id))
+        self.assertIsNone(database.get_worksheet_by_id(ws_id))
+        self.assertFalse(database.delete_worksheet(ws_id))
+
+    def test_delete_preserves_marked_worksheet_and_submission(self):
+        ws_id = database.save_worksheet("Marked worksheet", 1, 1, "Year 8", "Algebra", "Easy", [], {})
+        sub_id = database.save_submission(
+            worksheet_id=ws_id, student_name="Alex Smith", raw_file_name="answer.pdf",
+            score=1, total_marks=2, accuracy_pct=50, pdf_report_path="report.pdf",
+            summary_text="Reviewed", mistakes=[]
+        )
+        with self.assertRaisesRegex(ValueError, "marked submission"):
+            database.delete_worksheet(ws_id)
+        self.assertIsNotNone(database.get_worksheet_by_id(ws_id))
+        self.assertIsNotNone(database.get_submission_by_id(sub_id))
+
     def test_user_authentication(self):
         # Default seeded users
         bunsea = database.authenticate_user("bunsea", "password123")

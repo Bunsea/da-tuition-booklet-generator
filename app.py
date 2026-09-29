@@ -1988,15 +1988,45 @@ with tab1:
                     ws_lib_opts[lbl] = w['id']
                 selected_lib_ws_label = st.selectbox("Select a Saved Worksheet / Homework Booklet:", list(ws_lib_opts.keys()), key="sel_lib_ws")
                 sel_lib_ws_id = ws_lib_opts[selected_lib_ws_label]
-                if st.button("📂 Load Selected Worksheet", key=f"btn_load_lib_ws_{sel_lib_ws_id}", type="primary"):
-                    loaded_ws = database.get_worksheet_by_id(sel_lib_ws_id)
-                    if loaded_ws:
-                        st.session_state["latest_worksheet"] = loaded_ws
-                        st.session_state["latest_ws_id"] = loaded_ws["id"]
-                        st.session_state.pop("latest_ws_cache_key", None)
-                        st.session_state.pop("latest_ws_artifacts", None)
-                        st.success(f"Loaded Worksheet #{loaded_ws['id']}: {loaded_ws.get('title')}!")
+                if st.session_state.get("pending_delete_ws_id") != sel_lib_ws_id:
+                    st.session_state.pop("pending_delete_ws_id", None)
+                load_col, delete_col = st.columns(2)
+                with load_col:
+                    if st.button("📂 Load Selected Worksheet", key=f"btn_load_lib_ws_{sel_lib_ws_id}", type="primary", use_container_width=True):
+                        loaded_ws = database.get_worksheet_by_id(sel_lib_ws_id)
+                        if loaded_ws:
+                            st.session_state["latest_worksheet"] = loaded_ws
+                            st.session_state["latest_ws_id"] = loaded_ws["id"]
+                            st.session_state.pop("latest_ws_cache_key", None)
+                            st.session_state.pop("latest_ws_artifacts", None)
+                            st.success(f"Loaded Worksheet #{loaded_ws['id']}: {loaded_ws.get('title')}!")
+                            st.rerun()
+                with delete_col:
+                    if st.button("🗑️ Delete Selected Worksheet", key=f"btn_delete_lib_ws_{sel_lib_ws_id}", use_container_width=True):
+                        st.session_state["pending_delete_ws_id"] = sel_lib_ws_id
                         st.rerun()
+                if st.session_state.get("pending_delete_ws_id") == sel_lib_ws_id:
+                    st.warning(f"Delete worksheet #{sel_lib_ws_id}: {selected_lib_ws_label}? This cannot be undone. Worksheets with marked submissions cannot be deleted.")
+                    confirm_col, cancel_col = st.columns(2)
+                    with confirm_col:
+                        if st.button("Confirm Delete", key=f"confirm_delete_ws_{sel_lib_ws_id}", type="primary", use_container_width=True):
+                            try:
+                                if database.delete_worksheet(sel_lib_ws_id):
+                                    if st.session_state.get("latest_ws_id") == sel_lib_ws_id:
+                                        for state_key in ("latest_worksheet", "latest_ws_id", "latest_ws_cache_key", "latest_ws_artifacts"):
+                                            st.session_state.pop(state_key, None)
+                                    if st.session_state.get("preselected_marking_ws_id") == sel_lib_ws_id:
+                                        st.session_state.pop("preselected_marking_ws_id", None)
+                                    st.session_state.pop("pending_delete_ws_id", None)
+                                    st.rerun()
+                                else:
+                                    st.error("This worksheet no longer exists.")
+                            except ValueError as exc:
+                                st.error(str(exc))
+                    with cancel_col:
+                        if st.button("Cancel", key=f"cancel_delete_ws_{sel_lib_ws_id}", use_container_width=True):
+                            st.session_state.pop("pending_delete_ws_id", None)
+                            st.rerun()
 
         col_yl, col_tb = st.columns([1.2, 1.8])
         with col_yl:
