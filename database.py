@@ -1,6 +1,7 @@
 import sqlite3
 import json
 import os
+import re
 import hashlib
 import secrets
 import threading
@@ -1136,17 +1137,24 @@ def get_submission_concept_breakdown(submission_id: int) -> List[Dict[str, Any]]
         
         concept_map[c_name]["questions"].append(q_label)
         
-        q_lower = q_label.lower()
-        matched = mistake_map.get(q_lower) or mistake_map.get(f"qn {q_lower}")
-        if not matched:
-            for k, m in mistake_map.items():
-                if k == q_lower or k.endswith(f" {q_lower}") or k.endswith(f".{q_lower}"):
-                    matched = m
-                    break
-                    
-        if matched:
+        q_clean = q_label.lower().replace("qn", "").replace("q", "").strip()
+        q_base = re.match(r'^(\d+)', q_clean)
+        q_mistakes = []
+        for k, m in mistake_map.items():
+            if k == q_clean or k.endswith(f" {q_clean}") or k.endswith(f".{q_clean}"):
+                if m not in q_mistakes:
+                    q_mistakes.append(m)
+                continue
+            m_base = re.match(r'^(\d+)', k)
+            if q_base and m_base and q_base.group(1) == m_base.group(1):
+                if m not in q_mistakes:
+                    q_mistakes.append(m)
+
+        if q_mistakes:
             concept_map[c_name]["incorrect_questions"].append(q_label)
-            concept_map[c_name]["mistakes"].append(matched)
+            for m in q_mistakes:
+                if m not in concept_map[c_name]["mistakes"]:
+                    concept_map[c_name]["mistakes"].append(m)
         else:
             concept_map[c_name]["correct_questions"].append(q_label)
             

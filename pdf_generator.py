@@ -3960,6 +3960,31 @@ def get_tiered_sections_for_questions(questions: List[Dict[str, Any]]) -> List[D
 
     return sections
 
+def order_and_renumber_worksheet_questions(questions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Orders questions strictly by their subtopic Sets (Set A, Set B, ...) 
+    and difficulty Sections (Section 1: Easy, Section 2: Medium, ...)
+    and assigns clean consecutive item_labels: 1, 2, 3, 4, 5...
+    This ensures the physical worksheet, the answers section, the worked solutions,
+    and the student answer sheets are 100% synchronized and numbered in reading order.
+    """
+    if not questions:
+        return []
+    
+    groups = group_questions_by_subtopic(questions)
+    ordered = []
+    q_counter = 1
+    for grp in groups:
+        sections = get_tiered_sections_for_questions(grp["questions"])
+        for sec in sections:
+            for q in sec["questions"]:
+                q_copy = dict(q)
+                q_copy["item_label"] = str(q_counter)
+                q_copy["num"] = q_counter
+                ordered.append(q_copy)
+                q_counter += 1
+    return ordered
+
 def format_latex_theory_notes(content: str) -> str:
     """Formats theory notes into spaced paragraphs, headings, and bullet lists with LaTeX math intact."""
     if not content:
@@ -4826,6 +4851,7 @@ def build_latex_worksheet_source(
 ) -> str:
     """Builds the complete LaTeX source string for an authentic Australian exam worksheet."""
     subject_clean = f"{year_level} Maths"
+    questions = order_and_renumber_worksheet_questions(questions)
     groups = group_questions_by_subtopic(questions)
     clean_topic = clean_worksheet_topic_title(topic)
 
@@ -9463,6 +9489,7 @@ def extract_worksheet_answer_sheet_data(
     expanded_key = {}
     items = []
     raw_key = marking_key or {}
+    questions = order_and_renumber_worksheet_questions(questions)
 
     for idx, q in enumerate(questions, 1):
         q_label = str(q.get("item_label") or idx).strip()

@@ -2989,8 +2989,15 @@ Respond with valid JSON ONLY matching this structure:
             est_cost = estimate_gemini_cost(prompt_tokens, candidates_tokens, model=model_name)
             data["meta_tokens"] = total_tokens
             data["meta_cost"] = round(est_cost, 5)
-            data["model_used"] = model_name
-            data["used_search"] = use_search
+            from pdf_generator import order_and_renumber_worksheet_questions
+            data["questions"] = order_and_renumber_worksheet_questions(data.get("questions", []))
+            m_key = {}
+            for q in data["questions"]:
+                lbl = str(q.get("item_label") or q.get("num") or "").strip()
+                if lbl:
+                    m_key[lbl] = str(q.get("correct_answer") or q.get("final_answer") or "").strip()
+            data["marking_key"] = m_key
+
             return audit_and_sanitize_year11_advanced_data(data, year_level)
         except Exception as e:
             last_err = e

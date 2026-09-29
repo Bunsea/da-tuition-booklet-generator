@@ -122,5 +122,56 @@ class TestConceptBreakdown(unittest.TestCase):
         self.assertTrue(pdf_bytes.startswith(b"%PDF"))
         self.assertGreater(len(pdf_bytes), 1000)
 
+    def test_subpart_mistake_matching_and_ordering(self):
+        # Test question ordering across Sets and Sections
+        unordered_qs = [
+            {"item_label": "1", "subtopic": "Topic A", "difficulty": "Easy", "text": "Q1"},
+            {"item_label": "2", "subtopic": "Topic B", "difficulty": "Easy", "text": "Q2"},
+            {"item_label": "3", "subtopic": "Topic A", "difficulty": "Medium", "text": "Q3"},
+            {"item_label": "4", "subtopic": "Topic B", "difficulty": "Medium", "text": "Q4"},
+        ]
+        ordered = pdf_generator.order_and_renumber_worksheet_questions(unordered_qs)
+        # Should be ordered: Topic A (Easy), Topic A (Medium), Topic B (Easy), Topic B (Medium)
+        self.assertEqual([q["item_label"] for q in ordered], ["1", "2", "3", "4"])
+        self.assertEqual([q["text"] for q in ordered], ["Q1", "Q3", "Q2", "Q4"])
+
+        # Test subpart mistake matching (e.g. Qn 2(a), 2(b))
+        ws_id = database.save_worksheet(
+            title="Subpart Test Worksheet",
+            topic="Combinatorics",
+            year_level="Year 11",
+            term=1,
+            week=1,
+            difficulty="Medium",
+            questions=[
+                {"item_label": "1", "concept_name": "Permutations", "text": "Q1"},
+                {"item_label": "2", "concept_name": "Combinations", "text": "Q2"}
+            ],
+            marking_key={"1": "10", "2": "20"},
+            set_number=1
+        )
+
+        sub_id = database.save_submission(
+            worksheet_id=ws_id,
+            student_name="Bob Jones",
+            raw_file_name="bob.pdf",
+            score=1.0,
+            total_marks=2.0,
+            accuracy_pct=50.0,
+            pdf_report_path="bob_report.pdf",
+            summary_text="Good effort",
+            mistakes=[
+                {"question_num": "Qn 2(a)", "concept_name": "Combinations", "status": "Incorrect", "marks_lost": 1.0}
+            ]
+        )
+
+        breakdown = database.get_submission_concept_breakdown(sub_id)
+        b_map = {b["concept_name"]: b for b in breakdown}
+        self.assertEqual(b_map["Combinations"]["accuracy_pct"], 0.0)
+        self.assertEqual(b_map["Combinations"]["status"], "Weakness")
+        self.assertEqual(b_map["Permutations"]["accuracy_pct"], 100.0)
+        self.assertEqual(b_map["Permutations"]["status"], "Strength")
+
 if __name__ == "__main__":
     unittest.main()
+

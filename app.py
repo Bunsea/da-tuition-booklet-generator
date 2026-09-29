@@ -3746,8 +3746,21 @@ with tab2:
                     cls_obj = database.get_class_by_id(selected_class_id) if selected_class_id else None
                     class_display_name = cls_obj["name"] if cls_obj else ""
 
+                    if term_val and week_val:
+                        tw_header = f"Term {term_val} Week {week_val} Homework Report"
+                        tw_tag = f"T{term_val}W{week_val}"
+                    elif term_val:
+                        tw_header = f"Term {term_val} Homework Report"
+                        tw_tag = f"T{term_val}"
+                    elif week_val:
+                        tw_header = f"Week {week_val} Homework Report"
+                        tw_tag = f"W{week_val}"
+                    else:
+                        tw_header = f"{worksheet_title} Report" if worksheet_title else "Homework Performance Report"
+                        tw_tag = "Homework"
+
                     # Save to DB first to register submission & mistakes
-                    report_filename = f"DA_Report_{student_name.replace(' ', '_')}_T{term_val}W{week_val}.pdf"
+                    report_filename = f"DA_Report_{student_name.replace(' ', '_')}_{tw_tag}.pdf"
                     sub_id = database.save_submission(
                         worksheet_id=active_ws_id,
                         student_name=student_name,
@@ -3766,7 +3779,7 @@ with tab2:
                     # Generate PDF Report with Crest Logo and Concept Mastery Breakdown
                     report_bytes = pdf_generator.generate_student_report_pdf(
                         student_name=student_name,
-                        term_week_header=f"Term {term_val} Week {week_val} Homework Report",
+                        term_week_header=tw_header,
                         score=score,
                         total_marks=active_total_marks,
                         accuracy_pct=accuracy_pct,
