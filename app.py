@@ -1974,6 +1974,30 @@ with tab1:
         st.markdown("### Generate Exam-Style Worksheet & Auto Marking Key")
         st.caption("Aligned with NSW Syllabus textbooks (CambridgeMATHS & Maths in Focus). Questions are allocated marks according to problem complexity and steps required.")
 
+        # Saved Worksheets & Homework Booklets Library
+        saved_worksheets = database.get_worksheets()
+        if saved_worksheets:
+            with st.expander("📚 Saved Worksheets & Homework Booklets Library (Load Existing Booklet)", expanded=False):
+                ws_lib_opts = {}
+                for w in saved_worksheets:
+                    s_type = w.get("assessment_type") or w.get("sheet_type") or "Worksheet"
+                    s_num = w.get("set_number", 1)
+                    type_str = f"Homework Set {s_num}" if "homework" in s_type.lower() else s_type.replace("_", " ").title()
+                    t_str = f"T{w.get('term')}W{w.get('week')}" if (w.get('term') and w.get('week')) else "General"
+                    lbl = f"#{w['id']} — [{t_str}] {type_str} • {w.get('year_level', '')} — {w.get('topic') or w.get('title')} ({w.get('total_questions', 0)} Qs)"
+                    ws_lib_opts[lbl] = w['id']
+                selected_lib_ws_label = st.selectbox("Select a Saved Worksheet / Homework Booklet:", list(ws_lib_opts.keys()), key="sel_lib_ws")
+                sel_lib_ws_id = ws_lib_opts[selected_lib_ws_label]
+                if st.button("📂 Load Selected Worksheet", key=f"btn_load_lib_ws_{sel_lib_ws_id}", type="primary"):
+                    loaded_ws = database.get_worksheet_by_id(sel_lib_ws_id)
+                    if loaded_ws:
+                        st.session_state["latest_worksheet"] = loaded_ws
+                        st.session_state["latest_ws_id"] = loaded_ws["id"]
+                        st.session_state.pop("latest_ws_cache_key", None)
+                        st.session_state.pop("latest_ws_artifacts", None)
+                        st.success(f"Loaded Worksheet #{loaded_ws['id']}: {loaded_ws.get('title')}!")
+                        st.rerun()
+
         col_yl, col_tb = st.columns([1.2, 1.8])
         with col_yl:
             default_yl_index = YEAR_LEVEL_OPTIONS.index("Year 11 (Extension)") if "Year 11 (Extension)" in YEAR_LEVEL_OPTIONS else 8
@@ -3655,6 +3679,51 @@ with tab2:
                             tb_badge = f" • Linked to Theory Booklet: **#{src_tb_id} ({src_tb.get('title')})**"
                     
                     st.success(f"Loaded {len(active_key)} question parts from **{worksheet_title}** (Total Marks: {int(active_total_marks)}){tb_badge}")
+
+                    with st.expander("📥 Re-Download Booklet & Answer Sheet Materials", expanded=False):
+                        ws_atype = full_ws.get("assessment_type") or full_ws.get("sheet_type") or "homework"
+                        ws_set_n = full_ws.get("set_number", 1)
+                        ws_q_json = full_ws.get("questions_json") or json.dumps(full_ws.get("questions", []))
+                        ws_mk_json = full_ws.get("marking_key_json") or json.dumps(full_ws.get("marking_key", {}))
+                        ws_yl = full_ws.get("year_level", "")
+                        ws_tp = full_ws.get("topic", full_ws.get("title", ""))
+
+                        tb_ref = src_tb if src_tb_id else None
+
+                        f_stu_pdf = get_cached_worksheet_pdf(full_ws['id'], full_ws['title'], ws_yl, ws_tp, ws_q_json, ws_mk_json, full_ws.get('term'), full_ws.get('week'), ws_atype, "student", ws_set_n)
+                        f_tea_pdf = get_cached_worksheet_pdf(full_ws['id'], full_ws['title'], ws_yl, ws_tp, ws_q_json, ws_mk_json, full_ws.get('term'), full_ws.get('week'), ws_atype, "teacher", ws_set_n)
+                        f_sans_pdf = get_cached_worksheet_pdf(full_ws['id'], full_ws['title'], ws_yl, ws_tp, ws_q_json, ws_mk_json, full_ws.get('term'), full_ws.get('week'), ws_atype, "answers", ws_set_n)
+                        f_tans_pdf = get_cached_worksheet_pdf(full_ws['id'], full_ws['title'], ws_yl, ws_tp, ws_q_json, ws_mk_json, full_ws.get('term'), full_ws.get('week'), ws_atype, "teacher_answers", ws_set_n)
+
+                        f_stu_name = get_worksheet_download_filename(full_ws, sheet_type=ws_atype, mode="student", theory_booklet=tb_ref)
+                        f_tea_name = get_worksheet_download_filename(full_ws, sheet_type=ws_atype, mode="teacher", theory_booklet=tb_ref)
+                        f_sans_name = get_worksheet_download_filename(full_ws, sheet_type=ws_atype, mode="answers", theory_booklet=tb_ref)
+                        f_tans_name = get_worksheet_download_filename(full_ws, sheet_type=ws_atype, mode="teacher_answers", theory_booklet=tb_ref)
+
+                        rd_col1, rd_col2, rd_col3, rd_col4 = st.columns(4)
+                        with rd_col1:
+                            st.download_button("📥 Student Worksheet", data=f_stu_pdf, file_name=f_stu_name, mime="application/pdf", key=f"t2_dl_stu_{full_ws['id']}", use_container_width=True)
+                        with rd_col2:
+                            st.download_button("📥 Teacher Solutions", data=f_tea_pdf, file_name=f_tea_name, mime="application/pdf", key=f"t2_dl_tea_{full_ws['id']}", use_container_width=True)
+                        with rd_col3:
+                            st.download_button("📥 Student Answer Sheet", data=f_sans_pdf, file_name=f_sans_name, mime="application/pdf", key=f"t2_dl_sans_{full_ws['id']}", use_container_width=True)
+                        with rd_col4:
+                            st.download_button("🔑 Teacher Answer Key", data=f_tans_pdf, file_name=f_tans_name, mime="application/pdf", key=f"t2_dl_tans_{full_ws['id']}", use_container_width=True)
+
+                        rd_z, rd_open = st.columns([1.5, 1])
+                        with rd_z:
+                            f_zip_bytes = build_worksheet_zip_package(full_ws['id'], json.dumps(full_ws), json.dumps(tb_ref) if tb_ref else None)
+                            clean_z_topic = re.sub(r'^(?:Chapter|Unit|Topic\s*)?(?:\d+[\.\:\-]\s*|\d+[A-Za-z][\.\:\-]\s*|\d+\s+)', '', str(ws_tp)).strip()
+                            zip_f_name = f"{clean_z_topic} {ws_atype.replace('_', ' ').title()} Complete Package.zip".replace("_", " ")
+                            st.download_button("📦 Download All as ZIP (Complete Package)", data=f_zip_bytes, file_name=zip_f_name, mime="application/zip", key=f"t2_dl_zip_{full_ws['id']}", use_container_width=True)
+                        with rd_open:
+                            if st.button("📂 Load into Tab 1 Worksheet Viewer", key=f"t2_open_tab1_{full_ws['id']}", use_container_width=True):
+                                st.session_state["latest_worksheet"] = full_ws
+                                st.session_state["latest_ws_id"] = full_ws["id"]
+                                st.session_state.pop("latest_ws_cache_key", None)
+                                st.session_state.pop("latest_ws_artifacts", None)
+                                st.session_state["active_tab_hint"] = "generate"
+                                st.success("Loaded into Tab 1! Switch to Tab 1 above.")
     else:
         c1, c2, c3 = st.columns(3)
         with c1:
