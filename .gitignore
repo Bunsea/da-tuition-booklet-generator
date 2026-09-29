@@ -1,6 +1,7 @@
 .env
 .streamlit/credentials.toml
 .venv/
+.venv
 feature-workspaces/
 Answer Sheet Template.pdf
 __pycache__/
