@@ -5,6 +5,34 @@ import ai_engine
 import pdf_generator
 
 class TestAiEngine(unittest.TestCase):
+    def test_2024_stage6_topic_boundaries(self):
+        for textbook in ("CambridgeMATHS NSW", "Maths in Focus (Nelson Cengage)"):
+            year11_advanced = ai_engine.get_topics_for_year("Year 11 (Advanced)", textbook)
+            year11_extension = ai_engine.get_topics_for_year("Year 11 (Extension)", textbook)
+            self.assertFalse(any("random variable" in t.lower() for t in year11_advanced))
+            self.assertFalse(any("pigeonhole" in t.lower() for t in year11_extension))
+            for topic in year11_extension:
+                self.assertFalse(any("pigeonhole" in s.lower() for s in ai_engine.get_curriculum_subtopics("Year 11 (Extension)", topic, textbook)))
+            year12_advanced = ai_engine.get_topics_for_year("Year 12 (Advanced)", textbook)
+            self.assertTrue(any("random variable" in t.lower() for t in year12_advanced))
+            self.assertTrue(any("discrete random variable" in s.lower() for t in year12_advanced for s in ai_engine.get_curriculum_subtopics("Year 12 (Advanced)", t, textbook)))
+
+        self.assertEqual(ai_engine.get_curriculum_subtopics(
+            "Year 11 (Advanced)", "Discrete Random Variables", "CambridgeMATHS NSW"
+        ), [])
+        self.assertTrue(ai_engine.is_stage6_extension1("Year 11 (Extension)"))
+        ext_prompt = ai_engine.get_stage6_syllabus_boundary_prompt("Year 11 (Extension)")
+        self.assertIn("Do not include the pigeonhole principle", ext_prompt)
+        self.assertIn("Do not include Year 12 Extension 1 topics", ext_prompt)
+        self.assertTrue(ai_engine.audit_nsw_syllabus_violations({"text": "Use the pigeonhole principle."}, "Year 11 (Extension)"))
+        self.assertTrue(ai_engine.audit_nsw_syllabus_violations({"text": "Find the distribution of a discrete random variable."}, "Year 11 (Advanced)"))
+        self.assertFalse(ai_engine.audit_nsw_syllabus_violations({"text": "Calculate a 3D vector."}, "Year 12 (Extension 1)"))
+        with self.assertRaisesRegex(ValueError, "syllabus boundary"):
+            ai_engine.audit_and_sanitize_year11_advanced_data(
+                {"questions": [{"text": "Use the pigeonhole principle."}]},
+                "Year 11 (Extension)", strict=True
+            )
+
     def test_clean_json_response(self):
         markdown_json = "```json\n{\"title\": \"Math Worksheet\", \"total_marks\": 10}\n```"
         result = ai_engine.clean_json_response(markdown_json)
@@ -979,5 +1007,3 @@ class TestAiEngine(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-

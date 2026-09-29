@@ -13,6 +13,10 @@ try:
 except ImportError:
     HAS_GENAI = False
 
+# NSW Stage 6 (2024) course boundaries:
+# https://curriculum.nsw.edu.au/learning-areas/mathematics/mathematics-advanced-11-12-2024/overview/course
+# https://curriculum.nsw.edu.au/learning-areas/mathematics/mathematics-extension-1-11-12-2024/overview
+# Textbook chapter names are references; the NESA year-level scope takes precedence.
 # --- COMPREHENSIVE CAMBRIDGE NSW CURRICULUM SYLLABUS TOPICS & SUBTOPICS ---
 CAMBRIDGE_CURRICULUM: Dict[str, Dict[str, List[str]]] = {
     "Year 11 (Extension)": {
@@ -138,7 +142,7 @@ CAMBRIDGE_CURRICULUM: Dict[str, Dict[str, List[str]]] = {
             "14G Conditional probability"
         ],
         "15. Data and Probability": [
-            "15A Random variables and frequency tables",
+            "15A Frequency tables and data displays",
             "15B Cumulative frequency",
             "15C Grouped data"
         ],
@@ -770,11 +774,10 @@ CAMBRIDGE_CURRICULUM: Dict[str, Dict[str, List[str]]] = {
             "7D Superannuation balances and payouts",
             "7E Loan repayments and reducing balance mortgages"
         ],
-        "8. Descriptive Statistics and Bivariate Data": [
-            "8A Review of summary statistics: mean, median, IQR, standard deviation",
-            "8B Bivariate data, scatter plots and correlation coefficient (r)",
-            "8C Least-squares line of best fit: y = mx + c",
-            "8D Residual plots and evaluation of models"
+        "8. Discrete Random Variables": [
+            "8A Discrete random variables and probability distributions",
+            "8B Expected value and variance of discrete random variables",
+            "8C Applications of discrete probability distributions"
         ],
         "9. Continuous Random Variables": [
             "9A Continuous random variables and probability density functions (PDFs)",
@@ -1110,8 +1113,7 @@ MATHS_IN_FOCUS_CURRICULUM: Dict[str, Dict[str, List[str]]] = {
             "3.3 Arrangements in a circle and restricted permutations",
             "3.4 Combinations and selection problems",
             "3.5 Pascal's triangle and binomial coefficients",
-            "3.6 The Binomial Theorem and general term expansion",
-            "3.7 The Pigeonhole Principle"
+            "3.6 The Binomial Theorem and general term expansion"
         ],
         "4. Functions and Graphs": [
             "4.1 Concept of a function and vertical line test",
@@ -1493,13 +1495,15 @@ MATHS_IN_FOCUS_CURRICULUM: Dict[str, Dict[str, List[str]]] = {
             "8.3 Exponential growth and decay models (dy/dt = ky)",
             "8.4 Modified growth models and Newton's Law of Cooling"
         ],
-        "9. Continuous Random Variables and Normal Distribution": [
-            "9.1 Continuous random variables and probability density functions (PDF)",
-            "9.2 Mean, expected value and variance of continuous distributions",
-            "9.3 Cumulative distribution functions (CDF)",
-            "9.4 The Normal distribution curve and empirical rule (68-95-99.7)",
-            "9.5 Standard normal distribution and z-scores",
-            "9.6 Calculating probabilities and percentiles from z-score tables"
+        "9. Random Variables and Normal Distribution": [
+            "9.1 Discrete random variables and probability distributions",
+            "9.2 Expected value and variance of discrete random variables",
+            "9.3 Continuous random variables and probability density functions (PDF)",
+            "9.4 Mean, expected value and variance of continuous distributions",
+            "9.5 Cumulative distribution functions (CDF)",
+            "9.6 The Normal distribution curve and empirical rule (68-95-99.7)",
+            "9.7 Standard normal distribution and z-scores",
+            "9.8 Calculating probabilities and percentiles from z-score tables"
         ],
         "10. Financial Mathematics": [
             "10.1 Future value of an annuity and recurrence formulas",
@@ -1738,18 +1742,34 @@ def get_topics_for_year(year_level: str, textbook: str = "CambridgeMATHS NSW") -
     curr = get_curriculum_dict(textbook)
     # Direct match
     if year_level in curr:
-        return list(curr[year_level].keys())
+        return [topic for topic in curr[year_level] if is_syllabus_topic_allowed(year_level, topic)]
     
     # Fuzzy match
     for yl, topics_dict in curr.items():
         if year_level.lower() in yl.lower() or yl.lower() in year_level.lower():
-            return list(topics_dict.keys())
+            return [topic for topic in topics_dict if is_syllabus_topic_allowed(year_level, topic)]
 
     # Only fall back to generic list if textbook was Cambridge or alias
     if curr is CAMBRIDGE_CURRICULUM:
         return ["General Mathematics", "Algebra & Equations", "Measurement & Geometry", "Statistics & Probability"]
         
     return []
+
+
+def is_syllabus_topic_allowed(year_level: str, topic: str) -> bool:
+    """Keep known Year 12 topics out of 2024 NSW Year 11 topic choices."""
+    text = str(topic or "")
+    if is_year_11_advanced(year_level) and re.search(
+        r"\b(?:discrete|continuous) random variables?\b|\bdiscrete probability distributions?\b",
+        text, re.IGNORECASE
+    ):
+        return False
+    if is_stage6_extension1(year_level) and "11" in str(year_level) and re.search(
+        r"\bpigeonhole\b|\b(?:discrete|continuous) random variables?\b|\bdiscrete probability distributions?\b",
+        text, re.IGNORECASE
+    ):
+        return False
+    return True
 
 def get_curriculum_topics(year_level: str, textbook: str = "CambridgeMATHS NSW") -> List[str]:
     """Returns list of pre-configured syllabus topics for a given year level and textbook (alias for get_topics_for_year)."""
@@ -1770,13 +1790,17 @@ def get_curriculum_subtopics(year_level: str, topic: str, textbook: str = "Cambr
     if matched_yl_dict:
         # Check direct topic match
         if topic in matched_yl_dict:
-            return list(matched_yl_dict[topic])
+            return [sub for sub in matched_yl_dict[topic] if is_syllabus_topic_allowed(year_level, sub)]
         # Check partial/fuzzy match
         clean_topic = re.sub(r"^\d+[\.\s]+", "", topic).lower().strip()
         for t_name, subs in matched_yl_dict.items():
             clean_name = re.sub(r"^\d+[\.\s]+", "", t_name).lower().strip()
             if clean_topic in clean_name or clean_name in clean_topic:
-                return list(subs)
+                return [sub for sub in subs if is_syllabus_topic_allowed(year_level, sub)]
+
+    # Do not borrow a similarly named Year 12 chapter for a Year 11 request.
+    if re.search(r"\byear\s+1[12]\b", str(year_level), re.IGNORECASE):
+        return []
 
     # Search across all year levels if not found
     clean_topic = re.sub(r"^\d+[\.\s]+", "", topic).lower().strip()
@@ -2176,7 +2200,9 @@ def is_stage6_standard(year_level: str) -> bool:
 def is_stage6_extension1(year_level: str) -> bool:
     """Returns True if year level is Stage 6 Mathematics Extension 1."""
     yl = str(year_level).strip().lower()
-    return ("11" in yl or "12" in yl or "stage 6" in yl) and ("ext 1" in yl or "extension 1" in yl or "ext1" in yl or "3 unit" in yl or "3u" in yl)
+    is_extension_one = any(k in yl for k in ("ext 1", "extension 1", "ext1", "3 unit", "3u"))
+    is_unsuffixed_extension = bool(re.search(r"\bextension\b", yl)) and not is_stage6_extension2(year_level)
+    return ("11" in yl or "12" in yl or "stage 6" in yl) and (is_extension_one or is_unsuffixed_extension)
 
 
 def is_stage6_extension2(year_level: str) -> bool:
@@ -2272,20 +2298,31 @@ The content generated is strictly for NSW Stage 6 Mathematics Standard (non-calc
 
     # 4. STAGE 6 MATHEMATICS EXTENSION 1 (Years 11-12)
     if is_stage6_extension1(year_level):
+        if "11" in yl:
+            return """
+NSW NESA MATHEMATICS EXTENSION 1 YEAR 11 SYLLABUS (2024):
+Generate only Year 11 content: further work with functions, polynomials,
+further trigonometry (including three-dimensional trigonometry and compound
+angle identities), permutations and combinations, and the binomial theorem.
+Students also study the Year 11 Mathematics Advanced content.
+Do not include the pigeonhole principle or discrete random variables.
+Do not include Year 12 Extension 1 topics: mathematical induction, vectors,
+inverse trigonometric functions, integration, differential equations,
+binomial distributions, or sampling distributions.
+"""
         return """
-STRICT NSW NESA SYLLABUS BOUNDARY DIRECTIVE (STAGE 6 MATHEMATICS EXTENSION 1) - ZERO TOLERANCE LEAKAGE:
-The content generated is strictly for NSW Stage 6 Mathematics Extension 1 (3-Unit).
-1. PERMITTED EXTENSION 1 TOPICS:
+NSW NESA MATHEMATICS EXTENSION 1 YEAR 12 SYLLABUS (2024):
+The content generated is for NSW Stage 6 Mathematics Extension 1 Year 12.
+1. PERMITTED YEAR 12 EXTENSION 1 TOPICS:
 - Proof: Mathematical Induction (sums, divisibility, inequalities).
-- Vectors: 2D vectors only (vector components $\\mathbf{i}, \\mathbf{j}$, magnitude, direction, dot product, angle between vectors, vector projections, 2D geometric proofs using vectors).
+- Vectors: 2D and 3D vectors (components, magnitude, direction, dot product, and 2D motion).
 - Trigonometry: Inverse trigonometric functions ($\\arcsin x, \\arccos x, \\arctan x$), compound angle formulas, double angle formulas, $t$-formulas, auxiliary angle method $a\\cos x + b\\sin x = R\\cos(x-\\alpha)$.
 - Calculus: Derivative of inverse trig functions, exponential, logarithmic, and trigonometric functions. Integration by simple algebraic substitution. Volumes of solids of revolution about $x$- and $y$-axes. Rates of change and differential equations ($\\frac{dy}{dt} = k(y-P)$).
 - Polynomials: Polynomial division, Factor and Remainder theorems, roots of polynomials (relations between roots and coefficients for cubics and quartics).
-- Combinatorics: Permutations and combinations, pigeonhole principle, Pascal's triangle and binomial theorem expansions $(a+b)^n$.
+- Combinatorics: Year 11 permutations and combinations, Pascal's triangle and binomial theorem expansions $(a+b)^n$ as prerequisites. Do not introduce the pigeonhole principle.
 - Mechanics: Projectile motion (2D vectors without resistance).
 
 2. STRICT NEGATIVE CONSTRAINTS (STRICTLY FORBIDDEN FOR EXTENSION 1):
-- STRICTLY NO 3D VECTORS: Vectors in 3 dimensions are strictly Extension 2 (Year 12).
 - STRICTLY NO COMPLEX NUMBERS: Imaginary unit $i = \\sqrt{-1}$, Argand diagrams, modulus-argument form are strictly Extension 2.
 - STRICTLY NO RESISTIVE MECHANICS: Motion with resistive forces or Simple Harmonic Motion (SHM) is strictly Extension 2.
 - STRICTLY NO INTEGRATION BY PARTS OR PARTIAL FRACTIONS: Strictly Extension 2.
@@ -2322,7 +2359,7 @@ The requested resource is strictly for NSW Stage 6 Year 12 Mathematics Advanced 
 - Differential Calculus: Product rule, quotient rule, chain rule, derivatives of $e^x, \\ln x, \\sin x, \\cos x, \\tan x$, second derivatives $f''(x)$, concavity, points of inflexion, optimization/maximum-minimum problems.
 - Integral Calculus: Anti-differentiation, definite integrals, Fundamental Theorem of Calculus, area under a curve, area between two curves, trapezoidal rule.
 - Financial Mathematics: Arithmetic sequences and series, geometric sequences and series, limiting sums, financial applications (annuities, investments, superannuation, reducing balance loans).
-- Statistical Analysis: Continuous random variables, probability density functions (PDFs), cumulative distribution functions (CDFs), expected value $E(X)$, variance $\\text{Var}(X)$, normal distribution (z-scores, empirical rule 68-95-99.7).
+- Statistical Analysis: Discrete probability distributions, continuous random variables, probability density functions (PDFs), cumulative distribution functions (CDFs), expected value $E(X)$, variance $\\text{Var}(X)$, normal distribution (z-scores, empirical rule 68-95-99.7).
 
 2. STRICT NEGATIVE CONSTRAINTS (FORBIDDEN OUT-OF-SYLLABUS TOPICS - ZERO TOLERANCE):
 - STRICTLY NO EXTENSION 1 / EXTENSION 2 TOPICS:
@@ -2352,7 +2389,7 @@ Under NO circumstances may you include, mention, or require any concepts from Ye
 - Trigonometric Functions (MA-T1, MA-T2): Angles of any magnitude, ASTC quadrant rules, exact values (0, pi/6, pi/4, pi/3, pi/2), radian measure, arc length (l = r theta), sector area (A = 1/2 r^2 theta), segment area (A = 1/2 r^2(theta - sin theta)), graphs of y = sin x, cos x, tan x with amplitude, period, vertical shift, and phase shift, reciprocal trigonometric ratios (sec x, cosec x, cot x), Pythagorean identities (sin^2 x + cos^2 x = 1, 1 + tan^2 x = sec^2 x, 1 + cot^2 x = csc^2 x), quotient identity (tan x = sin x / cos x), solving trigonometric equations within a domain in degrees or radians.
 - Calculus - Introduction to Differentiation (MA-C1): Limits and continuity, average rate of change, gradient of secants vs tangents, differentiation from first principles (f'(x) = lim_{h->0} [f(x+h)-f(x)]/h), derivative of powers of x (d/dx(x^n) = n x^{n-1} for real n), linearity of differentiation (d/dx[af(x)+bg(x)] = af'(x)+bg'(x)), tangents and normals to polynomial curves at a point (y - y_1 = m(x - x_1)), differentiability vs non-differentiability.
 - Exponential and Logarithmic Functions (MA-E1): Index laws, exponential graphs y = a^x, Euler's number e, natural exponential y = e^x, definition of logarithm (log_a x = y <=> a^y = x), natural logarithm ln x = log_e x, logarithm laws, change of base formula, solving exponential and logarithmic equations, exponential growth and decay models (N = N_0 e^{kt} or A = A_0 b^t).
-- Statistical Analysis - Discrete Probability & Data (MA-S1): Sample spaces, outcomes, event probability, complementary events, Venn diagrams, two-way tables, tree diagrams (with/without replacement), mutually exclusive events, addition rule (P(A u B) = P(A) + P(B) - P(A n B)), independent events (P(A n B) = P(A) * P(B)), conditional probability (P(A|B) = P(A n B) / P(B)), univariate data summary statistics (mean, median, mode, range, IQR, standard deviation), parallel box plots, 1.5 x IQR outlier rule.
+- Statistical Analysis - Probability and Data (MAV-11-09/10): Sample spaces, outcomes, event probability, complementary events, Venn diagrams, two-way tables, tree diagrams (with/without replacement), mutually exclusive events, addition rule (P(A u B) = P(A) + P(B) - P(A n B)), independent events (P(A n B) = P(A) * P(B)), conditional probability (P(A|B) = P(A n B) / P(B)), univariate data summary statistics (mean, median, mode, range, IQR, standard deviation), parallel box plots, 1.5 x IQR outlier rule. Do not introduce discrete random variables or their probability distributions.
 
 2. STRICT NEGATIVE CONSTRAINTS (FORBIDDEN OUT-OF-SYLLABUS TOPICS - ZERO TOLERANCE):
 - STRICTLY NO YEAR 12 CALCULUS:
@@ -2369,6 +2406,7 @@ Under NO circumstances may you include, mention, or require any concepts from Ye
   * NO Normal Distribution, standard normal distribution, z-scores, or the 68-95-99.7 empirical rule.
   * NO Bivariate data analysis, scatter plots, Pearson's r, or regression lines.
   * NO Expected Value E(X) or Variance Var(X) of random variables (Year 12 MA-S2).
+  * NO Discrete Random Variables or Discrete Probability Distributions (Year 12 MAV-12-07).
 - STRICTLY NO EXTENSION 1 / EXTENSION 2 TOPICS:
   * NO Mathematical Induction.
   * NO Combinatorics, permutations, combinations (nPr, nCr), Binomial Theorem expansion, or Pigeonhole Principle.
@@ -2419,10 +2457,19 @@ STAGE6_STANDARD_FORBIDDEN_PATTERNS = [
 ]
 
 STAGE6_EXT1_FORBIDDEN_PATTERNS = [
-    (r"\\mathbf\{k\}|3d vector|three-dimensional vector|vector in 3d", "Extension 1 3D Vectors (Ext 2 only)"),
+    (r"\bpigeonhole(?:\s+(?:principle|theorem))?\b", "Pigeonhole principle is outside the Extension 1 syllabus"),
     (r"\bcomplex number\b|\bargand diagram\b|\bimaginary unit\b|e\^\{i\\theta\}|\\text\{cis\}", "Extension 1 Complex Numbers (Ext 2 only)"),
     (r"\bresistive motion\b|\bresistance force\b|\bsimple harmonic motion\b|\bshm\b", "Extension 1 Mechanics with Resistance (Ext 2 only)"),
     (r"\bintegration by parts\b|\bpartial fractions\b", "Extension 1 Integration by Parts/Partial Fractions (Ext 2 only)"),
+]
+
+YEAR_11_EXT1_FORBIDDEN_PATTERNS = [
+    (r"\bdiscrete random variables?\b|\bdiscrete probability distributions?\b", "Year 12 Advanced random variables"),
+    (r"\bmathematical induction\b|\bproof by induction\b", "Year 12 Extension 1 induction"),
+    (r"\b(?:2d|3d|two-dimensional|three-dimensional) vectors?\b|\\mathbf\{[ijk]\}", "Year 12 Extension 1 vectors"),
+    (r"\binverse trigonometric functions?\b|\\arcsin|\\arccos|\\arctan", "Year 12 Extension 1 inverse trigonometry"),
+    (r"\\int\b|\bintegrat(?:e|ion)\b|\bdifferential equations?\b", "Year 12 Extension 1 calculus"),
+    (r"\bbinomial distributions?\b|\bsampling distributions?\b", "Year 12 Extension 1 statistics"),
 ]
 
 YEAR_11_ADV_FORBIDDEN_PATTERNS = [
@@ -2436,7 +2483,7 @@ YEAR_11_ADV_FORBIDDEN_PATTERNS = [
     # Year 12 Series, Finance, Stats
     (r"\barithmetic sequence\b|\bgeometric sequence\b|\barithmetic series\b|\bgeometric series\b|\blimiting sum\b", "Year 12 Sequences and Series"),
     (r"\bannuit(?:y|ies)\b|\bsuperannuation\b|\bpresent value\b|\bfuture value\b|\breducing balance\b", "Year 12 Financial Mathematics"),
-    (r"\bcontinuous random variable\b|\bprobability density function\b|\bcdf\b", "Year 12 Continuous Random Variables"),
+    (r"\b(?:discrete|continuous) random variables?\b|\b(?:discrete )?probability distributions?\b|\bprobability density function\b|\bcdf\b", "Year 12 Random Variables"),
     (r"\bnormal distribution\b|\bz-score\b|\bstandard normal\b|68-95-99\.7", "Year 12 Normal Distribution"),
     (r"\bbivariate data\b|\bpearson(?:'s)?\b|\bcorrelation coefficient\b|\bregression line\b|\bresidual plot\b", "Year 12 Bivariate Data"),
     (r"\bexpected value\b|\be\(x\)\s*=|\bvar\(x\)\s*=", "Year 12 Random Variable Expectation/Variance"),
@@ -2469,7 +2516,9 @@ def audit_nsw_syllabus_violations(data: Any, year_level: str) -> List[str]:
     elif is_stage6_standard(year_level):
         patterns_to_check = STAGE6_STANDARD_FORBIDDEN_PATTERNS
     elif is_stage6_extension1(year_level):
-        patterns_to_check = STAGE6_EXT1_FORBIDDEN_PATTERNS
+        patterns_to_check = list(STAGE6_EXT1_FORBIDDEN_PATTERNS)
+        if "11" in str(year_level):
+            patterns_to_check += YEAR_11_EXT1_FORBIDDEN_PATTERNS
     elif is_year_11_advanced(year_level):
         patterns_to_check = YEAR_11_ADV_FORBIDDEN_PATTERNS
 
@@ -2482,7 +2531,9 @@ def audit_nsw_syllabus_violations(data: Any, year_level: str) -> List[str]:
         if isinstance(obj, str):
             collected_texts.append(obj)
         elif isinstance(obj, dict):
-            for v in obj.values():
+            for key, v in obj.items():
+                if key in {"custom_instructions", "extra_instructions", "_syllabus_audit"}:
+                    continue
                 _extract_text(v)
         elif isinstance(obj, (list, tuple, set)):
             for item in obj:
@@ -2505,7 +2556,7 @@ def audit_year11_advanced_violations(data: Any, year_level: str) -> List[str]:
     return audit_nsw_syllabus_violations(data, year_level)
 
 
-def audit_and_sanitize_year11_advanced_data(data: Dict[str, Any], year_level: str) -> Dict[str, Any]:
+def audit_and_sanitize_year11_advanced_data(data: Dict[str, Any], year_level: str, strict: bool = False) -> Dict[str, Any]:
     """
     Validates and logs any syllabus boundary anomalies across all stages.
     Attaches an audit flag to the dictionary for verification.
@@ -2523,6 +2574,11 @@ def audit_and_sanitize_year11_advanced_data(data: Dict[str, Any], year_level: st
             "year_level": year_level,
             "violations_flagged": violations
         }
+        if strict and (is_year_11_advanced(year_level) or (is_stage6_extension1(year_level) and "11" in str(year_level))):
+            raise ValueError(
+                f"Generated {year_level} content crossed the NSW 2024 syllabus boundary: "
+                + "; ".join(violations)
+            )
     else:
         data["_syllabus_audit"] = {
             "status": "passed",
@@ -2559,7 +2615,8 @@ Respond with valid JSON ONLY:
             config=config
         )
         data = clean_json_response(response.text)
-        return data.get("subtopics", get_curriculum_subtopics(year_level, topic, textbook=textbook))
+        suggested = data.get("subtopics", get_curriculum_subtopics(year_level, topic, textbook=textbook))
+        return [sub for sub in suggested if is_syllabus_topic_allowed(year_level, sub)]
     except Exception:
         return get_curriculum_subtopics(year_level, topic, textbook=textbook)
 
@@ -2998,7 +3055,7 @@ Respond with valid JSON ONLY matching this structure:
                     m_key[lbl] = str(q.get("correct_answer") or q.get("final_answer") or "").strip()
             data["marking_key"] = m_key
 
-            return audit_and_sanitize_year11_advanced_data(data, year_level)
+            return audit_and_sanitize_year11_advanced_data(data, year_level, strict=True)
         except Exception as e:
             last_err = e
             continue
@@ -3215,7 +3272,7 @@ Respond with valid JSON ONLY:
     if not data.get("title"):
         data["title"] = sheet_title
     data["worksheet_type"] = "Targeted NESA" if is_nesa else "Remedial"
-    return audit_and_sanitize_year11_advanced_data(data, year_level)
+    return audit_and_sanitize_year11_advanced_data(data, year_level, strict=True)
 
 # --- 4. THEORY BOOKLET GENERATOR (TEACHER & STUDENT EDITIONS) ---
 def normalize_difficulty(diff: str) -> str:
@@ -3630,7 +3687,7 @@ Respond with valid JSON ONLY matching this exact structure:
             data["meta_tokens"] = total_tokens
             data["meta_cost"] = round(est_cost, 5)
             data["model_used"] = model_name
-            return audit_and_sanitize_year11_advanced_data(data, year_level)
+            return audit_and_sanitize_year11_advanced_data(data, year_level, strict=True)
         except Exception as e:
             last_err = e
             continue
@@ -4400,7 +4457,7 @@ Respond with valid JSON ONLY matching this exact structure:
             data["meta_tokens"] = total_tokens
             data["meta_cost"] = round(est_cost, 5)
             data["model_used"] = model_name
-            return audit_and_sanitize_year11_advanced_data(data, year_level)
+            return audit_and_sanitize_year11_advanced_data(data, year_level, strict=True)
         except Exception as e:
             last_err = e
             continue
@@ -4807,7 +4864,7 @@ OUTPUT SCHEMA:
             data["meta_tokens"] = total_tokens
             data["meta_cost"] = round(est_cost, 5)
             data["model_used"] = model_name
-            return audit_and_sanitize_year11_advanced_data(data, year_level)
+            return audit_and_sanitize_year11_advanced_data(data, year_level, strict=True)
 
         except Exception as e:
             last_err = e
