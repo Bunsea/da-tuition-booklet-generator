@@ -3978,17 +3978,23 @@ if main_section == "🚀 2. 1-Click AI Marking":
 
     # Upload Student Submissions
     st.markdown("#### Upload Student Submissions")
-    upload_mode = st.radio(
-        "How are the scans organised?",
-        ["One combined PDF containing multiple students", "One PDF per student"],
-        horizontal=True,
-        help="Combined mode sends each PDF once to Gemini. Gemini identifies each student's page range and grades them separately. It is selected by default for class scan batches."
-    )
     uploaded_files = st.file_uploader(
         "Drop student handwritten PDF scans here (single or multiple files)",
         type=["pdf"],
         accept_multiple_files=True
     )
+
+    # Detect the organisation from the upload itself. A single PDF is sent to
+    # the combined grader (which can return one or many student records),
+    # while multiple PDFs are unambiguously one file per student.
+    upload_mode = None
+    if uploaded_files:
+        if len(uploaded_files) == 1:
+            upload_mode = "One combined PDF containing multiple students"
+            st.info("Automatically detected: one combined PDF. Gemini will identify each student in the scan.")
+        else:
+            upload_mode = "One PDF per student"
+            st.info(f"Automatically detected: {len(uploaded_files)} PDFs, one per student.")
 
     if uploaded_files and st.button("🚀 Start Automated Batch Marking", type="primary"):
         current_api_key = st.session_state.get("gemini_api_key", "")
