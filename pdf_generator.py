@@ -6510,9 +6510,9 @@ def generate_student_report_pdf(
 
     # 3. Student Name row: Left: "STUDENT NAME:", Right: Bold student name
     name_display = student_name.strip()
+    # Keep the header focused on the student's name. Class information is
+    # useful in the database, but it should not appear beside the name label.
     left_meta = "STUDENT NAME:"
-    if class_name:
-        left_meta += f" <font color='#6B7280' size=9>({class_name})</font>"
 
     meta_table = Table([[
         Paragraph(left_meta, student_lbl_style),
@@ -6685,7 +6685,7 @@ def generate_student_report_pdf(
             textColor=colors.HexColor("#15803D")
         )
         story.append(Spacer(1, 12))
-        story.append(Paragraph("🎉 Perfect Score! No corrections needed.", perfect_style))
+        story.append(Paragraph("Perfect Score! No corrections needed.", perfect_style))
 
     story.append(Spacer(1, 30))
 
