@@ -1004,6 +1004,40 @@ class TestPdfGenerator(unittest.TestCase):
         self.assertIn("THEORY STUDENT PRIVATE (COMPLETE NOTES)", tex_private)
         self.assertNotIn(r"\begin{workingbox}", tex_private)
 
+    def test_theory_checking_understanding_and_private_demo_solutions(self):
+        booklet_data = {
+            "title": "Permutations Theory Booklet",
+            "year_level": "Year 11 (Extension)",
+            "topic": "Permutations",
+            "concepts": [{
+                "concept_name": "Distinct arrangements",
+                "theory_content": "Order matters.",
+                "teacher_examples": [{
+                    "example_num": 1,
+                    "title": "Direct counting",
+                    "problem_text": "Arrange three people.",
+                    "worked_solution": "3! = 6"
+                }],
+                "checking_understanding_questions": [{
+                    "q_num": 1,
+                    "text": "Arrange four people.",
+                    "worked_solution": "4! = 24",
+                    "final_answer": "24"
+                }],
+                "practice_questions": []
+            }]
+        }
+
+        class_tex = pdf_generator.build_latex_theory_booklet_source(booklet_data, mode="student_class")
+        self.assertNotIn("DA SIGNATURE MASTERCLASS NOTES", class_tex)
+        self.assertIn(r"\subsection*{Checking Understanding}", class_tex)
+        self.assertIn(r"\begin{workingbox}{3.0cm}", class_tex)
+
+        private_tex = pdf_generator.build_latex_theory_booklet_source(booklet_data, mode="student_private")
+        self.assertIn(r"\begin{solutionbox}[{Model Whiteboard Solution}]", private_tex)
+        self.assertIn(r"\subsection*{Checking Understanding}", private_tex)
+        self.assertIn(r"\begin{workingbox}{3.0cm}", private_tex)
+
     def test_review_booklet_student_class_omits_working_boxes(self):
         """Verify that student_class review booklet has no reviewworkingbox, uses green badge, and includes quick answers."""
         booklet_data = {

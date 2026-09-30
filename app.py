@@ -960,7 +960,7 @@ if main_section == "📖 1. Theory & Practice Materials":
                 st.caption("ℹ️ General resource (no term/week)")
 
         # Number of examples & practice questions
-        col_ex, col_pr = st.columns(2)
+        col_ex, col_pr, col_chk = st.columns(3)
         with col_ex:
             theory_ex_count = st.number_input(
                 "Teacher Examples per Concept",
@@ -983,6 +983,17 @@ if main_section == "📖 1. Theory & Practice Materials":
                 help="Tiered questions (Level 1, Level 2, Level 3...) with marks and solutions (+1 Exam-Style question is automatically added)."
             )
             st.caption("ℹ️ *+ 1 Exam-Style question automatically included per subtopic*")
+        with col_chk:
+            theory_checking_count = st.number_input(
+                "Checking Understanding per Concept",
+                min_value=0,
+                max_value=6,
+                value=2,
+                step=1,
+                key="theory_checking_count",
+                help="Short questions placed immediately after the demonstrations. Students receive an empty working box to solve them independently."
+            )
+            st.caption("ℹ️ Student attempts with working space")
 
         # Concepts / Subtopics to include
         st.markdown("---")
@@ -1127,6 +1138,7 @@ if main_section == "📖 1. Theory & Practice Materials":
                             subtopics=selected_theory_subtopics,
                             examples_per_concept=int(theory_ex_count),
                             practice_per_concept=int(th_total_practice_default),
+                            checking_per_concept=int(theory_checking_count),
                             term=int(theory_term_num) if theory_term_num is not None else None,
                             week=int(theory_week_num) if theory_week_num is not None else None,
                             custom_instructions=theory_custom_notes,

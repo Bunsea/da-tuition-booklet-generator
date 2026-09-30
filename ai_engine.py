@@ -3603,6 +3603,7 @@ def generate_theory_booklet(
     subtopics: Optional[List[str]] = None,
     examples_per_concept: int = 2,
     practice_per_concept: int = 3,
+    checking_per_concept: int = 2,
     term: Optional[int] = None,
     week: Optional[int] = None,
     custom_instructions: str = "",
@@ -3657,6 +3658,7 @@ def generate_theory_booklet(
 
     teacher_examples_count = max(1, int(examples_per_concept))
     student_practice_count = max(1, int(practice_per_concept))
+    checking_questions_count = max(0, int(checking_per_concept))
     total_teacher_examples = teacher_examples_count + 1
     total_practice_questions = student_practice_count + 1
 
@@ -3701,6 +3703,7 @@ BOOKLET SPECIFICATIONS:
 {subtopics_bullet_list}
 {multi_topic_prompt}- Teacher Demonstration Examples per concept: {total_teacher_examples} (composed of {teacher_examples_count} progressive foundation-to-application examples + 1 MANDATORY Exam-Style demonstration example)
 - Student Practice Questions per concept: {total_practice_questions} (composed of {student_practice_count} progressive practice questions [Level 1, Level 2, ...] + 1 MANDATORY Exam-Style practice question [Exam Style])
+- Checking Understanding Questions per concept: {checking_questions_count} (short questions immediately after the demonstrations; students answer these independently in the booklet)
 {dist_prompt}{f'- Special Tutor Instructions: {custom_instructions}' if custom_instructions else ''}
 - LANGUAGE REQUIREMENT: STRICT AUSTRALIAN ENGLISH SPELLING throughout (e.g. 'factorise', 'rationalise', 'centre', 'metres', 'centimetres', 'labelled', 'modelling', 'colour', 'behaviour', 'minimise', 'maximise', 'summarise'). NEVER use US spellings.
 
@@ -3849,7 +3852,13 @@ REQUIREMENTS FOR EACH CONCEPT:
    - MANDATORY GIVEN DIAGRAMS FOR STUDENTS (HSC / NSW EXAM STANDARD): Whenever a question is a visual deduction problem or involves networks, graph theory, shortest paths, planar graphs, minimum spanning trees, geometry, bearings, angles of elevation/depression, or trigonometry, students must always be GIVEN the diagram in `diagram_tikz`. NEVER describe network vertices and edge weights or geometric configurations solely in text without providing the compilable LaTeX TikZ diagram in `diagram_tikz`.
    - If the question involves geometric diagrams, vectors, coordinate graphs, networks, or visual proof steps: provide a compilable TikZ diagram in `diagram_tikz` (for question) and/or `solution_diagram_tikz` (for solution).
    - Include complete worked solutions with mark breakdowns (`[1 mark for ..., 1 mark for ...]`).
-   - Include a concise `final_answer` for quick verification.
+    - Include a concise `final_answer` for quick verification.
+
+4. CHECKING UNDERSTANDING QUESTIONS ({checking_questions_count} PER CONCEPT):
+   - Place these immediately after the Teacher Demonstration Examples in the booklet.
+   - Generate exactly {checking_questions_count} short, focused questions per concept (or an empty list when the count is 0).
+   - Each question must directly test the method from the demonstrations, include marks, a complete worked solution for the teacher edition, and a concise final answer.
+   - These are independent student attempts: the Student Class and Student Private editions must show the question and an empty working box, with no solution printed beside it.
 
 STRICT LATEX RULES:
 Every single variable, expression, equation, fraction, or formula MUST be in valid LaTeX enclosed in single dollar signs $...$ (e.g. '$y = mx + b$', '$\\frac{{a}}{{\\sin A}} = \\frac{{b}}{{\\sin B}}$', '$\\vec{{u}} \\cdot \\vec{{v}} = |\\vec{{u}}||\\vec{{v}}|\\cos\\theta$').
@@ -3884,6 +3893,16 @@ Respond with valid JSON ONLY matching this exact structure:
           "solution_diagram_tikz": "",
           "worked_solution": "Full step-by-step whiteboard solution with LaTeX...",
           "teaching_notes": "Prompt for teacher when explaining on the board..."
+        }}
+      ],
+      "checking_understanding_questions": [
+        {{
+          "q_num": 1,
+          "marks": 1,
+          "text": "A short question checking the method just demonstrated.",
+          "diagram_tikz": "",
+          "worked_solution": "Complete teacher solution.",
+          "final_answer": "Concise answer"
         }}
       ],
       "practice_questions": [
@@ -3966,6 +3985,10 @@ Respond with valid JSON ONLY matching this exact structure:
                     if "difficulty" in q:
                         q["difficulty"] = normalize_difficulty(q["difficulty"])
                 pqs = c.get("practice_questions", [])
+                checking = c.get("checking_understanding_questions", [])
+                if not isinstance(checking, list):
+                    checking = []
+                c["checking_understanding_questions"] = checking[:checking_questions_count]
                 c_name = c.get("concept_name", "")
                 if pqs and len(pqs) >= 2:
                     from pdf_generator import ensure_concept_practice_question_variety

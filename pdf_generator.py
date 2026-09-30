@@ -3168,6 +3168,22 @@ def sanitize_tikz_diagram(diag: str) -> str:
 
     s = re.sub(r'((?:\\node|node)\s*)\[([^\]]*?)\](\s*\{[^\}]+\})', _halo_text_node, s)
 
+    # Give edge labels their own white halo as well. Without this, a label such
+    # as a weight, angle, or table name can be drawn directly over an edge or
+    # shape and become unreadable in the compiled booklet.
+    def _halo_edge_label(m):
+        prefix, opts, suffix = m.group(1), m.group(2), m.group(3)
+        if "fill=" not in opts:
+            opts = f"{opts}, fill=white, fill opacity=0.92, text opacity=1, inner sep=1.2pt"
+        return f"{prefix}{opts}{suffix}"
+
+    s = re.sub(
+        r'(node\s*\[)([^\]]*(?:midway|near|above|below|left|right)[^\]]*)(\]\s*\{[^{}]*\})',
+        _halo_edge_label,
+        s,
+        flags=re.IGNORECASE,
+    )
+
     # Fix vertical line test at x = 0 colliding with y-axis arrow:
     def _fix_vlt_node(m):
         prefix = m.group(1)
@@ -7424,6 +7440,11 @@ def build_latex_theory_booklet_source(
 
     font_key = booklet_data.get("font_theme") or font_theme or "charter"
     font_lines = get_font_latex_preamble(font_key)
+    theory_box_title = (
+        r"Core Concept \& Strategy"
+        if is_student_class
+        else r"\quad\dalightning\ DA SIGNATURE MASTERCLASS NOTES \quad\textbar\quad \ifstrempty{#1}{CORE INTUITION \& STRATEGY}{#1}"
+    )
 
     tex_lines = [
         r"\documentclass[11pt,a4paper]{article}",
@@ -7513,7 +7534,7 @@ def build_latex_theory_booklet_source(
         r"    colbacktitle=danavy,",
         r"    coltitle=white,",
         r"    fonttitle=\bfseries\small\sffamily,",
-        r"    title={\quad\dalightning\ DA SIGNATURE MASTERCLASS NOTES \quad\textbar\quad \ifstrempty{#1}{CORE INTUITION \& STRATEGY}{#1}},",
+        f"    title={{{theory_box_title}}},",
         r"    before skip=1pt,",
         r"    after skip=6pt,",
         r"    breakable,",
@@ -7741,7 +7762,7 @@ def build_latex_theory_booklet_source(
                     tex_lines.append(clean_ex_diag)
                     tex_lines.append(r"\vspace{0.15cm}")
 
-                if is_teacher:
+                if is_teacher or is_student_private:
                     tex_lines.append(r"\begin{solutionbox}[{Model Whiteboard Solution}]")
                     if t_notes:
                         tex_lines.append(f"\\noindent\\textbf{{Teaching Note:}} {sanitize_for_latex(t_notes)}\\\\[0.15cm]")
@@ -7757,7 +7778,41 @@ def build_latex_theory_booklet_source(
                 else:
                     tex_lines.append(r"\vspace{0.20cm}")
 
-        # 3. Student Practice Questions
+        # 3. Checking Understanding: independent student attempts immediately
+        # after the demonstrations, with teacher solutions kept separate.
+        checking_questions = concept.get("checking_understanding_questions", []) or concept.get("checking_questions", []) or []
+        if checking_questions:
+            tex_lines.append(r"\needspace{5.0cm}")
+            tex_lines.append(r"\subsection*{Checking Understanding}\label{sec:checking_" + str(c_idx) + r"}")
+            tex_lines.append(r"\noindent\textit{Try each question independently, showing clear working in the space provided.}\par\vspace{0.12cm}")
+            for check_idx, cq in enumerate(checking_questions, 1):
+                check_num = cq.get("q_num", check_idx)
+                check_text = cq.get("text") or cq.get("question_text") or cq.get("question") or ""
+                check_diag = cq.get("diagram_tikz") or cq.get("tikz_diagram") or cq.get("diagram") or ""
+                tex_lines.append(r"\needspace{3.5cm}")
+                check_body = "\n".join(format_latex_question_with_subparts(check_text, as_item=False))
+                tex_lines.append(f"\\noindent\\textbf{{{check_num}.}}\\enspace {check_body}\\par\\vspace{{0.08cm}}")
+                if check_diag and str(check_diag).strip():
+                    clean_check_diag = sanitize_tikz_diagram(str(check_diag).strip())
+                    clean_check_diag = re.sub(r'max totalheight=[0-9\.]+cm', 'max totalheight=2.4cm', clean_check_diag)
+                    clean_check_diag = re.sub(r'max width=[0-9\.]+\\linewidth', r'max width=0.78\\linewidth', clean_check_diag)
+                    tex_lines.append(clean_check_diag)
+                    tex_lines.append(r"\vspace{0.08cm}")
+                if is_teacher:
+                    tex_lines.append(r"\begin{solutionbox}[{Checking Understanding Solution}]")
+                    answer = cq.get("final_answer") or cq.get("answer") or ""
+                    worked = cq.get("worked_solution") or cq.get("solution") or ""
+                    if answer:
+                        tex_lines.append(f"\\textbf{{\\color{{dagreen}}Final Answer:}} {sanitize_for_latex(str(answer))}\\\\[0.05cm]")
+                    if worked:
+                        tex_lines.append(format_latex_solution_steps(str(worked)))
+                    tex_lines.append(r"\end{solutionbox}")
+                else:
+                    tex_lines.append(r"\begin{workingbox}{3.0cm}")
+                    tex_lines.append(r"\end{workingbox}")
+                tex_lines.append(r"\vspace{0.18cm}")
+
+        # 4. Student Practice Questions
         if practice_questions:
             practice_questions = ensure_concept_practice_question_variety(practice_questions, c_name, topic)
             part_groups = group_booklet_questions_by_part(practice_questions)
@@ -8402,7 +8457,7 @@ def generate_reportlab_theory_booklet_pdf(
             story.append(Paragraph(p_text, styles['Normal']))
             story.append(Spacer(1, 4))
 
-            if is_teacher:
+            if is_teacher or is_student_private:
                 sol_txt = format_math_for_reportlab(ex.get("worked_solution", ""))
                 sol_box = Table([[Paragraph(f"<b>Model Solution:</b><br/>{sol_txt}", styles['Normal'])]], colWidths=[520])
                 sol_box.setStyle(TableStyle([
@@ -8422,6 +8477,28 @@ def generate_reportlab_theory_booklet_pdf(
                 ]))
                 story.append(work_box)
             story.append(Spacer(1, 10))
+
+        checking_questions = c.get("checking_understanding_questions", []) or c.get("checking_questions", []) or []
+        if checking_questions:
+            story.append(Paragraph("<b>Checking Understanding</b>", styles['Heading3']))
+            story.append(Paragraph("<i>Try each question independently, showing clear working in the space provided.</i>", styles['Normal']))
+            for check_idx, cq in enumerate(checking_questions, 1):
+                check_num = cq.get("q_num", check_idx)
+                check_text = format_math_for_reportlab(cq.get("text") or cq.get("question_text") or cq.get("question") or "")
+                story.append(Paragraph(f"<b>{check_num}.</b> {check_text}", styles['Normal']))
+                if is_teacher:
+                    ans_txt = format_math_for_reportlab(cq.get("final_answer") or cq.get("answer") or "")
+                    sol_txt = format_math_for_reportlab(cq.get("worked_solution") or cq.get("solution") or "")
+                    story.append(Paragraph(f"<b>Solution:</b><br/>{sol_txt}<br/><b>Final Answer:</b> {ans_txt}", styles['Normal']))
+                else:
+                    work_box = Table([[Paragraph("<i>Student working:</i>", styles['Normal'])]], colWidths=[520], rowHeights=[90])
+                    work_box.setStyle(TableStyle([
+                        ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor("#CCCCCC")),
+                        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                        ('PADDING', (0,0), (-1,-1), 6)
+                    ]))
+                    story.append(work_box)
+                story.append(Spacer(1, 8))
 
         for pq in c.get("practice_questions", []):
             pq_num = pq.get("q_num", 1)
