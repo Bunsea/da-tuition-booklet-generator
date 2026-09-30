@@ -309,6 +309,40 @@ class TestAiEngine(unittest.TestCase):
         )
         self.assertEqual(fn_inclass, "Sequences & Series In Class Worksheet.pdf")
 
+        # Test Student & Teacher Answer Sheet filenames (suffix)
+        fn_stu_ans = ai_engine.get_worksheet_download_filename(
+            topic="Permutations, Combinations & Binomial Theorem",
+            sheet_type="Homework",
+            set_number=1,
+            suffix="Ans Sheet Student"
+        )
+        self.assertEqual(fn_stu_ans, "Permutations, Combinations & Binomial Theorem HW Set 1 Ans Sheet Student.pdf")
+
+        fn_tea_ans = ai_engine.get_worksheet_download_filename(
+            topic="Permutations, Combinations & Binomial Theorem",
+            sheet_type="Homework",
+            set_number=1,
+            suffix="Ans Sheet Teacher"
+        )
+        self.assertEqual(fn_tea_ans, "Permutations, Combinations & Binomial Theorem HW Set 1 Ans Sheet Teacher.pdf")
+
+        # Test legacy prefix backward compatibility
+        fn_leg_stu = ai_engine.get_worksheet_download_filename(
+            topic="Permutations, Combinations & Binomial Theorem",
+            sheet_type="Homework",
+            set_number=1,
+            prefix="DA Student Answer Sheet"
+        )
+        self.assertEqual(fn_leg_stu, "Permutations, Combinations & Binomial Theorem HW Set 1 Ans Sheet Student.pdf")
+
+        fn_leg_tea = ai_engine.get_worksheet_download_filename(
+            topic="Permutations, Combinations & Binomial Theorem",
+            sheet_type="Homework",
+            set_number=1,
+            prefix="DA Teacher Answer Sheet"
+        )
+        self.assertEqual(fn_leg_tea, "Permutations, Combinations & Binomial Theorem HW Set 1 Ans Sheet Teacher.pdf")
+
     def test_get_api_key_isolation(self):
         """Verify API key resolution isolates explicit keys from environment keys."""
         import os

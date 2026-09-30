@@ -1706,11 +1706,14 @@ def get_worksheet_download_filename(
     sheet_type: str = "Homework",
     set_number: Optional[int] = 1,
     prefix: str = "",
-    extension: str = "pdf"
+    extension: str = "pdf",
+    suffix: str = ""
 ) -> str:
     """
     Formats the worksheet download filename according to the DA Tuition convention:
     e.g. 'Sequences & Series HW Set 1.pdf'
+         'Sequences & Series HW Set 1 Ans Sheet Student.pdf'
+         'Sequences & Series HW Set 1 Ans Sheet Teacher.pdf'
          'DA Answer Sheet Sequences & Series HW Set 1.pdf'
          'Marking Key Sequences & Series HW Set 1.json'
          'Sequences & Series In Class Worksheet.pdf'
@@ -1726,11 +1729,26 @@ def get_worksheet_download_filename(
         set_str = f" Set {set_number}" if (set_number and set_number > 1) else ""
         type_str = f"In Class Worksheet{set_str}" if not set_str else f"In Class{set_str}"
 
+    p_strip = prefix.strip() if prefix else ""
+    s_strip = suffix.strip() if suffix else ""
+
+    # Legacy prefix translation: convert DA Student/Teacher Answer Sheet prefix to suffix
+    if p_strip in ["DA Student Answer Sheet", "Student Answer Sheet", "Student Ans Sheet"]:
+        if not s_strip:
+            s_strip = "Ans Sheet Student"
+        p_strip = ""
+    elif p_strip in ["DA Teacher Answer Sheet", "Teacher Answer Sheet", "Teacher Ans Sheet"]:
+        if not s_strip:
+            s_strip = "Ans Sheet Teacher"
+        p_strip = ""
+
     parts = []
-    if prefix:
-        parts.append(prefix.strip())
+    if p_strip:
+        parts.append(p_strip)
     parts.append(clean)
     parts.append(type_str)
+    if s_strip:
+        parts.append(s_strip)
 
     fname = " ".join(parts).strip()
     fname = fname.replace("_", " ")
@@ -1980,12 +1998,13 @@ def get_worksheet_download_filename(
     theory_booklet: Optional[Dict[str, Any]] = None,
     topic: Optional[str] = None,
     set_number: Optional[int] = 1,
-    prefix: Optional[str] = None
+    prefix: Optional[str] = None,
+    suffix: Optional[str] = None
 ) -> str:
     """
     Formats download filenames for worksheets according to DA Tuition conventions.
     Supports both:
-    1. Legacy signature: get_worksheet_download_filename(topic="...", sheet_type="...", set_number=1, prefix="...")
+    1. Legacy signature: get_worksheet_download_filename(topic="...", sheet_type="...", set_number=1, prefix="...", suffix="...")
     2. Dict signature: get_worksheet_download_filename(worksheet_dict, sheet_type="...", mode="student", theory_booklet=...)
     Strictly removes all '_' and replaces them with clean spaces.
     """
@@ -1997,13 +2016,31 @@ def get_worksheet_download_filename(
         st_lower = str(sheet_type).lower()
         if "in-class" in st_lower or "in_class" in st_lower or "in class" in st_lower:
             type_str = "In Class Worksheet"
+        elif "mastery" in st_lower or "exam" in st_lower:
+            type_str = "End-of-Topic Mastery Exam"
         else:
             type_str = f"HW Set {set_number or 1}"
 
+        p_strip = str(prefix).strip() if prefix else ""
+        s_strip = str(suffix).strip() if suffix else ""
+
+        # Legacy prefix translation: convert DA Student/Teacher Answer Sheet prefix to suffix
+        if p_strip in ["DA Student Answer Sheet", "Student Answer Sheet", "Student Ans Sheet"]:
+            if not s_strip:
+                s_strip = "Ans Sheet Student"
+            p_strip = ""
+        elif p_strip in ["DA Teacher Answer Sheet", "Teacher Answer Sheet", "Teacher Ans Sheet"]:
+            if not s_strip:
+                s_strip = "Ans Sheet Teacher"
+            p_strip = ""
+
         parts = []
-        if prefix:
-            parts.append(str(prefix).strip())
-        parts.append(f"{clean} {type_str}")
+        if p_strip:
+            parts.append(p_strip)
+        parts.append(clean)
+        parts.append(type_str)
+        if s_strip:
+            parts.append(s_strip)
 
         filename = f"{' '.join(parts)}.{extension.lstrip('.')}"
         filename = filename.replace("_", " ")

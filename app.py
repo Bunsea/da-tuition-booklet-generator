@@ -2464,7 +2464,7 @@ with tab1:
                     topic=ws_item_topic,
                     sheet_type=ws_sheet_type,
                     set_number=ws_set_val,
-                    prefix="DA Student Answer Sheet",
+                    suffix="Ans Sheet Student",
                     extension="pdf"
                 )
                 st.download_button(
@@ -2478,7 +2478,7 @@ with tab1:
                     topic=ws_item_topic,
                     sheet_type=ws_sheet_type,
                     set_number=ws_set_val,
-                    prefix="DA Teacher Answer Sheet",
+                    suffix="Ans Sheet Teacher",
                     extension="pdf"
                 )
                 st.download_button(
