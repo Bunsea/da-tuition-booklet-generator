@@ -616,8 +616,17 @@ def get_worksheet_by_id(worksheet_id: int) -> Optional[Dict[str, Any]]:
         return d
     return None
 
-def delete_worksheet(worksheet_id: int) -> bool:
-    """Delete an unmarked worksheet without discarding student results."""
+def get_worksheet_submission_count(worksheet_id: int) -> int:
+    """Returns number of student submissions recorded for a worksheet."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM submissions WHERE worksheet_id = ?", (worksheet_id,))
+    count = cursor.fetchone()[0]
+    conn.close()
+    return count
+
+def delete_worksheet(worksheet_id: int, force: bool = False) -> bool:
+    """Delete a worksheet. If force is False, raises ValueError if marked submissions exist."""
     conn = get_connection()
     try:
         conn.execute("BEGIN IMMEDIATE")
@@ -628,12 +637,14 @@ def delete_worksheet(worksheet_id: int) -> bool:
         submission_count = conn.execute(
             "SELECT COUNT(*) FROM submissions WHERE worksheet_id = ?", (worksheet_id,)
         ).fetchone()[0]
-        if submission_count:
+        if submission_count and not force:
             raise ValueError(
                 f"This worksheet has {submission_count} marked submission(s). "
-                "Keep it to preserve student marks and reports."
+                "Confirm deletion with force=True to delete the worksheet and its submissions."
             )
         conn.execute("DELETE FROM mistakes WHERE worksheet_id = ?", (worksheet_id,))
+        if force:
+            conn.execute("DELETE FROM submissions WHERE worksheet_id = ?", (worksheet_id,))
         conn.execute("DELETE FROM worksheets WHERE id = ?", (worksheet_id,))
         conn.commit()
         return True
@@ -683,12 +694,25 @@ def get_theory_booklet_by_id(booklet_id: int) -> Optional[Dict[str, Any]]:
         return d
     return None
 
-def delete_theory_booklet(booklet_id: int):
+def delete_theory_booklet(booklet_id: int, delete_linked_worksheets: bool = False):
     conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM theory_booklets WHERE id = ?", (booklet_id,))
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        if delete_linked_worksheets:
+            ws_ids = [row[0] for row in conn.execute("SELECT id FROM worksheets WHERE source_theory_id = ?", (booklet_id,)).fetchall()]
+            for wid in ws_ids:
+                conn.execute("DELETE FROM mistakes WHERE worksheet_id = ?", (wid,))
+                conn.execute("DELETE FROM submissions WHERE worksheet_id = ?", (wid,))
+            conn.execute("DELETE FROM worksheets WHERE source_theory_id = ?", (booklet_id,))
+        else:
+            conn.execute("UPDATE worksheets SET source_theory_id = NULL WHERE source_theory_id = ?", (booklet_id,))
+        conn.execute("DELETE FROM theory_booklets WHERE id = ?", (booklet_id,))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 def update_theory_booklet_instructions(booklet_id: int, instructions_text: str) -> bool:
     """Updates custom instructions in a saved theory booklet's content JSON."""

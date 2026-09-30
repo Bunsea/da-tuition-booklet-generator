@@ -840,20 +840,46 @@ with tab1:
                 }
                 selected_lib_tb_label = st.selectbox("Select a Saved Theory Booklet:", list(tb_lib_opts.keys()), key="sel_lib_tb")
                 sel_lib_tb_id = tb_lib_opts[selected_lib_tb_label]
-                if st.button("📂 Load Selected Theory Booklet", key=f"btn_load_lib_tb_{sel_lib_tb_id}", type="primary"):
-                    loaded_tb = database.get_theory_booklet_by_id(sel_lib_tb_id)
-                    if loaded_tb:
-                        content_dict = loaded_tb.get("content", {})
-                        if isinstance(content_dict, dict):
-                            full_tb = {**content_dict, **loaded_tb}
-                        else:
-                            full_tb = loaded_tb
-                        full_tb["id"] = loaded_tb["id"]
-                        st.session_state["latest_theory_booklet"] = full_tb
-                        st.session_state["latest_theory_booklet_id"] = loaded_tb["id"]
-                        st.session_state.pop("latest_tb_cache_key", None)
-                        st.success(f"Loaded Theory Booklet #{loaded_tb['id']}: {loaded_tb.get('title')}!")
+                if st.session_state.get("pending_delete_tb_id") != sel_lib_tb_id:
+                    st.session_state.pop("pending_delete_tb_id", None)
+                tb_load_col, tb_del_col = st.columns(2)
+                with tb_load_col:
+                    if st.button("📂 Load Selected Theory Booklet", key=f"btn_load_lib_tb_{sel_lib_tb_id}", type="primary", use_container_width=True):
+                        loaded_tb = database.get_theory_booklet_by_id(sel_lib_tb_id)
+                        if loaded_tb:
+                            content_dict = loaded_tb.get("content", {})
+                            if isinstance(content_dict, dict):
+                                full_tb = {**content_dict, **loaded_tb}
+                            else:
+                                full_tb = loaded_tb
+                            full_tb["id"] = loaded_tb["id"]
+                            st.session_state["latest_theory_booklet"] = full_tb
+                            st.session_state["latest_theory_booklet_id"] = loaded_tb["id"]
+                            st.session_state.pop("latest_tb_cache_key", None)
+                            st.success(f"Loaded Theory Booklet #{loaded_tb['id']}: {loaded_tb.get('title')}!")
+                            st.rerun()
+                with tb_del_col:
+                    if st.button("🗑️ Delete Selected Theory Booklet", key=f"btn_del_lib_tb_{sel_lib_tb_id}", use_container_width=True):
+                        st.session_state["pending_delete_tb_id"] = sel_lib_tb_id
                         st.rerun()
+
+                if st.session_state.get("pending_delete_tb_id") == sel_lib_tb_id:
+                    st.warning(f"Delete Theory Booklet #{sel_lib_tb_id}: `{selected_lib_tb_label}`? This cannot be undone.")
+                    del_children_cb = st.checkbox("Also delete linked companion worksheets (In-Class, Homework, Topic Exams)", key=f"del_tb_children_{sel_lib_tb_id}", value=True)
+                    tb_c1, tb_c2 = st.columns(2)
+                    with tb_c1:
+                        if st.button("Confirm Delete Theory Booklet", key=f"confirm_del_tb_{sel_lib_tb_id}", type="primary", use_container_width=True):
+                            database.delete_theory_booklet(sel_lib_tb_id, delete_linked_worksheets=del_children_cb)
+                            if st.session_state.get("latest_theory_booklet_id") == sel_lib_tb_id:
+                                for k in ("latest_theory_booklet", "latest_theory_booklet_id", "latest_tb_cache_key", "latest_tb_artifacts"):
+                                    st.session_state.pop(k, None)
+                            st.session_state.pop("pending_delete_tb_id", None)
+                            st.success(f"Deleted Theory Booklet #{sel_lib_tb_id} successfully!")
+                            st.rerun()
+                    with tb_c2:
+                        if st.button("Cancel", key=f"cancel_del_tb_{sel_lib_tb_id}", use_container_width=True):
+                            st.session_state.pop("pending_delete_tb_id", None)
+                            st.rerun()
 
         col_yl, col_tb = st.columns([1.2, 1.8])
         with col_yl:
@@ -1356,18 +1382,25 @@ with tab1:
                             with col_ic4:
                                 st.download_button("🔑 Teacher Answer Key", data=tans_pdf, file_name=name_tans, mime="application/pdf", key=f"dl_c_tea_ans_ic_{lic['id']}", use_container_width=True)
 
-                            # 1-Click ZIP bundle & 1-Click Marking Navigation
-                            col_ic_z, col_ic_m = st.columns([1.5, 1])
+                            # 1-Click ZIP bundle & 1-Click Marking Navigation & Delete
+                            col_ic_z, col_ic_m, col_ic_d = st.columns([1.4, 1.0, 0.8])
                             with col_ic_z:
                                 ic_zip_bytes = build_worksheet_zip_package(lic['id'], json.dumps(lic), json.dumps(tb) if tb else None)
                                 clean_ic_topic = re.sub(r'^(?:Chapter|Unit|Topic\s*)?(?:\d+[\.\:\-]\s*|\d+[A-Za-z][\.\:\-]\s*|\d+\s+)', '', str(lic_topic)).strip()
                                 zip_ic_filename = f"{clean_ic_topic} In-Class Complete Package.zip".replace("_", " ")
                                 st.download_button("📦 Download All as ZIP (Complete In-Class Package)", data=ic_zip_bytes, file_name=zip_ic_filename, mime="application/zip", key=f"dl_zip_ic_{lic['id']}", use_container_width=True)
                             with col_ic_m:
-                                if st.button(f"⚡ Mark Submissions for In-Class #{lic['id']}", key=f"btn_mark_sub_ic_{lic['id']}", use_container_width=True):
+                                if st.button(f"⚡ Mark Submissions", key=f"btn_mark_sub_ic_{lic['id']}", use_container_width=True):
                                     st.session_state["preselected_marking_ws_id"] = lic['id']
                                     st.session_state["active_tab_hint"] = "marking"
                                     st.info(f"✅ Selected In-Class Booklet #{lic['id']}! Head to **Tab 2 (1-Click AI Homework Marking)** to grade student scans.")
+                            with col_ic_d:
+                                if st.button(f"🗑️ Delete", key=f"btn_del_ic_{lic['id']}", use_container_width=True):
+                                    database.delete_worksheet(lic['id'], force=True)
+                                    if st.session_state.get("preselected_marking_ws_id") == lic['id']:
+                                        st.session_state.pop("preselected_marking_ws_id", None)
+                                    st.success(f"Deleted In-Class Booklet #{lic['id']}!")
+                                    st.rerun()
 
                 st.markdown("##### 📝 Select Total In-Class Practice Questions")
                 num_ic_concepts = len(tb_concepts_list) if tb_concepts_list else 3
@@ -1514,18 +1547,25 @@ with tab1:
                             with col_hw4:
                                 st.download_button("🔑 Teacher Answer Key", data=hw_tans_pdf, file_name=hw_tea_ans_name, mime="application/pdf", key=f"dl_c_tea_ans_hw_{lhw['id']}", use_container_width=True)
 
-                            # 1-Click ZIP bundle & 1-Click Marking Navigation
-                            col_hw_z, col_hw_m = st.columns([1.5, 1])
+                            # 1-Click ZIP bundle & 1-Click Marking Navigation & Delete
+                            col_hw_z, col_hw_m, col_hw_d = st.columns([1.4, 1.0, 0.8])
                             with col_hw_z:
                                 hw_zip_bytes = build_worksheet_zip_package(lhw['id'], json.dumps(lhw), json.dumps(tb) if tb else None)
                                 clean_hw_topic = re.sub(r'^(?:Chapter|Unit|Topic\s*)?(?:\d+[\.\:\-]\s*|\d+[A-Za-z][\.\:\-]\s*|\d+\s+)', '', str(lhw_topic)).strip()
                                 zip_hw_filename = f"{clean_hw_topic} Homework {set_label} Complete Package.zip".replace("_", " ")
                                 st.download_button(f"📦 Download All as ZIP (Complete Homework {set_label} Package)", data=hw_zip_bytes, file_name=zip_hw_filename, mime="application/zip", key=f"dl_zip_hw_{lhw['id']}", use_container_width=True)
                             with col_hw_m:
-                                if st.button(f"⚡ Mark Submissions for Homework #{lhw['id']}", key=f"btn_mark_sub_hw_{lhw['id']}", use_container_width=True):
+                                if st.button(f"⚡ Mark Submissions", key=f"btn_mark_sub_hw_{lhw['id']}", use_container_width=True):
                                     st.session_state["preselected_marking_ws_id"] = lhw['id']
                                     st.session_state["active_tab_hint"] = "marking"
                                     st.info(f"✅ Selected Homework #{lhw['id']} ({set_label})! Head to **Tab 2 (1-Click AI Homework Marking)** to grade student scans.")
+                            with col_hw_d:
+                                if st.button(f"🗑️ Delete", key=f"btn_del_hw_{lhw['id']}", use_container_width=True):
+                                    database.delete_worksheet(lhw['id'], force=True)
+                                    if st.session_state.get("preselected_marking_ws_id") == lhw['id']:
+                                        st.session_state.pop("preselected_marking_ws_id", None)
+                                    st.success(f"Deleted Homework Booklet #{lhw['id']}!")
+                                    st.rerun()
 
                 col_hw_opt1, col_hw_opt2 = st.columns([1, 2])
                 with col_hw_opt1:
@@ -1670,11 +1710,18 @@ with tab1:
                                 with col_rb2:
                                     st.download_button("📥 Teacher Solutions (PDF)", data=rb_t_pdf, file_name=rb_tea_name, mime="application/pdf", key=f"dl_c_tea_rb_{mrb['id']}", use_container_width=True)
 
-                                # 1-Click ZIP bundle
-                                rb_zip_bytes = build_review_zip_package(mrb['id'], json.dumps(mrb))
-                                clean_rb_topic = re.sub(r'^(?:Chapter|Unit|Topic\s*)?(?:\d+[\.\:\-]\s*|\d+[A-Za-z][\.\:\-]\s*|\d+\s+)', '', str(mrb.get('topic') or tb.get('topic') or 'Topic Review')).strip()
-                                zip_rb_filename = f"{clean_rb_topic} Review Complete Package.zip".replace("_", " ")
-                                st.download_button("📦 Download All as ZIP (Complete Review Package)", data=rb_zip_bytes, file_name=zip_rb_filename, mime="application/zip", key=f"dl_zip_rb_{mrb['id']}", use_container_width=True)
+                                # 1-Click ZIP bundle & Delete
+                                col_rb_z, col_rb_d = st.columns([2, 1])
+                                with col_rb_z:
+                                    rb_zip_bytes = build_review_zip_package(mrb['id'], json.dumps(mrb))
+                                    clean_rb_topic = re.sub(r'^(?:Chapter|Unit|Topic\s*)?(?:\d+[\.\:\-]\s*|\d+[A-Za-z][\.\:\-]\s*|\d+\s+)', '', str(mrb.get('topic') or tb.get('topic') or 'Topic Review')).strip()
+                                    zip_rb_filename = f"{clean_rb_topic} Review Complete Package.zip".replace("_", " ")
+                                    st.download_button("📦 Download All as ZIP (Complete Review Package)", data=rb_zip_bytes, file_name=zip_rb_filename, mime="application/zip", key=f"dl_zip_rb_{mrb['id']}", use_container_width=True)
+                                with col_rb_d:
+                                    if st.button("🗑️ Delete Review Booklet", key=f"btn_del_rb_{mrb['id']}", use_container_width=True):
+                                        database.delete_review_booklet(mrb['id'])
+                                        st.success(f"Deleted Review Booklet #{mrb['id']}!")
+                                        st.rerun()
 
                 col_rq1, col_rq2 = st.columns([1, 2])
                 with col_rq1:
@@ -1753,18 +1800,25 @@ with tab1:
                             with col_le2:
                                 st.download_button("📥 Teacher Solutions (PDF)", data=sol_pdf, file_name=tea_dl_name, mime="application/pdf", key=f"dl_c_tea_{le['id']}", use_container_width=True)
 
-                            # 1-Click ZIP bundle & 1-Click Marking Navigation
-                            col_ex_z, col_ex_m = st.columns([1.5, 1])
+                            # 1-Click ZIP bundle & 1-Click Marking Navigation & Delete
+                            col_ex_z, col_ex_m, col_ex_d = st.columns([1.4, 1.0, 0.8])
                             with col_ex_z:
                                 exam_zip_bytes = build_exam_zip_package(le['id'], json.dumps(le), json.dumps(tb) if tb else None)
                                 clean_exam_topic = re.sub(r'^(?:Chapter|Unit|Topic\s*)?(?:\d+[\.\:\-]\s*|\d+[A-Za-z][\.\:\-]\s*|\d+\s+)', '', str(le_topic)).strip()
                                 zip_exam_filename = f"{clean_exam_topic} Mastery Exam Complete Package.zip".replace("_", " ")
                                 st.download_button("📦 Download All as ZIP (Complete Exam Package)", data=exam_zip_bytes, file_name=zip_exam_filename, mime="application/zip", key=f"dl_zip_exam_{le['id']}", use_container_width=True)
                             with col_ex_m:
-                                if st.button(f"⚡ Mark Submissions for Exam #{le['id']}", key=f"btn_mark_sub_exam_{le['id']}", use_container_width=True):
+                                if st.button(f"⚡ Mark Submissions", key=f"btn_mark_sub_exam_{le['id']}", use_container_width=True):
                                     st.session_state["preselected_marking_ws_id"] = le['id']
                                     st.session_state["active_tab_hint"] = "marking"
                                     st.info(f"✅ Selected Mastery Exam #{le['id']}! Head to **Tab 2 (1-Click AI Homework Marking)** to grade student scans.")
+                            with col_ex_d:
+                                if st.button(f"🗑️ Delete", key=f"btn_del_exam_{le['id']}", use_container_width=True):
+                                    database.delete_worksheet(le['id'], force=True)
+                                    if st.session_state.get("preselected_marking_ws_id") == le['id']:
+                                        st.session_state.pop("preselected_marking_ws_id", None)
+                                    st.success(f"Deleted Mastery Exam #{le['id']}!")
+                                    st.rerun()
 
                 col_ex_g1, col_ex_g2 = st.columns([2.5, 1])
                 with col_ex_g1:
@@ -1879,11 +1933,18 @@ with tab1:
                             with col_p2:
                                 st.download_button("📥 Booklet 2 (Practice Exam & Solutions)", data=b2_pdf, file_name=b2_name, mime="application/pdf", key=f"dl_c_b2_{mp['id']}", use_container_width=True)
 
-                            # 1-Click ZIP bundle
-                            pkg_zip_bytes = build_exam_pkg_zip_package(mp['id'], json.dumps(mp))
-                            clean_pkg_topic = re.sub(r'^(?:Chapter|Unit|Topic\s*)?(?:\d+[\.\:\-]\s*|\d+[A-Za-z][\.\:\-]\s*|\d+\s+)', '', str(mp.get('topic') or tb.get('topic') or 'Exam Package')).strip()
-                            zip_pkg_filename = f"{clean_pkg_topic} Exam Package Complete Suite.zip".replace("_", " ")
-                            st.download_button("📦 Download All as ZIP (Complete Exam Package Suite)", data=pkg_zip_bytes, file_name=zip_pkg_filename, mime="application/zip", key=f"dl_zip_pkg_{mp['id']}", use_container_width=True)
+                            # 1-Click ZIP bundle & Delete
+                            col_p_z, col_p_d = st.columns([2, 1])
+                            with col_p_z:
+                                pkg_zip_bytes = build_exam_pkg_zip_package(mp['id'], json.dumps(mp))
+                                clean_pkg_topic = re.sub(r'^(?:Chapter|Unit|Topic\s*)?(?:\d+[\.\:\-]\s*|\d+[A-Za-z][\.\:\-]\s*|\d+\s+)', '', str(mp.get('topic') or tb.get('topic') or 'Exam Package')).strip()
+                                zip_pkg_filename = f"{clean_pkg_topic} Exam Package Complete Suite.zip".replace("_", " ")
+                                st.download_button("📦 Download All as ZIP (Complete Exam Package Suite)", data=pkg_zip_bytes, file_name=zip_pkg_filename, mime="application/zip", key=f"dl_zip_pkg_{mp['id']}", use_container_width=True)
+                            with col_p_d:
+                                if st.button("🗑️ Delete Exam Package", key=f"btn_del_pkg_{mp['id']}", use_container_width=True):
+                                    database.delete_exam_package(mp['id'])
+                                    st.success(f"Deleted Exam Package #{mp['id']}!")
+                                    st.rerun()
 
                 st.caption(f"Compiles an authentic examination package covering all concepts of **{tb.get('topic')}** with senior HSC marker feedback & past paper style questions.")
 
@@ -2006,18 +2067,27 @@ with tab1:
                         st.session_state["pending_delete_ws_id"] = sel_lib_ws_id
                         st.rerun()
                 if st.session_state.get("pending_delete_ws_id") == sel_lib_ws_id:
-                    st.warning(f"Delete worksheet #{sel_lib_ws_id}: {selected_lib_ws_label}? This cannot be undone. Worksheets with marked submissions cannot be deleted.")
+                    ws_subs_count = database.get_worksheet_submission_count(sel_lib_ws_id)
+                    if ws_subs_count > 0:
+                        st.warning(f"⚠️ Delete worksheet #{sel_lib_ws_id}: `{selected_lib_ws_label}`? It currently has **{ws_subs_count} marked student submission(s)** in the database. Deleting it will permanently erase these marks and student reports.")
+                        force_cb = st.checkbox(f"Yes, permanently delete worksheet #{sel_lib_ws_id} and all {ws_subs_count} student submission(s).", key=f"force_del_lib_{sel_lib_ws_id}")
+                    else:
+                        st.warning(f"Delete worksheet #{sel_lib_ws_id}: `{selected_lib_ws_label}`? This cannot be undone.")
+                        force_cb = False
+
                     confirm_col, cancel_col = st.columns(2)
                     with confirm_col:
-                        if st.button("Confirm Delete", key=f"confirm_delete_ws_{sel_lib_ws_id}", type="primary", use_container_width=True):
+                        btn_disabled = (ws_subs_count > 0 and not force_cb)
+                        if st.button("Confirm Delete", key=f"confirm_delete_ws_{sel_lib_ws_id}", type="primary", disabled=btn_disabled, use_container_width=True):
                             try:
-                                if database.delete_worksheet(sel_lib_ws_id):
+                                if database.delete_worksheet(sel_lib_ws_id, force=force_cb):
                                     if st.session_state.get("latest_ws_id") == sel_lib_ws_id:
                                         for state_key in ("latest_worksheet", "latest_ws_id", "latest_ws_cache_key", "latest_ws_artifacts"):
                                             st.session_state.pop(state_key, None)
                                     if st.session_state.get("preselected_marking_ws_id") == sel_lib_ws_id:
                                         st.session_state.pop("preselected_marking_ws_id", None)
                                     st.session_state.pop("pending_delete_ws_id", None)
+                                    st.success(f"Worksheet #{sel_lib_ws_id} deleted successfully.")
                                     st.rerun()
                                 else:
                                     st.error("This worksheet no longer exists.")
@@ -3752,20 +3822,66 @@ with tab2:
                         with rd_col4:
                             st.download_button("🔑 Teacher Answer Key", data=f_tans_pdf, file_name=f_tans_name, mime="application/pdf", key=f"t2_dl_tans_{full_ws['id']}", use_container_width=True)
 
-                        rd_z, rd_open = st.columns([1.5, 1])
+                        rd_z, rd_open, rd_del = st.columns([1.4, 1.0, 1.0])
                         with rd_z:
                             f_zip_bytes = build_worksheet_zip_package(full_ws['id'], json.dumps(full_ws), json.dumps(tb_ref) if tb_ref else None)
                             clean_z_topic = re.sub(r'^(?:Chapter|Unit|Topic\s*)?(?:\d+[\.\:\-]\s*|\d+[A-Za-z][\.\:\-]\s*|\d+\s+)', '', str(ws_tp)).strip()
                             zip_f_name = f"{clean_z_topic} {ws_atype.replace('_', ' ').title()} Complete Package.zip".replace("_", " ")
                             st.download_button("📦 Download All as ZIP (Complete Package)", data=f_zip_bytes, file_name=zip_f_name, mime="application/zip", key=f"t2_dl_zip_{full_ws['id']}", use_container_width=True)
                         with rd_open:
-                            if st.button("📂 Load into Tab 1 Worksheet Viewer", key=f"t2_open_tab1_{full_ws['id']}", use_container_width=True):
+                            if st.button("📂 Load in Tab 1", key=f"t2_open_tab1_{full_ws['id']}", use_container_width=True):
                                 st.session_state["latest_worksheet"] = full_ws
                                 st.session_state["latest_ws_id"] = full_ws["id"]
                                 st.session_state.pop("latest_ws_cache_key", None)
                                 st.session_state.pop("latest_ws_artifacts", None)
                                 st.session_state["active_tab_hint"] = "generate"
                                 st.success("Loaded into Tab 1! Switch to Tab 1 above.")
+                        with rd_del:
+                            if st.button("🗑️ Delete Booklet", key=f"t2_del_btn_trigger_{full_ws['id']}", use_container_width=True):
+                                st.session_state[f"t2_show_del_confirm_{full_ws['id']}"] = not st.session_state.get(f"t2_show_del_confirm_{full_ws['id']}", False)
+                                st.rerun()
+
+                    if st.session_state.get(f"t2_show_del_confirm_{selected_ws_id}", False):
+                        ws_subs_count = database.get_worksheet_submission_count(selected_ws_id)
+                        with st.container():
+                            st.warning(f"⚠️ **Confirm Deletion for Worksheet #{selected_ws_id}:** {worksheet_title}")
+                            if ws_subs_count > 0:
+                                st.error(f"This assignment currently has **{ws_subs_count} marked student submission(s)** in the database. Deleting it will permanently erase these marks and student reports.")
+                                force_agree = st.checkbox(f"Yes, permanently delete this worksheet and all {ws_subs_count} student submission(s).", key=f"t2_force_agree_{selected_ws_id}")
+                                c_del1, c_del2 = st.columns(2)
+                                with c_del1:
+                                    if st.button("🚨 Permanently Delete", key=f"t2_do_del_{selected_ws_id}", type="primary", disabled=not force_agree, use_container_width=True):
+                                        database.delete_worksheet(selected_ws_id, force=True)
+                                        if st.session_state.get("preselected_marking_ws_id") == selected_ws_id:
+                                            st.session_state.pop("preselected_marking_ws_id", None)
+                                        if st.session_state.get("latest_ws_id") == selected_ws_id:
+                                            for k in ("latest_worksheet", "latest_ws_id", "latest_ws_cache_key", "latest_ws_artifacts"):
+                                                st.session_state.pop(k, None)
+                                        st.session_state.pop(f"t2_show_del_confirm_{selected_ws_id}", None)
+                                        st.success(f"Worksheet #{selected_ws_id} and submissions deleted successfully!")
+                                        st.rerun()
+                                with c_del2:
+                                    if st.button("Cancel", key=f"t2_cancel_del_{selected_ws_id}", use_container_width=True):
+                                        st.session_state.pop(f"t2_show_del_confirm_{selected_ws_id}", None)
+                                        st.rerun()
+                            else:
+                                st.info("This assignment has no marked submissions. It will be removed from your database immediately.")
+                                c_del1, c_del2 = st.columns(2)
+                                with c_del1:
+                                    if st.button("Confirm Delete", key=f"t2_do_safe_del_{selected_ws_id}", type="primary", use_container_width=True):
+                                        database.delete_worksheet(selected_ws_id, force=False)
+                                        if st.session_state.get("preselected_marking_ws_id") == selected_ws_id:
+                                            st.session_state.pop("preselected_marking_ws_id", None)
+                                        if st.session_state.get("latest_ws_id") == selected_ws_id:
+                                            for k in ("latest_worksheet", "latest_ws_id", "latest_ws_cache_key", "latest_ws_artifacts"):
+                                                st.session_state.pop(k, None)
+                                        st.session_state.pop(f"t2_show_del_confirm_{selected_ws_id}", None)
+                                        st.success(f"Worksheet #{selected_ws_id} deleted successfully!")
+                                        st.rerun()
+                                with c_del2:
+                                    if st.button("Cancel", key=f"t2_cancel_safe_del_{selected_ws_id}", use_container_width=True):
+                                        st.session_state.pop(f"t2_show_del_confirm_{selected_ws_id}", None)
+                                        st.rerun()
     else:
         c1, c2, c3 = st.columns(3)
         with c1:

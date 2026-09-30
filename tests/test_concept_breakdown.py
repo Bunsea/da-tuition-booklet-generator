@@ -172,6 +172,65 @@ class TestConceptBreakdown(unittest.TestCase):
         self.assertEqual(b_map["Permutations"]["accuracy_pct"], 100.0)
         self.assertEqual(b_map["Permutations"]["status"], "Strength")
 
+    def test_delete_worksheet_and_theory_booklet(self):
+        # 1. Unmarked worksheet delete
+        ws_id1 = database.save_worksheet(
+            title="Temp Unmarked Worksheet",
+            topic="Geometry",
+            year_level="Year 9",
+            term=2,
+            week=3,
+            difficulty="Easy",
+            questions=[{"item_label": "1", "text": "Q1"}],
+            marking_key={"1": "A"}
+        )
+        self.assertEqual(database.get_worksheet_submission_count(ws_id1), 0)
+        self.assertTrue(database.delete_worksheet(ws_id1, force=False))
+        self.assertIsNone(database.get_worksheet_by_id(ws_id1))
+
+        # 2. Marked worksheet delete with force=False raising ValueError
+        ws_id2 = database.save_worksheet(
+            title="Temp Marked Worksheet",
+            topic="Geometry",
+            year_level="Year 9",
+            term=2,
+            week=3,
+            difficulty="Easy",
+            questions=[{"item_label": "1", "text": "Q1"}],
+            marking_key={"1": "A"}
+        )
+        database.save_submission(
+            worksheet_id=ws_id2,
+            student_name="Test Student",
+            raw_file_name="test.pdf",
+            score=1.0,
+            total_marks=1.0,
+            accuracy_pct=100.0,
+            pdf_report_path="test.pdf",
+            summary_text="Done",
+            mistakes=[]
+        )
+        self.assertEqual(database.get_worksheet_submission_count(ws_id2), 1)
+        with self.assertRaises(ValueError):
+            database.delete_worksheet(ws_id2, force=False)
+        
+        # 3. Force delete of marked worksheet succeeds
+        self.assertTrue(database.delete_worksheet(ws_id2, force=True))
+        self.assertIsNone(database.get_worksheet_by_id(ws_id2))
+
+        # 4. Theory booklet delete
+        tb_id = database.save_theory_booklet(
+            title="Temp Theory Booklet",
+            term=1,
+            week=1,
+            year_level="Year 11",
+            topic="Algebra",
+            content={"concepts": []}
+        )
+        self.assertIsNotNone(database.get_theory_booklet_by_id(tb_id))
+        database.delete_theory_booklet(tb_id)
+        self.assertIsNone(database.get_theory_booklet_by_id(tb_id))
+
 if __name__ == "__main__":
     unittest.main()
 
