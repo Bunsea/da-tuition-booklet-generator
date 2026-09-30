@@ -1573,6 +1573,55 @@ MATHS_IN_FOCUS_CURRICULUM: Dict[str, Dict[str, List[str]]] = {
 # Stage 6 Extension 1 alias
 MATHS_IN_FOCUS_CURRICULUM["Year 11 (Extension 1)"] = MATHS_IN_FOCUS_CURRICULUM["Year 11 (Extension)"]
 
+# Pearson New Senior Mathematics 4e, updated for the 2024 NSW Stage 6
+# Mathematics Advanced, Extension 1 and Extension 2 syllabuses. These chapter
+# titles follow Pearson's published 4e table of contents; the generator can
+# expand each chapter into syllabus-specific subtopics when needed.
+NEW_SENIOR_MATHEMATICS_CURRICULUM: Dict[str, Dict[str, List[str]]] = {
+    "Year 11 (Advanced)": {
+        f"{i}. {title}": [title] for i, title in enumerate([
+            "Algebraic techniques", "Further algebraic techniques", "Functions and relations",
+            "Further functions", "Trigonometry and measures of angles", "Radians",
+            "Introduction to differentiation", "Exponential and logarithmic functions",
+            "Probability", "Graph transformations"
+        ], 1)
+    },
+    "Year 11 (Extension)": {
+        f"{i}. {title}": [title] for i, title in enumerate([
+            "Algebraic techniques", "Further algebraic techniques", "Inequalities",
+            "Functions and relations", "Further functions", "Polynomials",
+            "Trigonometry and measures of angles", "Radians", "Further trigonometry",
+            "Probability", "Parametric equations", "Permutations and combinations",
+            "Introduction to differentiation", "Exponential and logarithmic functions",
+            "Binomial theorem", "Graph transformations", "Graphing functions"
+        ], 1)
+    },
+    "Year 12 (Advanced)": {
+        f"{i}. {title}": [title] for i, title in enumerate([
+            "Sequences and series", "Further graph transformation and modelling",
+            "Differential calculus", "Integral calculus 1", "Integral calculus 2",
+            "Applications of calculus", "Random variables", "Financial mathematics"
+        ], 1)
+    },
+    "Year 12 (Extension 1)": {
+        f"{i}. {title}": [title] for i, title in enumerate([
+            "Sequences and series", "Proof by mathematical induction",
+            "Further graph transformation and modelling", "Vectors", "Differential calculus",
+            "Integral calculus 1", "Inverse trigonometric functions", "Integral calculus 2",
+            "Applications of calculus", "Motion, forces and projectiles", "Further calculus",
+            "Further applications of calculus", "Random variables", "Differential equations",
+            "The binomial distribution", "Financial mathematics"
+        ], 1)
+    },
+    "Year 12 (Extension 2)": {
+        f"{i}. {title}": [title] for i, title in enumerate([
+            "The nature of proof", "Complex numbers", "Further work with vectors",
+            "Trigonometry and integration by substitution", "Further integration", "Mechanics"
+        ], 1)
+    }
+}
+NEW_SENIOR_MATHEMATICS_CURRICULUM["Year 11 (Extension 1)"] = NEW_SENIOR_MATHEMATICS_CURRICULUM["Year 11 (Extension)"]
+
 from curriculum_data import (
     NEW_CENTURY_CURRICULUM,
     MATHS_QUEST_CURRICULUM,
@@ -1587,7 +1636,8 @@ TEXTBOOK_OPTIONS = [
     "New Century Maths (Nelson Cengage)",
     "Jacaranda Maths Quest",
     "Australian Signpost Mathematics",
-    "Oxford Maths NSW"
+    "Oxford Maths NSW",
+    "New Senior Mathematics 4e (Pearson)"
 ]
 
 TEXTBOOK_CURRICULA: Dict[str, Dict[str, Dict[str, List[str]]]] = {
@@ -1597,6 +1647,7 @@ TEXTBOOK_CURRICULA: Dict[str, Dict[str, Dict[str, List[str]]]] = {
     "Jacaranda Maths Quest": MATHS_QUEST_CURRICULUM,
     "Australian Signpost Mathematics": SIGNPOST_CURRICULUM,
     "Oxford Maths NSW": OXFORD_CURRICULUM,
+    "New Senior Mathematics 4e (Pearson)": NEW_SENIOR_MATHEMATICS_CURRICULUM,
     "Mathscape (Macmillan)": MATHSCAPE_CURRICULUM,
     # Short aliases & fuzzy matches
     "Cambridge": CAMBRIDGE_CURRICULUM,

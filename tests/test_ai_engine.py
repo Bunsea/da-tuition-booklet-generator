@@ -52,7 +52,8 @@ class TestAiEngine(unittest.TestCase):
             "New Century Maths (Nelson Cengage)",
             "Jacaranda Maths Quest",
             "Australian Signpost Mathematics",
-            "Oxford Maths NSW"
+            "Oxford Maths NSW",
+            "New Senior Mathematics 4e (Pearson)"
         ]
         for tb in expected_active_textbooks:
             self.assertIn(tb, ai_engine.TEXTBOOK_OPTIONS, f"{tb} must be in TEXTBOOK_OPTIONS")
@@ -64,13 +65,24 @@ class TestAiEngine(unittest.TestCase):
         junior_years = ["Year 7", "Year 8", "Year 9", "Year 10"]
         senior_years = ["Year 11 (Advanced)", "Year 11 (Standard)", "Year 12 (Advanced)", "Year 12 (Extension 1)"]
         for tb in expected_active_textbooks:
-            years_to_test = senior_years if tb == "Maths in Focus (Nelson Cengage)" else junior_years
+            if tb == "New Senior Mathematics 4e (Pearson)":
+                years_to_test = [y for y in senior_years if "Standard" not in y]
+            else:
+                years_to_test = senior_years if tb == "Maths in Focus (Nelson Cengage)" else junior_years
             for yl in years_to_test:
                 topics = ai_engine.get_topics_for_year(yl, textbook=tb)
                 self.assertGreater(len(topics), 0, f"{tb} must have topics for {yl}")
                 first_topic = topics[0]
                 subs = ai_engine.get_curriculum_subtopics(yl, first_topic, textbook=tb)
                 self.assertGreater(len(subs), 0, f"{tb} must have subtopics for {yl} - {first_topic}")
+
+        new_senior = ai_engine.get_curriculum_dict("New Senior Mathematics 4e (Pearson)")
+        self.assertIn("Year 11 (Advanced)", new_senior)
+        self.assertIn("Year 11 (Extension 1)", new_senior)
+        self.assertIn("Year 12 (Extension 2)", new_senior)
+        self.assertIn("Permutations and combinations", " ".join(new_senior["Year 11 (Extension)"]))
+        self.assertIn("Differential equations", " ".join(new_senior["Year 12 (Extension 1)"]))
+        self.assertIn("Complex numbers", " ".join(new_senior["Year 12 (Extension 2)"]))
 
         # Verify Network Concepts is present in Year 10 for all junior textbooks
         for tb in ["CambridgeMATHS NSW", "New Century Maths (Nelson Cengage)", "Jacaranda Maths Quest", "Australian Signpost Mathematics", "Oxford Maths NSW"]:
