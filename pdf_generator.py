@@ -7768,8 +7768,14 @@ def build_latex_theory_booklet_source(
                         if fallback_tikz:
                             sol_diag = fallback_tikz
 
-                ex_needspace = "1.5cm" if not is_teacher else "5.0cm"
+                # Private booklets must keep each demonstration question with
+                # its worked solution. Reserve enough room to move the whole
+                # example forward instead of leaving the question stranded at
+                # the bottom of one page.
+                ex_needspace = "11.0cm" if is_student_private else ("1.5cm" if not is_teacher else "5.0cm")
                 tex_lines.append(f"\\needspace{{{ex_needspace}}}")
+                if is_student_private:
+                    tex_lines.append(r"\begin{samepage}")
                 tex_lines.append(f"\\noindent\\textbf{{{ex_heading}}}\\\\[0.15cm]")
                 p_lines = format_latex_question_with_subparts(p_text, as_item=False)
                 p_body = "\n".join(p_lines)
@@ -7799,6 +7805,8 @@ def build_latex_theory_booklet_source(
                     tex_lines.append(r"\vspace{0.25cm}")
                 else:
                     tex_lines.append(r"\vspace{0.20cm}")
+                if is_student_private:
+                    tex_lines.append(r"\end{samepage}")
 
         # 3. Checking Understanding: independent student attempts immediately
         # after the demonstrations, with teacher solutions kept separate.
