@@ -1622,6 +1622,26 @@ NEW_SENIOR_MATHEMATICS_CURRICULUM: Dict[str, Dict[str, List[str]]] = {
 }
 NEW_SENIOR_MATHEMATICS_CURRICULUM["Year 11 (Extension 1)"] = NEW_SENIOR_MATHEMATICS_CURRICULUM["Year 11 (Extension)"]
 
+# Concept Mathematics (Pigeon Publishing), a new textbook series written for
+# the 2026 NSW Stage 6 syllabus. The Year 11 Advanced chapter titles below are
+# taken from the publisher's published sample contents; the remaining course
+# maps follow the publisher's stated syllabus order until their full contents
+# are published.
+CONCEPT_MATHEMATICS_CURRICULUM: Dict[str, Dict[str, List[str]]] = {
+    "Year 11 (Advanced)": {
+        f"{i}. {title}": [title] for i, title in enumerate([
+            "Algebra and Sets", "Functions", "Trigonometry",
+            "Trigonometric Identities and Equations", "Introduction to Differentiation",
+            "Exponential and Logarithmic Functions", "Graph Transformations", "Probability"
+        ], 1)
+    },
+    "Year 11 (Extension)": dict(NEW_SENIOR_MATHEMATICS_CURRICULUM["Year 11 (Extension)"]),
+    "Year 12 (Advanced)": dict(NEW_SENIOR_MATHEMATICS_CURRICULUM["Year 12 (Advanced)"]),
+    "Year 12 (Extension 1)": dict(NEW_SENIOR_MATHEMATICS_CURRICULUM["Year 12 (Extension 1)"]),
+    "Year 12 (Extension 2)": dict(NEW_SENIOR_MATHEMATICS_CURRICULUM["Year 12 (Extension 2)"]),
+}
+CONCEPT_MATHEMATICS_CURRICULUM["Year 11 (Extension 1)"] = CONCEPT_MATHEMATICS_CURRICULUM["Year 11 (Extension)"]
+
 from curriculum_data import (
     NEW_CENTURY_CURRICULUM,
     MATHS_QUEST_CURRICULUM,
@@ -1637,7 +1657,8 @@ TEXTBOOK_OPTIONS = [
     "Jacaranda Maths Quest",
     "Australian Signpost Mathematics",
     "Oxford Maths NSW",
-    "New Senior Mathematics 4e (Pearson)"
+    "New Senior Mathematics 4e (Pearson)",
+    "Concept Mathematics (Pigeon Publishing)"
 ]
 
 TEXTBOOK_CURRICULA: Dict[str, Dict[str, Dict[str, List[str]]]] = {
@@ -1648,6 +1669,7 @@ TEXTBOOK_CURRICULA: Dict[str, Dict[str, Dict[str, List[str]]]] = {
     "Australian Signpost Mathematics": SIGNPOST_CURRICULUM,
     "Oxford Maths NSW": OXFORD_CURRICULUM,
     "New Senior Mathematics 4e (Pearson)": NEW_SENIOR_MATHEMATICS_CURRICULUM,
+    "Concept Mathematics (Pigeon Publishing)": CONCEPT_MATHEMATICS_CURRICULUM,
     "Mathscape (Macmillan)": MATHSCAPE_CURRICULUM,
     # Short aliases & fuzzy matches
     "Cambridge": CAMBRIDGE_CURRICULUM,
@@ -1663,6 +1685,8 @@ TEXTBOOK_CURRICULA: Dict[str, Dict[str, Dict[str, List[str]]]] = {
     "Australian Signpost": SIGNPOST_CURRICULUM,
     "Oxford": OXFORD_CURRICULUM,
     "Oxford Maths": OXFORD_CURRICULUM,
+    "Concept Mathematics": CONCEPT_MATHEMATICS_CURRICULUM,
+    "Concept": CONCEPT_MATHEMATICS_CURRICULUM,
     "Mathscape": MATHSCAPE_CURRICULUM,
     "Macmillan": MATHSCAPE_CURRICULUM,
 }

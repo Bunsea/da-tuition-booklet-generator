@@ -53,7 +53,8 @@ class TestAiEngine(unittest.TestCase):
             "Jacaranda Maths Quest",
             "Australian Signpost Mathematics",
             "Oxford Maths NSW",
-            "New Senior Mathematics 4e (Pearson)"
+            "New Senior Mathematics 4e (Pearson)",
+            "Concept Mathematics (Pigeon Publishing)"
         ]
         for tb in expected_active_textbooks:
             self.assertIn(tb, ai_engine.TEXTBOOK_OPTIONS, f"{tb} must be in TEXTBOOK_OPTIONS")
@@ -65,7 +66,7 @@ class TestAiEngine(unittest.TestCase):
         junior_years = ["Year 7", "Year 8", "Year 9", "Year 10"]
         senior_years = ["Year 11 (Advanced)", "Year 11 (Standard)", "Year 12 (Advanced)", "Year 12 (Extension 1)"]
         for tb in expected_active_textbooks:
-            if tb == "New Senior Mathematics 4e (Pearson)":
+            if tb in ("New Senior Mathematics 4e (Pearson)", "Concept Mathematics (Pigeon Publishing)"):
                 years_to_test = [y for y in senior_years if "Standard" not in y]
             else:
                 years_to_test = senior_years if tb == "Maths in Focus (Nelson Cengage)" else junior_years
@@ -83,6 +84,13 @@ class TestAiEngine(unittest.TestCase):
         self.assertIn("Permutations and combinations", " ".join(new_senior["Year 11 (Extension)"]))
         self.assertIn("Differential equations", " ".join(new_senior["Year 12 (Extension 1)"]))
         self.assertIn("Complex numbers", " ".join(new_senior["Year 12 (Extension 2)"]))
+
+        concept = ai_engine.get_curriculum_dict("Concept Mathematics")
+        self.assertIn("Year 11 (Advanced)", concept)
+        self.assertIn("Year 11 (Extension 1)", concept)
+        self.assertIn("Year 12 (Extension 2)", concept)
+        self.assertIn("Trigonometric Identities and Equations", " ".join(concept["Year 11 (Advanced)"]))
+        self.assertIn("Probability", " ".join(concept["Year 11 (Advanced)"]))
 
         # Verify Network Concepts is present in Year 10 for all junior textbooks
         for tb in ["CambridgeMATHS NSW", "New Century Maths (Nelson Cengage)", "Jacaranda Maths Quest", "Australian Signpost Mathematics", "Oxford Maths NSW"]:
