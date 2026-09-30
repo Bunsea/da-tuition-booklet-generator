@@ -3802,11 +3802,11 @@ with tab2:
                         type_badge = "📝 In-Class"
                     else:
                         s_num = w.get("set_number", 1)
-                        type_badge = f"🏠 Homework Set {s_num}"
+                        type_badge = f"Homework Set {s_num}"
 
                     t_val = w.get("term")
                     w_val = w.get("week")
-                    time_badge = f"[T{t_val}W{w_val}]" if (t_val and w_val) else "[General]"
+                    time_badge = f"T{t_val}W{w_val} " if (t_val and w_val) else ""
                     
                     # Clean Topic Name (strips duplicate curriculum prefixes)
                     raw_topic = w.get("topic") or w.get("title") or "Mathematics"
@@ -3817,7 +3817,7 @@ with tab2:
                         clean_top = w.get("title", "Worksheet")
 
                     w_yr_short = str(w.get("year_level", "")).replace("Mathematics", "Maths").strip()
-                    clean_label = f"{time_badge} {type_badge} • {w_yr_short} — {clean_top} ({w.get('total_questions', 0)} Qs) [ID #{w['id']}]"
+                    clean_label = f"{time_badge}{type_badge} • {w_yr_short} — {clean_top} ({w.get('total_questions', 0)} Qs) [ID #{w['id']}]"
                     ws_options[clean_label] = w['id']
 
                 ws_keys = list(ws_options.keys())
