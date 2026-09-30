@@ -7624,6 +7624,8 @@ def build_latex_theory_booklet_source(
         r"\thispagestyle{plain}",
         ""
     ]
+    if is_student_private:
+        tex_lines.append(r"\raggedbottom")
 
     header_lines = [
         r"\noindent",
@@ -7752,9 +7754,26 @@ def build_latex_theory_booklet_source(
 
         # 2. Teacher Demonstration Examples
         if teacher_examples:
-            if is_student_private and c_idx == 1:
-                tex_lines.append(r"\newpage")
-            demo_needspace = "6.5cm" if not is_teacher else "7.0cm"
+            def private_example_reserve(example: Dict[str, Any]) -> str:
+                """Reserve enough room for a question and its solution without wasting a short concept page."""
+                problem = str(example.get("problem_text", ""))
+                solution = str(example.get("worked_solution", ""))
+                note = str(example.get("teaching_notes", ""))
+                has_diagram = any(example.get(key) for key in (
+                    "diagram_tikz", "tikz_diagram", "diagram", "solution_diagram_tikz", "solution_tikz", "solution_diagram"
+                ))
+                compact = (
+                    len(problem) + len(solution) + len(note) < 280
+                    and solution.count("\n") <= 2
+                    and not has_diagram
+                )
+                return "6.0cm" if compact else "11.0cm"
+
+            if is_student_private:
+                first_reserve = private_example_reserve(teacher_examples[0])
+                demo_needspace = "7.0cm" if first_reserve == "6.0cm" else "12.0cm"
+            else:
+                demo_needspace = "6.5cm" if not is_teacher else "7.0cm"
             tex_lines.append(f"\\needspace{{{demo_needspace}}}")
             tex_lines.append(f"\\subsection*{{Teacher Demonstration Examples}}\\label{{sec:demo_{c_idx}}}")
             for ex in teacher_examples:
@@ -7780,14 +7799,16 @@ def build_latex_theory_booklet_source(
                 # its worked solution. Reserve enough room to move the whole
                 # example forward instead of leaving the question stranded at
                 # the bottom of one page.
-                ex_needspace = "11.0cm" if is_student_private else ("1.5cm" if not is_teacher else "5.0cm")
+                ex_needspace = private_example_reserve(ex) if is_student_private else ("1.5cm" if not is_teacher else "5.0cm")
                 tex_lines.append(f"\\needspace{{{ex_needspace}}}")
                 if is_student_private:
                     tex_lines.append(r"\begin{samepage}")
                 tex_lines.append(f"\\noindent\\textbf{{{ex_heading}}}\\\\[0.15cm]")
                 p_lines = format_latex_question_with_subparts(p_text, as_item=False)
                 p_body = "\n".join(p_lines)
-                if p_body.strip().endswith(r"\end{enumerate}"):
+                if is_student_private:
+                    tex_lines.append(p_body + r"\par\vspace{0.02cm}")
+                elif p_body.strip().endswith(r"\end{enumerate}"):
                     tex_lines.append(p_body + r"\par\vspace{0.25cm}")
                 else:
                     tex_lines.append(p_body + r"\\[0.25cm]")
@@ -7822,7 +7843,12 @@ def build_latex_theory_booklet_source(
         if checking_questions:
             tex_lines.append(r"\needspace{5.0cm}")
             tex_lines.append(r"\subsection*{Checking Understanding}\label{sec:checking_" + str(c_idx) + r"}")
-            tex_lines.append(r"\noindent\textit{Try each question independently, showing clear working in the space provided.}\par\vspace{0.12cm}")
+            checking_instruction = (
+                "Try each question independently, showing clear working in your exercise book."
+                if is_student_class else
+                "Try each question independently, showing clear working in the space provided."
+            )
+            tex_lines.append(f"\\noindent\\textit{{{checking_instruction}}}\\par\\vspace{{0.12cm}}")
             for check_idx, cq in enumerate(checking_questions, 1):
                 check_num = cq.get("q_num", check_idx)
                 check_text = cq.get("text") or cq.get("question_text") or cq.get("question") or ""
@@ -7932,7 +7958,7 @@ def build_latex_theory_booklet_source(
                 tex_lines.append(r"\vspace{0.25cm}")
 
     # Quick Answers for Student
-    if not is_teacher and quick_answers:
+    if is_student_private and quick_answers:
         tex_lines.append(r"\newpage")
         tex_lines.append(r"\section*{Plain Answers (For Student Self-Checking)}\label{sec:answers}")
         tex_lines.append(r"\noindent Use these answers to verify your final results after completing full working in your exercise book.\\[0.3cm]")
@@ -8414,7 +8440,6 @@ def generate_reportlab_theory_booklet_pdf(
     is_teacher = (mode_clean == "teacher")
     is_student_private = (mode_clean in ["student_private", "private", "student private"])
     is_student_class = (mode_clean in ["student_class", "class", "student class", "student"] and not is_student_private)
-    empty_theory_box = is_student_class
     if is_teacher:
         edition_label = "TEACHER MASTER THEORY & NOTES"
         badge_color = "#0F2240"
@@ -8456,9 +8481,7 @@ def generate_reportlab_theory_booklet_pdf(
         story.append(Paragraph(f"<b>Part {part_letter}: {c_name}</b>", styles['Heading2']))
         story.append(Spacer(1, 4))
 
-        if empty_theory_box:
-            theory_paras = [Paragraph("<b>Core Theory &amp; Notes (Class Notes Space):</b><br/><br/><br/><br/><br/><br/>", styles['Normal'])]
-        else:
+        if not is_student_class:
             th_text = format_math_for_reportlab(c.get("theory_content", ""))
             # Space out double newlines
             th_text = th_text.replace("\n\n", "<br/><br/>")
@@ -8467,16 +8490,16 @@ def generate_reportlab_theory_booklet_pdf(
                 tip_txt = format_math_for_reportlab(c.get("tutor_tips", ""))
                 theory_paras.append(Paragraph(f"<i>Exam Tips: {tip_txt}</i>", styles['Normal']))
 
-        th_box = Table([[p] for p in theory_paras], colWidths=[520])
-        th_box.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#F2F6FC")),
-            ('BOX', (0,0), (-1,-1), 1, colors.HexColor("#1C4E9C")),
-            ('PADDING', (0,0), (-1,-1), 8)
-        ]))
-        story.append(th_box)
-        story.append(Spacer(1, 8))
+            th_box = Table([[p] for p in theory_paras], colWidths=[520])
+            th_box.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#F2F6FC")),
+                ('BOX', (0,0), (-1,-1), 1, colors.HexColor("#1C4E9C")),
+                ('PADDING', (0,0), (-1,-1), 8)
+            ]))
+            story.append(th_box)
+            story.append(Spacer(1, 8))
 
-        if c.get("key_formulas"):
+        if not is_student_class and c.get("key_formulas"):
             kf_lines = "<br/>• " + "<br/>• ".join([format_math_for_reportlab(f) for f in c.get("key_formulas", [])])
             f_box = Table([[Paragraph(f"<b>Essential Formulae:</b>{kf_lines}", styles['Normal'])]], colWidths=[520])
             f_box.setStyle(TableStyle([
@@ -8487,6 +8510,8 @@ def generate_reportlab_theory_booklet_pdf(
             story.append(f_box)
             story.append(Spacer(1, 10))
 
+        if c.get("teacher_examples"):
+            story.append(Paragraph("<b>Teacher Demonstration Examples</b>", styles['Heading3']))
         for ex in c.get("teacher_examples", []):
             ex_num = ex.get("example_num", 1)
             raw_ex_title = ex.get("title", f"Example {ex_num}")
@@ -8520,7 +8545,12 @@ def generate_reportlab_theory_booklet_pdf(
         checking_questions = c.get("checking_understanding_questions", []) or c.get("checking_questions", []) or []
         if checking_questions:
             story.append(Paragraph("<b>Checking Understanding</b>", styles['Heading3']))
-            story.append(Paragraph("<i>Try each question independently, showing clear working in the space provided.</i>", styles['Normal']))
+            checking_instruction = (
+                "Try each question independently, showing clear working in your exercise book."
+                if is_student_class else
+                "Try each question independently, showing clear working in the space provided."
+            )
+            story.append(Paragraph(f"<i>{checking_instruction}</i>", styles['Normal']))
             for check_idx, cq in enumerate(checking_questions, 1):
                 check_num = cq.get("q_num", check_idx)
                 check_text = format_math_for_reportlab(cq.get("text") or cq.get("question_text") or cq.get("question") or "")
@@ -8529,7 +8559,7 @@ def generate_reportlab_theory_booklet_pdf(
                     ans_txt = format_math_for_reportlab(cq.get("final_answer") or cq.get("answer") or "")
                     sol_txt = format_math_for_reportlab(cq.get("worked_solution") or cq.get("solution") or "")
                     story.append(Paragraph(f"<b>Solution:</b><br/>{sol_txt}<br/><b>Final Answer:</b> {ans_txt}", styles['Normal']))
-                else:
+                elif is_student_private:
                     work_box = Table([[Paragraph("<i>Student working:</i>", styles['Normal'])]], colWidths=[520], rowHeights=[90])
                     work_box.setStyle(TableStyle([
                         ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor("#CCCCCC")),
@@ -8574,7 +8604,7 @@ def generate_reportlab_theory_booklet_pdf(
                 story.append(work_box)
             story.append(Spacer(1, 10))
 
-    if not is_teacher and quick_answers:
+    if is_student_private and quick_answers:
         story.append(PageBreak())
         story.append(Paragraph("<b>Plain Answers (For Quick Self-Checking)</b>", styles['Heading2']))
         story.append(Spacer(1, 8))

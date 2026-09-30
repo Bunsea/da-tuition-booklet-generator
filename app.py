@@ -1196,7 +1196,7 @@ if main_section == "📖 1. Theory & Practice Materials":
 
             tb_font_theme = "charter"
 
-            tb_cache_key = f"v19_{tb.get('id', 0)}_{tb.get('title', '')}_{tb_font_theme}"
+            tb_cache_key = f"v20_{tb.get('id', 0)}_{tb.get('title', '')}_{tb_font_theme}"
             if st.session_state.get("latest_tb_cache_key") != tb_cache_key or "latest_tb_artifacts" not in st.session_state:
                 with st.spinner("Compiling Theory Booklet PDFs & Materials (one-time)..."):
                     _tb_t_pdf = pdf_generator.generate_theory_booklet_pdf(
@@ -1278,7 +1278,7 @@ if main_section == "📖 1. Theory & Practice Materials":
                         key="dl_latest_student_class_booklet_docx",
                         use_container_width=True
                     )
-                st.caption("🏫 **In-Class Edition**: Zero working space boxes; theory/definition box is left blank for students to copy whiteboard notes manually in class. Quick answers at back.")
+                st.caption("🏫 **In-Class Edition**: Teacher Demonstration Examples, Checking Understanding, and practice questions. Students use their own exercise books for working.")
 
             with p_col3:
                 private_dl_name = get_theory_booklet_download_filename(tb, mode="student_private")
@@ -1300,7 +1300,7 @@ if main_section == "📖 1. Theory & Practice Materials":
                         key="dl_latest_student_private_booklet_docx",
                         use_container_width=True
                     )
-                st.caption("📖 **Private Tutoring Edition**: Complete pre-printed theory & formulas; zero working space boxes. Quick answers at back.")
+                st.caption("📖 **Private Tutoring Edition**: Complete theory and worked demonstrations, with space for Checking Understanding and quick answers at the back.")
 
             if tb.get("meta_cost") is not None or tb.get("meta_tokens"):
                 st.info(f"💰 **Generation Cost:** **${tb.get('meta_cost', 0.0):.4f} AUD** • **{tb.get('meta_tokens', 0):,} tokens** ({tb.get('model_used', 'Gemini 3.8 Flash')})")
@@ -2049,7 +2049,7 @@ if main_section == "📖 1. Theory & Practice Materials":
                     st.markdown("---")
 
             tb_editions = {
-                "Theory Student Class (Blank Notes Box)": student_class_pdf_bytes,
+                "Theory Student Class (Questions Only)": student_class_pdf_bytes,
                 "Theory Student Private (Complete Notes)": student_private_pdf_bytes,
                 "Theory Teacher (With Solutions)": teacher_pdf_bytes,
             }
@@ -2057,7 +2057,7 @@ if main_section == "📖 1. Theory & Practice Materials":
                 pdf_bytes=student_class_pdf_bytes,
                 key_prefix="latest_tb",
                 available_editions=tb_editions,
-                default_edition="Theory Student Class (Blank Notes Box)",
+                default_edition="Theory Student Class (Questions Only)",
                 raw_content_callback=_render_raw_tb_content,
                 raw_content_title="📝 View Raw Questions, Examples & LaTeX Code"
             )

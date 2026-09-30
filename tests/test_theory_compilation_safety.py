@@ -506,8 +506,8 @@ class TestTheoryCompilationSafety(unittest.TestCase):
         self.assertEqual(stem, mark_block)
 
 
-    def test_private_p1_moves_teacher_examples_to_p2(self):
-        """Verify that in student_private mode, Teacher Demonstration Examples on Page 1 are moved cleanly to Page 2."""
+    def test_private_demo_follows_theory_box_without_forced_page_break(self):
+        """Keep the private demonstration next to short notes when enough space remains."""
         from pdf_generator import build_latex_theory_booklet_source
 
         mock_booklet = {
@@ -531,8 +531,8 @@ class TestTheoryCompilationSafety(unittest.TestCase):
             ]
         }
         tex_private = build_latex_theory_booklet_source(mock_booklet, mode="student_private")
-        # In student_private, \newpage must precede \subsection*{Teacher Demonstration Examples} for Concept 1
-        self.assertIn("\\newpage\n\\needspace{6.5cm}\n\\subsection*{Teacher Demonstration Examples}", tex_private)
+        self.assertNotRegex(tex_private, r"\\newpage\s+\\needspace\{(?:7\.0|12\.0)cm\}\s+\\subsection\*\{Teacher Demonstration Examples\}")
+        self.assertRegex(tex_private, r"\\needspace\{(?:7\.0|12\.0)cm\}\s+\\subsection\*\{Teacher Demonstration Examples\}")
 
         tex_class = build_latex_theory_booklet_source(mock_booklet, mode="student_class")
         # In student_class, no unconditional \newpage before Teacher Demonstration Examples
@@ -608,4 +608,3 @@ class TestTheoryCompilationSafety(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

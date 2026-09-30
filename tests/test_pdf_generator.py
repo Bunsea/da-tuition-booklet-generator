@@ -479,7 +479,7 @@ class TestPdfGenerator(unittest.TestCase):
         student_text = "".join(page.extract_text() for page in student_reader.pages)
         self.assertIn("STUDENT", student_text)
         self.assertIn("STUDENT CLASS", student_text)
-        self.assertIn("Plain Answers", student_text)
+        self.assertNotIn("Plain Answers", student_text)
         self.assertIsNone(re.search(r"T\s*eaching\s*Note", student_text))  # solution box not shown in student edition
 
     def test_theory_booklet_db_crud(self):
@@ -794,8 +794,8 @@ class TestPdfGenerator(unittest.TestCase):
                 }
             ]
         }
-        # Theory booklet student mode
-        t_src = pdf_generator.build_latex_theory_booklet_source(booklet_data, mode="student")
+        # Theory booklet private mode retains the self-checking answers.
+        t_src = pdf_generator.build_latex_theory_booklet_source(booklet_data, mode="student_private")
         self.assertIn(r"labelindent=0pt", t_src)
         self.assertIn(r"labelwidth=2.5cm", t_src)
         self.assertIn(r"leftmargin=*", t_src)
@@ -990,9 +990,9 @@ class TestPdfGenerator(unittest.TestCase):
         self.assertIn("fill=dagreen!15", tex_class)
         # Check that workingbox is omitted to save paper
         self.assertNotIn(r"\begin{workingbox}", tex_class)
-        # Check that plain answers are present at the back
-        self.assertIn("Plain Answers (For Student Self-Checking)", tex_class)
-        self.assertIn("exercise book", tex_class.lower())
+        # Class copies contain questions only; answers remain in the private edition.
+        self.assertNotIn("Plain Answers (For Student Self-Checking)", tex_class)
+        self.assertNotIn("THE EXAMINER", tex_class)
         # Student Class uses the student's own exercise book for notes and working.
         self.assertNotIn(r"\begin{theorybox}[", tex_class)
         self.assertNotIn("THE BIG IDEA (HOW TO THINK ABOUT IT)", tex_class)
@@ -1005,6 +1005,7 @@ class TestPdfGenerator(unittest.TestCase):
         tex_private = pdf_generator.build_latex_theory_booklet_source(booklet_data, mode="student_private")
         self.assertIn("THEORY STUDENT PRIVATE (COMPLETE NOTES)", tex_private)
         self.assertNotIn(r"\begin{workingbox}", tex_private)
+        self.assertIn("Plain Answers (For Student Self-Checking)", tex_private)
 
     def test_theory_checking_understanding_and_private_demo_solutions(self):
         booklet_data = {
@@ -1071,6 +1072,48 @@ class TestPdfGenerator(unittest.TestCase):
         self.assertIn("DA MASTER METHOD", page_text)
         self.assertIn("THE EXAMINER", page_text)
         self.assertNotIn("Domain:", page_text)
+
+        private_pdf = pdf_generator.generate_latex_theory_booklet_pdf(booklet_data, mode="student_private")
+        self.assertTrue(private_pdf)
+        private_pages = pypdf.PdfReader(io.BytesIO(private_pdf)).pages
+        private_text = "\n".join(page.extract_text() for page in private_pages)
+        self.assertRegex(private_pages[0].extract_text(), r"T\s*eacher\s+Demonstration Examples")
+        self.assertIn("Evaluate 6!", private_pages[0].extract_text())
+        self.assertRegex(private_text, r"T\s*eacher\s+Demonstration Examples")
+        self.assertIn("Evaluate 6!", private_text)
+        self.assertIn("720", private_text)
+
+        class_pdf = pdf_generator.generate_latex_theory_booklet_pdf(booklet_data, mode="student_class")
+        self.assertTrue(class_pdf)
+        class_page_text = pypdf.PdfReader(io.BytesIO(class_pdf)).pages[0].extract_text()
+        self.assertRegex(class_page_text, r"T\s*eacher\s+Demonstration Examples")
+        self.assertNotIn("Core Concept", class_page_text)
+        self.assertNotIn("THE BIG IDEA", class_page_text)
+        self.assertNotIn("720", class_page_text)
+
+    def test_student_class_reportlab_fallback_has_only_questions(self):
+        booklet_data = {
+            "title": "Factorial notation",
+            "year_level": "Year 11 (Extension)",
+            "topic": "Combinatorics (Ext 1)",
+            "concepts": [{
+                "concept_name": "Factorial notation",
+                "theory_content": "Multiply down to one.",
+                "key_formulas": ["n! = n(n-1)!"],
+                "teacher_examples": [{"example_num": 1, "problem_text": "Evaluate 6!.", "worked_solution": "720"}],
+                "checking_understanding_questions": [{"q_num": 1, "text": "Evaluate 5!."}],
+                "practice_questions": [{"q_num": 1, "text": "Evaluate 4!.", "final_answer": "24"}],
+            }],
+        }
+        pdf_bytes = pdf_generator.generate_reportlab_theory_booklet_pdf(booklet_data, mode="student_class")
+        full_text = "\n".join(page.extract_text() for page in pypdf.PdfReader(io.BytesIO(pdf_bytes)).pages)
+        self.assertIn("Evaluate 6!", full_text)
+        self.assertIn("Checking Understanding", full_text)
+        self.assertIn("Evaluate 4!", full_text)
+        self.assertNotIn("Core Theory", full_text)
+        self.assertNotIn("Essential Formulae", full_text)
+        self.assertNotIn("Student working", full_text)
+        self.assertNotIn("Plain Answers", full_text)
 
     def test_review_booklet_student_class_omits_working_boxes(self):
         """Verify that student_class review booklet has no reviewworkingbox, uses green badge, and includes quick answers."""
