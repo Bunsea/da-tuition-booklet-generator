@@ -1040,6 +1040,38 @@ class TestPdfGenerator(unittest.TestCase):
         self.assertIn(r"\subsection*{Checking Understanding}", private_tex)
         self.assertIn(r"\begin{workingbox}{3.0cm}", private_tex)
 
+    def test_factorial_teacher_card_renders_basic_example_and_full_notes(self):
+        if not pdf_generator.find_pdflatex():
+            self.skipTest("pdflatex is required to inspect the rendered theory booklet")
+
+        booklet_data = {
+            "title": "Combinatorics (Ext 1)",
+            "year_level": "Year 11 (Extension)",
+            "topic": "Combinatorics (Ext 1)",
+            "concepts": [{
+                "concept_name": "Factorial notation",
+                "theory_content": (
+                    "- **The Big Idea (How to Think About It)**: "
+                    "Factorial notation means multiplying a positive integer down to 1."
+                ),
+                "teacher_examples": [{
+                    "example_num": 1,
+                    "problem_text": "Evaluate 6!.",
+                    "worked_solution": "6! = 720",
+                }],
+            }],
+        }
+        pdf_bytes = pdf_generator.generate_latex_theory_booklet_pdf(booklet_data, mode="teacher")
+        self.assertTrue(pdf_bytes)
+        page_text = pypdf.PdfReader(io.BytesIO(pdf_bytes)).pages[0].extract_text()
+        self.assertIn("6! = 6", page_text)
+        self.assertIn("720", page_text)
+        self.assertIn("0! = 1", page_text)
+        self.assertIn("ESSENTIAL FORMULAE", page_text)
+        self.assertIn("DA MASTER METHOD", page_text)
+        self.assertIn("THE EXAMINER", page_text)
+        self.assertNotIn("Domain:", page_text)
+
     def test_review_booklet_student_class_omits_working_boxes(self):
         """Verify that student_class review booklet has no reviewworkingbox, uses green badge, and includes quick answers."""
         booklet_data = {

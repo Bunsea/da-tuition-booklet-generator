@@ -1361,6 +1361,7 @@ def sanitize_for_latex(text: str) -> str:
         r"(?="
         r"\s*\d+(?:[,\s]\d{3})*(?:\.\d+)?"
         r"(?![0-9]|\.[0-9])"                 # Must not leave digits or decimal behind!
+        r"(?!\s*!)"                          # A factorial such as $6!$ is mathematical notation
         r"(?!\s*\$)"                         # Must not be followed immediately by closing $ (e.g. $0.4$, $0.006$)
         r"(?![^$\n]*\\[a-zA-Z])"             # If there is a LaTeX command like \mid or \times before the closing $, it is math!
         r"(?!\s*[+\-*/=^<>|](?:\s*\d|\s*[a-zA-Z]|\s*\\))"
@@ -4410,6 +4411,7 @@ def build_masterclass_theory_box_content(
     """
     c_lower = str(concept_name).lower()
     t_lower = str(topic).lower()
+    is_factorial_concept = "factorial" in c_lower
 
     is_fin = any(k in t_lower or k in c_lower for k in [
         "consumer arithmetic", "financial", "interest", "depreciation", "credit", "superannuation", "earning", "tax"
@@ -4703,6 +4705,8 @@ def build_masterclass_theory_box_content(
         c_body = " ".join(clean_s[:3]).strip()
         if curated and len(c_body) < 180:
             c_body = f"{c_body} " + curated["intuition"]
+        if is_factorial_concept and not re.search(r"\b6!\s*=", c_body):
+            c_body += r" For example, $6! = 6\times5\times4\times3\times2\times1 = 720$; by definition, $0! = 1$."
         cards.append(
             r"\noindent\colorbox{slatebg}{\parbox{\dimexpr\linewidth-2\fboxsep\relax}{"
             r"\textbf{\color{dablue}\sffamily\footnotesize \dalightning\ THE BIG IDEA (HOW TO THINK ABOUT IT)}\\[0.05cm]"
@@ -4747,7 +4751,7 @@ def build_masterclass_theory_box_content(
 
     # Card 2.5: Visual Model & Key Diagram (Embedded directly inside Theory Box)
     concept_diag = sanitize_tikz_diagram(tikz_diagram) if tikz_diagram else ""
-    if not concept_diag and (concept_name or topic):
+    if not concept_diag and not is_combinatorics and (concept_name or topic):
         concept_diag = sanitize_tikz_diagram(get_concept_fallback_tikz(concept_name, topic))
 
     if concept_diag:
@@ -8025,6 +8029,7 @@ def sanitize_latex_compilation_safety(tex: str) -> str:
         r"(?="
         r"\s*\d+(?:[,\s]\d{3})*(?:\.\d+)?"
         r"(?![0-9]|\.[0-9])"                 # Must not leave digits or decimal behind!
+        r"(?!\s*!)"                          # $6!$ and $6! = ...$ are factorial math, not currency
         r"(?!\s*\$)"                         # Must not be followed by closing $ (e.g. $0.4$, $0.006$)
         r"(?!\s*[,+\-*/=^<>](?:\s*\d|\s*[a-zA-Z]|\s*\\))"
         r"(?:"
