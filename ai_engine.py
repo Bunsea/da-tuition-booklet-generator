@@ -40,7 +40,7 @@ def _reference_folder_terms(textbook: str, year_level: str) -> List[str]:
 
 
 @lru_cache(maxsize=64)
-def get_textbook_exercise_reference(textbook: str, year_level: str, topic: str, max_chars: int = 9000) -> str:
+def get_textbook_exercise_reference(textbook: str, year_level: str, topic: str, max_chars: int = 14000) -> str:
     """Extract a compact, local reference excerpt from the selected textbook chapter.
 
     The excerpt is used as a generation reference only. Full textbook files stay
@@ -91,7 +91,7 @@ def get_textbook_exercise_reference(textbook: str, year_level: str, topic: str, 
         for path in selected:
             reader = PdfReader(path)
             text_parts = []
-            for page in reader.pages[:12]:
+            for page in reader.pages:
                 page_text = page.extract_text() or ""
                 if page_text:
                     text_parts.append(page_text)
@@ -100,7 +100,7 @@ def get_textbook_exercise_reference(textbook: str, year_level: str, topic: str, 
             # textbook's opening progression without copying a whole chapter.
             exercise_positions = [m.start() for m in re.finditer(r"(?i)\bexercise\s+[0-9A-Za-z.]+", excerpt)]
             if exercise_positions:
-                pieces = [excerpt[pos:pos + 1300] for pos in exercise_positions[:8]]
+                pieces = [excerpt[pos:pos + 650] for pos in exercise_positions[:32]]
                 excerpt = "\n\n".join(pieces)
             chunks.append(f"SOURCE: {os.path.basename(path)}\n{excerpt[:max_chars]}")
         return "\n\n".join(chunks)[:max_chars]
@@ -109,7 +109,7 @@ def get_textbook_exercise_reference(textbook: str, year_level: str, topic: str, 
         return ""
 
 
-def extract_uploaded_textbook_reference(uploaded_files: List[Any], max_chars: int = 9000) -> str:
+def extract_uploaded_textbook_reference(uploaded_files: List[Any], max_chars: int = 14000) -> str:
     """Extract exercise openings from teacher-uploaded textbook chapter PDFs."""
     if not uploaded_files:
         return ""
@@ -120,10 +120,10 @@ def extract_uploaded_textbook_reference(uploaded_files: List[Any], max_chars: in
         for uploaded in uploaded_files:
             raw = uploaded.getvalue() if hasattr(uploaded, "getvalue") else bytes(uploaded)
             reader = PdfReader(BytesIO(raw))
-            text = "\n".join((page.extract_text() or "") for page in reader.pages[:20])
+            text = "\n".join((page.extract_text() or "") for page in reader.pages)
             positions = [m.start() for m in re.finditer(r"(?i)\bexercise\s+[0-9A-Za-z.]+", text)]
             if positions:
-                text = "\n\n".join(text[pos:pos + 1300] for pos in positions[:8])
+                text = "\n\n".join(text[pos:pos + 650] for pos in positions[:32])
             name = getattr(uploaded, "name", "uploaded textbook chapter.pdf")
             chunks.append(f"SOURCE: {name}\n{text[:max_chars]}")
         return "\n\n".join(chunks)[:max_chars]
