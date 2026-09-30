@@ -993,11 +993,13 @@ class TestPdfGenerator(unittest.TestCase):
         # Check that plain answers are present at the back
         self.assertIn("Plain Answers (For Student Self-Checking)", tex_class)
         self.assertIn("exercise book", tex_class.lower())
-        # Check that theory box has scaffolded note structure for students to write notes in class
-        self.assertIn("THE BIG IDEA (HOW TO THINK ABOUT IT)", tex_class)
-        self.assertIn("ESSENTIAL FORMULAE", tex_class)
-        self.assertIn("VISUAL MODEL", tex_class)
-        self.assertIn("DA MASTER METHOD", tex_class)
+        # Student Class uses the student's own exercise book for notes and working.
+        self.assertNotIn(r"\begin{theorybox}[", tex_class)
+        self.assertNotIn("THE BIG IDEA (HOW TO THINK ABOUT IT)", tex_class)
+        self.assertNotIn("ESSENTIAL FORMULAE", tex_class)
+        self.assertNotIn("VISUAL MODEL", tex_class)
+        self.assertNotIn("DA MASTER METHOD", tex_class)
+        self.assertIn("Teacher Demonstration Examples", tex_class)
 
         # Confirm student_private mode also omits workingbox but has complete notes badge
         tex_private = pdf_generator.build_latex_theory_booklet_source(booklet_data, mode="student_private")
@@ -1031,7 +1033,7 @@ class TestPdfGenerator(unittest.TestCase):
         class_tex = pdf_generator.build_latex_theory_booklet_source(booklet_data, mode="student_class")
         self.assertNotIn("DA SIGNATURE MASTERCLASS NOTES", class_tex)
         self.assertIn(r"\subsection*{Checking Understanding}", class_tex)
-        self.assertIn(r"\begin{workingbox}{3.0cm}", class_tex)
+        self.assertNotIn(r"\begin{workingbox}{3.0cm}", class_tex)
 
         private_tex = pdf_generator.build_latex_theory_booklet_source(booklet_data, mode="student_private")
         self.assertIn(r"\begin{solutionbox}[{Model Whiteboard Solution}]", private_tex)

@@ -426,7 +426,7 @@ class TestTheoryCompilationSafety(unittest.TestCase):
         self.assertIn("width=19.2cm", tex_source)
 
     def test_student_class_and_student_private_editions(self):
-        """Verify Student Class has empty theory box and Student Private has filled theory box, both with zero working boxes."""
+        """Verify Student Class omits note/work boxes and Student Private has filled theory notes."""
         from pdf_generator import build_latex_theory_booklet_source
 
         mock_booklet = {
@@ -451,11 +451,12 @@ class TestTheoryCompilationSafety(unittest.TestCase):
             ]
         }
 
-        # 1. Student Class edition: scaffolded theory box with ruled writing space, zero working boxes
+        # 1. Student Class edition: demonstrations/questions only; students use their own notebook.
         tex_class = build_latex_theory_booklet_source(mock_booklet, mode="student_class")
-        self.assertIn(r"\begin{theorybox}[Core Concept \& Strategy]", tex_class)
-        self.assertIn("THE BIG IDEA (HOW TO THINK ABOUT IT)", tex_class)
-        self.assertIn("DA MASTER METHOD", tex_class)
+        self.assertNotIn(r"\begin{theorybox}[", tex_class)
+        self.assertNotIn("THE BIG IDEA (HOW TO THINK ABOUT IT)", tex_class)
+        self.assertNotIn("DA MASTER METHOD", tex_class)
+        self.assertIn("Teacher Demonstration Examples", tex_class)
         self.assertNotIn("Interest on interest", tex_class)
         self.assertNotIn(r"\begin{workingbox}", tex_class)
         self.assertIn("THEORY STUDENT CLASS", tex_class)
@@ -607,6 +608,4 @@ class TestTheoryCompilationSafety(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-
 

@@ -7710,26 +7710,18 @@ def build_latex_theory_booklet_source(
         else:
             heading_title = f"Concept {part_letter}: {sanitize_for_latex(c_name)}"
         tex_lines.append(f"\\noindent{{\\Large\\textbf{{\\color{{danavy}}\\rule[-2pt]{{3.5pt}}{{14pt}}\\hspace{{6pt}}{heading_title}}}}}\\label{{sec:concept_{c_idx}}}\\\\[0.05cm]")
-        tex_lines.append(r"\nopagebreak")
-        tex_lines.append(r"\vspace{-0.22cm}")
-        tex_lines.append(r"\nopagebreak")
+        if not is_student_class:
+            tex_lines.append(r"\nopagebreak")
+            tex_lines.append(r"\vspace{-0.22cm}")
+            tex_lines.append(r"\nopagebreak")
+        else:
+            tex_lines.append(r"\vspace{0.05cm}")
 
         # 1. Theory Box (Core Concept & Strategy)
-        tex_lines.append(r"\begin{theorybox}[Core Concept \& Strategy]")
-        th_box_content = build_masterclass_theory_box_content(
-            theory_content=theory_content,
-            key_formulas=key_formulas,
-            tutor_tips=tutor_tips,
-            concept_name=c_name,
-            topic=topic,
-            year_level=year_level,
-            tikz_diagram=tikz_diag,
-            is_student_scaffold=empty_theory_box
-        )
-        if not th_box_content or not str(th_box_content).strip():
-            # Mandatory fallback: ensure theory box is NEVER missing or empty
+        if not is_student_class:
+            tex_lines.append(r"\begin{theorybox}[Core Concept \& Strategy]")
             th_box_content = build_masterclass_theory_box_content(
-                theory_content="",
+                theory_content=theory_content,
                 key_formulas=key_formulas,
                 tutor_tips=tutor_tips,
                 concept_name=c_name,
@@ -7738,9 +7730,21 @@ def build_latex_theory_booklet_source(
                 tikz_diagram=tikz_diag,
                 is_student_scaffold=empty_theory_box
             )
-        tex_lines.append(th_box_content)
-        tex_lines.append(r"\end{theorybox}")
-        tex_lines.append(r"\vspace{0.25cm}")
+            if not th_box_content or not str(th_box_content).strip():
+                # Mandatory fallback: ensure theory box is NEVER missing or empty
+                th_box_content = build_masterclass_theory_box_content(
+                    theory_content="",
+                    key_formulas=key_formulas,
+                    tutor_tips=tutor_tips,
+                    concept_name=c_name,
+                    topic=topic,
+                    year_level=year_level,
+                    tikz_diagram=tikz_diag,
+                    is_student_scaffold=empty_theory_box
+                )
+            tex_lines.append(th_box_content)
+            tex_lines.append(r"\end{theorybox}")
+            tex_lines.append(r"\vspace{0.25cm}")
 
         # 2. Teacher Demonstration Examples
         if teacher_examples:
@@ -7837,7 +7841,7 @@ def build_latex_theory_booklet_source(
                     if worked:
                         tex_lines.append(format_latex_solution_steps(str(worked)))
                     tex_lines.append(r"\end{solutionbox}")
-                else:
+                elif is_student_private:
                     tex_lines.append(r"\begin{workingbox}{3.0cm}")
                     tex_lines.append(r"\end{workingbox}")
                 tex_lines.append(r"\vspace{0.18cm}")
