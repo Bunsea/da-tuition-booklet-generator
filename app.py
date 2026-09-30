@@ -3974,9 +3974,9 @@ with tab2:
     st.markdown("#### Upload Student Submissions")
     upload_mode = st.radio(
         "How are the scans organised?",
-        ["One PDF per student", "One combined PDF containing multiple students"],
+        ["One combined PDF containing multiple students", "One PDF per student"],
         horizontal=True,
-        help="Combined mode sends each PDF once to Gemini. Gemini identifies each student's page range and grades them separately."
+        help="Combined mode sends each PDF once to Gemini. Gemini identifies each student's page range and grades them separately. It is selected by default for class scan batches."
     )
     uploaded_files = st.file_uploader(
         "Drop student handwritten PDF scans here (single or multiple files)",
