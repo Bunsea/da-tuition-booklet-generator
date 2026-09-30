@@ -3222,6 +3222,90 @@ Respond with valid JSON ONLY:
 
     raise RuntimeError(f"Grading failed across models: {last_err}")
 
+
+def grade_combined_student_submissions(
+    student_pdf_bytes: bytes,
+    marking_key: Dict[str, Any],
+    total_marks: float,
+    worksheet_title: str = "",
+    term: int = 1,
+    week: int = 1,
+    api_key: Optional[str] = None,
+    questions_metadata: Optional[List[Dict[str, Any]]] = None
+) -> List[Dict[str, Any]]:
+    """Grade a PDF containing multiple students' submissions in one pass.
+
+    Gemini identifies each student's page range and returns one normal grading
+    record per student. Reports and database submissions are still created
+    individually by the calling workflow.
+    """
+    client = get_client(api_key)
+    key_formatted = json.dumps(marking_key, indent=2)
+    meta_lines = []
+    for qm in questions_metadata or []:
+        lbl = str(qm.get("item_label") or qm.get("num") or "").strip()
+        c_name = qm.get("concept_name") or qm.get("subtopic") or ""
+        c_lvl = qm.get("cognitive_level") or qm.get("difficulty") or ""
+        if lbl and (c_name or c_lvl):
+            meta_lines.append(f"   - Question {lbl}: Concept = '{c_name}', Cognitive Level = '{c_lvl}'")
+    meta_section = "\nQUESTION CONCEPT & COGNITIVE LEVEL MAPPING:\n" + "\n".join(meta_lines) if meta_lines else ""
+    prompt = f"""You are a Senior Math Examiner for DA Tuition. The attached PDF contains one or more students' completed homework submissions, usually separated by a name page or a new copy of the worksheet.
+
+Identify every separate student submission and grade each one against this official marking key:
+{key_formatted}
+
+TOTAL MARKS PER STUDENT: {total_marks}
+HEADER CONTEXT: Term {term} Week {week} Homework ({worksheet_title})
+{meta_section}
+
+For each student, identify their name and the page range you graded. Apply the same scoring and diagnostic rules as a single submission: compare every answer, award partial marks where justified, and list every lost mark with question number, status, correct answer, error type, and details. The score and accuracy must agree exactly.
+
+Respond with valid JSON only in this shape:
+{{
+  "submissions": [
+    {{
+      "extracted_name": "Student Name",
+      "page_range": "1-4",
+      "score": 18.0,
+      "total_marks": {total_marks},
+      "accuracy_pct": 100.0,
+      "mistakes": [],
+      "summary_text": "Short tutor summary."
+    }}
+  ]
+}}
+"""
+    models_to_try = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.5-flash", "gemini-2.5-flash"]
+    last_err = None
+    pdf_part = types.Part.from_bytes(data=student_pdf_bytes, mime_type="application/pdf")
+    qm_lookup = {
+        str(qm.get("item_label") or qm.get("num") or "").strip(): qm
+        for qm in (questions_metadata or [])
+        if str(qm.get("item_label") or qm.get("num") or "").strip()
+    }
+    for model_name in models_to_try:
+        try:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=[pdf_part, prompt],
+                config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.0)
+            )
+            raw = clean_json_response(response.text)
+            records = raw.get("submissions", []) if isinstance(raw, dict) else raw
+            if not isinstance(records, list):
+                raise ValueError("Combined marking response did not contain a submissions list")
+            for record in records:
+                for mistake in record.get("mistakes", []) or []:
+                    q_lbl = str(mistake.get("question_num", "")).strip()
+                    if q_lbl in qm_lookup:
+                        matched = qm_lookup[q_lbl]
+                        mistake.setdefault("concept_name", matched.get("concept_name") or matched.get("subtopic") or "")
+                        mistake.setdefault("cognitive_level", matched.get("cognitive_level") or matched.get("difficulty") or "")
+            return records
+        except Exception as exc:
+            last_err = exc
+    raise RuntimeError(f"Combined grading failed across models: {last_err}")
+
 # --- 3. TARGETED REMEDIAL & NESA PRACTICE WORKSHEET GENERATOR ---
 def generate_remedial_worksheet(
     student_name: str,

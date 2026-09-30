@@ -3591,6 +3591,70 @@ with tab1:
     with sub_tab_cloud:
         cloud_sync.render_cloud_exam_library(current_user=current_user, is_admin=is_admin)
 
+def _save_marked_submission_result(
+    grade_data: Dict[str, Any],
+    file_name: str,
+    active_total_marks: float,
+    active_ws_id: Optional[int],
+    worksheet_title: str,
+    term_val: Optional[int],
+    week_val: Optional[int],
+    selected_class_id: Optional[int],
+    q_meta: Optional[List[Dict[str, Any]]] = None,
+) -> Tuple[Dict[str, Any], Tuple[str, bytes], str]:
+    """Persist one grading result and build its downloadable report."""
+    student_name = str(grade_data.get("extracted_name") or os.path.splitext(file_name)[0]).strip()
+    score = float(grade_data.get("score", 0.0))
+    score = max(0.0, min(score, float(active_total_marks)))
+    accuracy_pct = round((score / float(active_total_marks)) * 100.0, 1) if active_total_marks else 0.0
+    mistakes = grade_data.get("mistakes", []) or []
+    summary_text = grade_data.get("summary_text", "")
+    cls_obj = database.get_class_by_id(selected_class_id) if selected_class_id else None
+    class_display_name = cls_obj["name"] if cls_obj else ""
+
+    if term_val and week_val:
+        tw_header, tw_tag = f"Term {term_val} Week {week_val} Homework Report", f"T{term_val}W{week_val}"
+    elif term_val:
+        tw_header, tw_tag = f"Term {term_val} Homework Report", f"T{term_val}"
+    elif week_val:
+        tw_header, tw_tag = f"Week {week_val} Homework Report", f"W{week_val}"
+    else:
+        tw_header, tw_tag = (f"{worksheet_title} Report" if worksheet_title else "Homework Performance Report"), "Homework"
+
+    report_filename = f"DA_Report_{re.sub(r'[^A-Za-z0-9]+', '_', student_name).strip('_')}_{tw_tag}.pdf"
+    sub_id = database.save_submission(
+        worksheet_id=active_ws_id,
+        student_name=student_name,
+        raw_file_name=file_name,
+        score=score,
+        total_marks=active_total_marks,
+        accuracy_pct=accuracy_pct,
+        pdf_report_path=report_filename,
+        summary_text=summary_text,
+        mistakes=mistakes,
+        class_id=selected_class_id
+    )
+    sub_concepts = database.get_submission_concept_breakdown(sub_id) if sub_id else []
+    report_bytes = pdf_generator.generate_student_report_pdf(
+        student_name=student_name,
+        term_week_header=tw_header,
+        score=score,
+        total_marks=active_total_marks,
+        accuracy_pct=accuracy_pct,
+        mistakes=mistakes,
+        summary_text=summary_text,
+        class_name=class_display_name,
+        concept_breakdown=sub_concepts
+    )
+    return (
+        {"Student Name": student_name, "Score": f"{score} / {active_total_marks}",
+         "Accuracy %": f"{round(accuracy_pct)}%", "Errors": len(mistakes),
+         "File": file_name, "Summary": summary_text},
+        (report_filename, report_bytes),
+        student_name.lower()
+    )
+
+
 # ==========================================
 # TAB 2: 1-CLICK AI HOMEWORK MARKING
 # ==========================================
@@ -3908,6 +3972,12 @@ with tab2:
 
     # Upload Student Submissions
     st.markdown("#### Upload Student Submissions")
+    upload_mode = st.radio(
+        "How are the scans organised?",
+        ["One PDF per student", "One combined PDF containing multiple students"],
+        horizontal=True,
+        help="Combined mode sends each PDF once to Gemini. Gemini identifies each student's page range and grades them separately."
+    )
     uploaded_files = st.file_uploader(
         "Drop student handwritten PDF scans here (single or multiple files)",
         type=["pdf"],
@@ -3934,84 +4004,33 @@ with tab2:
                 try:
                     pdf_bytes = file.read()
                     q_meta = full_ws.get("questions", []) if (marking_mode == "Use a generated Worksheet" and full_ws) else None
-                    grade_data = ai_engine.grade_student_submission(
-                        student_pdf_bytes=pdf_bytes,
-                        marking_key=active_key,
-                        total_marks=active_total_marks,
-                        worksheet_title=worksheet_title,
-                        term=int(term_val) if term_val is not None else 1,
-                        week=int(week_val) if week_val is not None else 1,
-                        api_key=current_api_key,
-                        questions_metadata=q_meta
-                    )
-
-                    student_name = grade_data.get("extracted_name", file.name.replace(".pdf", ""))
-                    submitted_names.add(student_name.lower().strip())
-                    score = float(grade_data.get("score", 0.0))
-                    # The score is the authoritative result. Recalculate the
-                    # percentage so an inconsistent AI JSON response cannot
-                    # produce a contradictory report or database record.
-                    score = max(0.0, min(score, float(active_total_marks)))
-                    accuracy_pct = round((score / float(active_total_marks)) * 100.0, 1) if active_total_marks else 0.0
-                    mistakes = grade_data.get("mistakes", [])
-                    summary_text = grade_data.get("summary_text", "")
-
-                    cls_obj = database.get_class_by_id(selected_class_id) if selected_class_id else None
-                    class_display_name = cls_obj["name"] if cls_obj else ""
-
-                    if term_val and week_val:
-                        tw_header = f"Term {term_val} Week {week_val} Homework Report"
-                        tw_tag = f"T{term_val}W{week_val}"
-                    elif term_val:
-                        tw_header = f"Term {term_val} Homework Report"
-                        tw_tag = f"T{term_val}"
-                    elif week_val:
-                        tw_header = f"Week {week_val} Homework Report"
-                        tw_tag = f"W{week_val}"
+                    if upload_mode.startswith("One combined"):
+                        grade_records = ai_engine.grade_combined_student_submissions(
+                            student_pdf_bytes=pdf_bytes, marking_key=active_key,
+                            total_marks=active_total_marks, worksheet_title=worksheet_title,
+                            term=int(term_val) if term_val is not None else 1,
+                            week=int(week_val) if week_val is not None else 1,
+                            api_key=current_api_key, questions_metadata=q_meta
+                        )
                     else:
-                        tw_header = f"{worksheet_title} Report" if worksheet_title else "Homework Performance Report"
-                        tw_tag = "Homework"
+                        grade_records = [ai_engine.grade_student_submission(
+                            student_pdf_bytes=pdf_bytes, marking_key=active_key,
+                            total_marks=active_total_marks, worksheet_title=worksheet_title,
+                            term=int(term_val) if term_val is not None else 1,
+                            week=int(week_val) if week_val is not None else 1,
+                            api_key=current_api_key, questions_metadata=q_meta
+                        )]
 
-                    # Save to DB first to register submission & mistakes
-                    report_filename = f"DA_Report_{student_name.replace(' ', '_')}_{tw_tag}.pdf"
-                    sub_id = database.save_submission(
-                        worksheet_id=active_ws_id,
-                        student_name=student_name,
-                        raw_file_name=file.name,
-                        score=score,
-                        total_marks=active_total_marks,
-                        accuracy_pct=accuracy_pct,
-                        pdf_report_path=report_filename,
-                        summary_text=summary_text,
-                        mistakes=mistakes,
-                        class_id=selected_class_id
-                    )
-
-                    sub_concepts = database.get_submission_concept_breakdown(sub_id) if sub_id else []
-
-                    # Generate PDF Report with Crest Logo and Concept Mastery Breakdown
-                    report_bytes = pdf_generator.generate_student_report_pdf(
-                        student_name=student_name,
-                        term_week_header=tw_header,
-                        score=score,
-                        total_marks=active_total_marks,
-                        accuracy_pct=accuracy_pct,
-                        mistakes=mistakes,
-                        summary_text=summary_text,
-                        class_name=class_display_name,
-                        concept_breakdown=sub_concepts
-                    )
-
-                    results_list.append({
-                        "Student Name": student_name,
-                        "Score": f"{score} / {active_total_marks}",
-                        "Accuracy %": f"{round(accuracy_pct)}%",
-                        "Errors": len(mistakes),
-                        "File": file.name,
-                        "Summary": summary_text
-                    })
-
-                    generated_pdf_reports.append((report_filename, report_bytes))
+                    for grade_data in grade_records:
+                        result_row, report_item, submitted_name = _save_marked_submission_result(
+                            grade_data=grade_data, file_name=file.name,
+                            active_total_marks=active_total_marks, active_ws_id=active_ws_id,
+                            worksheet_title=worksheet_title, term_val=term_val, week_val=week_val,
+                            selected_class_id=selected_class_id, q_meta=q_meta
+                        )
+                        results_list.append(result_row)
+                        generated_pdf_reports.append(report_item)
+                        submitted_names.add(submitted_name)
 
                 except Exception as e:
                     st.error(f"Failed to grade {file.name}: {e}")

@@ -871,6 +871,23 @@ class TestAiEngine(unittest.TestCase):
         self.assertEqual(mistake["concept_name"], "Concept 2: Compound Interest")
         self.assertEqual(mistake["cognitive_level"], "Level 2 - Exam Application")
 
+        combined_response = MagicMock()
+        combined_response.text = json.dumps({
+            "submissions": [
+                {"extracted_name": "Alex Tan", "page_range": "1-4", "score": 4.0,
+                 "total_marks": 4.0, "accuracy_pct": 100.0, "mistakes": [], "summary_text": "Perfect."},
+                {"extracted_name": "Sam Lee", "page_range": "5-8", "score": 2.0,
+                 "total_marks": 4.0, "accuracy_pct": 50.0, "mistakes": [], "summary_text": "Review needed."}
+            ]
+        })
+        mock_client.models.generate_content.return_value = combined_response
+        combined = ai_engine.grade_combined_student_submissions(
+            student_pdf_bytes=b"%PDF-1.4...", marking_key={"1": "Prn"},
+            total_marks=4.0, api_key="fake-key"
+        )
+        self.assertEqual([item["extracted_name"] for item in combined], ["Alex Tan", "Sam Lee"])
+        self.assertEqual(combined[1]["page_range"], "5-8")
+
     @patch("ai_engine.get_client")
     def test_generate_topic_mastery_exam_more_than_four_questions(self, mock_get_client):
         """Verify generate_topic_mastery_exam supports >4 questions and concept_counts customization."""
