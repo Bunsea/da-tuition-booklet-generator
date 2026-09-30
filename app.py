@@ -1196,7 +1196,7 @@ if main_section == "📖 1. Theory & Practice Materials":
 
             tb_font_theme = "charter"
 
-            tb_cache_key = f"v21_{tb.get('id', 0)}_{tb.get('title', '')}_{tb_font_theme}"
+            tb_cache_key = f"v22_{tb.get('id', 0)}_{tb.get('title', '')}_{tb_font_theme}"
             if st.session_state.get("latest_tb_cache_key") != tb_cache_key or "latest_tb_artifacts" not in st.session_state:
                 with st.spinner("Compiling Theory Booklet PDFs & Materials (one-time)..."):
                     _tb_t_pdf = pdf_generator.generate_theory_booklet_pdf(

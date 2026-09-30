@@ -3114,6 +3114,19 @@ def strip_mc_options_from_text(text: str) -> str:
 
 def _replace_crowded_combinatorics_diagram(diag: str) -> Optional[str]:
     """Use measured layouts for recurring generated diagrams with colliding labels."""
+    if (re.search(r"\bPeel\b", diag, re.IGNORECASE)
+            and re.search(r"n\s*!", diag)
+            and re.search(r"n\s*[-−]\s*2", diag)):
+        return r"""\begin{tikzpicture}[>=Stealth]
+\node[draw=blue!60!black, fill=blue!9, rounded corners=3pt, minimum width=1.4cm, minimum height=1.1cm, font=\large] (start) at (0,0) {$n!$};
+\node[draw=green!50!black, fill=green!9, rounded corners=3pt, minimum width=3.5cm, minimum height=1.1cm, font=\large] (first) at (4.0,0) {$n\times(n-1)!$};
+\node[draw=orange!70!black, fill=orange!10, rounded corners=3pt, minimum width=4.1cm, minimum height=1.1cm, font=\large] (second) at (10.0,0) {$n(n-1)(n-2)!$};
+\draw[->, thick] (start.east) -- (first.west);
+\draw[->, thick] (first.east) -- (second.west);
+\node[font=\footnotesize, anchor=south] at (2.0,0.72) {Unroll $n$};
+\node[font=\footnotesize, anchor=south] at (7.0,0.72) {Unroll $(n-1)$};
+\end{tikzpicture}"""
+
     if re.search(r"\bUnordered\b", diag, re.IGNORECASE) and re.search(r"\bOrdered\b", diag, re.IGNORECASE):
         return r"""\begin{tikzpicture}[>=Stealth]
 \node[draw=green!50!black, fill=green!9, rounded corners=3pt, minimum width=3.5cm, minimum height=1.55cm, align=center, inner sep=5pt] (ordered) at (0,0) {\textbf{Ordered} $({}^nP_r)$\\[2pt]$(A,B)\neq(B,A)$};
@@ -3128,7 +3141,7 @@ def _replace_crowded_combinatorics_diagram(diag: str) -> Optional[str]:
 \node[font=\large] at (4.55,0) {$\times$};
 \node[draw=orange!70!black, fill=orange!10, rounded corners=3pt, minimum width=2.3cm, minimum height=1.1cm] (rest) at (6.6,0) {$(n-1)!$};
 \draw[->, thick] (factorial.east) -- (first.west);
-\node[font=\scriptsize, align=center, text width=2.8cm] at (3.1,-0.95) {Peel off the first factor};
+\node[font=\scriptsize, align=center, text width=2.8cm] at (3.1,-0.95) {Unroll the first factor};
 \node[font=\scriptsize, align=center, text width=2.9cm] at (6.6,-0.95) {Remaining countdown};
 \end{tikzpicture}"""
 
@@ -4830,8 +4843,12 @@ def build_masterclass_theory_box_content(
             diag_clean = ""
 
         if diag_clean:
-            # Wrap in strict 2.8cm max height adjustbox so theory box fits cleanly on Page 1
-            diag_clean = f"\\begin{{adjustbox}}{{max width=0.88\\linewidth, max totalheight=2.8cm, keepaspectratio, center}}\n{diag_clean}\n\\end{{adjustbox}}"
+            # Give the factorial unrolling model enough room for labels above
+            # both arrows; other diagrams retain the compact theory-card size.
+            unroll_model = "Unroll $(n-1)$" in diag_clean
+            max_width = "0.94" if unroll_model else "0.88"
+            max_height = "3.3" if unroll_model else "2.8"
+            diag_clean = f"\\begin{{adjustbox}}{{max width={max_width}\\linewidth, max totalheight={max_height}cm, keepaspectratio, center}}\n{diag_clean}\n\\end{{adjustbox}}"
             cards.append(
                 "\\noindent\\colorbox{slatebg}{\\parbox{\\dimexpr\\linewidth-2\\fboxsep\\relax}{%\n"
                 "\\textbf{\\color{danavy}\\sffamily\\footnotesize \\ensuremath{\\blacktriangleright}\\ VISUAL MODEL \\& KEY DIAGRAM}\\par\\vspace{0.06cm}\n"
@@ -7627,6 +7644,7 @@ def build_latex_theory_booklet_source(
         r"    colbacktitle=white,",
         r"    attach boxed title to top left={yshift=-2mm, xshift=4mm},",
         r"    boxed title style={boxrule=0.5pt, colframe=dagreen!30, arc=2pt},",
+        r"    before skip=1pt,",
         r"    breakable",
         r"}",
         "",
@@ -7671,8 +7689,7 @@ def build_latex_theory_booklet_source(
         r"\thispagestyle{plain}",
         ""
     ]
-    if not is_teacher:
-        tex_lines.append(r"\raggedbottom")
+    tex_lines.append(r"\raggedbottom")
 
     header_lines = [
         r"\noindent",
@@ -7860,9 +7877,9 @@ def build_latex_theory_booklet_source(
                 if is_student_private or is_student_class:
                     tex_lines.append(p_body + r"\par\vspace{0.02cm}")
                 elif p_body.strip().endswith(r"\end{enumerate}"):
-                    tex_lines.append(p_body + r"\par\vspace{0.25cm}")
+                    tex_lines.append(p_body + r"\par\vspace{0.08cm}")
                 else:
-                    tex_lines.append(p_body + r"\\[0.25cm]")
+                    tex_lines.append(p_body + r"\par\vspace{0.03cm}")
                 if ex_diag and str(ex_diag).strip():
                     clean_ex_diag = sanitize_tikz_diagram(str(ex_diag).strip())
                     clean_ex_diag = re.sub(r'max totalheight=[0-9\.]+cm', 'max totalheight=2.8cm', clean_ex_diag)

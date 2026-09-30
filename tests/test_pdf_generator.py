@@ -1043,6 +1043,11 @@ class TestPdfGenerator(unittest.TestCase):
         self.assertIn(r"Arrange three people.\par\vspace{0.02cm}", class_tex)
         self.assertRegex(class_tex, r"(?s)\\subsection\*\{Checking Understanding\}.*?\\vspace\{0\.16cm\}.*?Practice")
 
+        teacher_tex = pdf_generator.build_latex_theory_booklet_source(booklet_data, mode="teacher")
+        self.assertIn(r"\raggedbottom", teacher_tex)
+        self.assertIn(r"Arrange three people.\par\vspace{0.03cm}", teacher_tex)
+        self.assertIn("before skip=1pt", teacher_tex)
+
         private_tex = pdf_generator.build_latex_theory_booklet_source(booklet_data, mode="student_private")
         self.assertIn(r"\begin{solutionbox}[{Model Whiteboard Solution}]", private_tex)
         self.assertIn(r"\subsection*{Checking Understanding}", private_tex)
@@ -1128,7 +1133,8 @@ class TestPdfGenerator(unittest.TestCase):
 
         diagram_cases = [
             ("Ordered selections", "Ordered Unordered", ("Ordered", "Unordered")),
-            ("Factorial countdown", "Peel off leading Remaining countdown", ("Peel off", "Remaining countdown")),
+            ("Factorial countdown", "Peel off leading Remaining countdown", ("Unroll", "Remaining countdown")),
+            ("Factorial unrolling", "Peel n! n(n-2)!", ("Unroll", "(n−2)!")),
             ("Circular seating", "Anchor (1 way) Chair 5", ("Anchor (1 way)", "Chair 5")),
             ("Sample space", "Sample Space Event", ("Sample Space", "Event")),
         ]
@@ -1148,13 +1154,17 @@ class TestPdfGenerator(unittest.TestCase):
         pdf_bytes = pdf_generator.generate_latex_theory_booklet_pdf(booklet, mode="teacher")
         self.assertTrue(pdf_bytes)
         pages = pypdf.PdfReader(io.BytesIO(pdf_bytes)).pages
-        self.assertEqual(len(pages), 4)
+        self.assertEqual(len(pages), len(diagram_cases))
         for page, (_, _, expected_labels) in zip(pages, diagram_cases):
             text = page.extract_text()
             for label in expected_labels:
                 self.assertIn(label, text)
 
-        circle_source = pdf_generator.sanitize_tikz_diagram(concepts[2]["tikz_diagram"])
+        unroll_source = pdf_generator.sanitize_tikz_diagram(concepts[2]["tikz_diagram"])
+        self.assertIn("Unroll $(n-1)$", unroll_source)
+        self.assertNotIn("Peel", unroll_source)
+
+        circle_source = pdf_generator.sanitize_tikz_diagram(concepts[3]["tikz_diagram"])
         self.assertNotIn("fill=white", circle_source)
         self.assertNotIn("fill opacity", circle_source)
 
