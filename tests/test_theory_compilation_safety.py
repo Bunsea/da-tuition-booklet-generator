@@ -535,9 +535,9 @@ class TestTheoryCompilationSafety(unittest.TestCase):
         self.assertRegex(tex_private, r"\\needspace\{(?:7\.0|12\.0)cm\}\s+\\subsection\*\{Teacher Demonstration Examples\}")
 
         tex_class = build_latex_theory_booklet_source(mock_booklet, mode="student_class")
-        # In student_class, no unconditional \newpage before Teacher Demonstration Examples
-        self.assertNotIn("\\newpage\n\\needspace{6.5cm}\n\\subsection*{Teacher Demonstration Examples}", tex_class)
-        self.assertIn("\\needspace{6.5cm}\n\\subsection*{Teacher Demonstration Examples}", tex_class)
+        self.assertIn(r"\raggedbottom", tex_class)
+        self.assertIn("Teacher Demonstration Examples", tex_class)
+        self.assertNotIn(r"\subsection*{Teacher Demonstration Examples}", tex_class)
 
     def test_financial_maths_fallback_diagrams(self):
         """Verify get_concept_fallback_tikz returns high-clarity diagrams for all 5 Year 10 Financial Maths subtopics."""

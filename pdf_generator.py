@@ -3112,11 +3112,58 @@ def strip_mc_options_from_text(text: str) -> str:
         clean_lines.append(line)
     return "\n".join(clean_lines).strip()
 
+def _replace_crowded_combinatorics_diagram(diag: str) -> Optional[str]:
+    """Use measured layouts for recurring generated diagrams with colliding labels."""
+    if re.search(r"\bUnordered\b", diag, re.IGNORECASE) and re.search(r"\bOrdered\b", diag, re.IGNORECASE):
+        return r"""\begin{tikzpicture}[>=Stealth]
+\node[draw=green!50!black, fill=green!9, rounded corners=3pt, minimum width=3.5cm, minimum height=1.55cm, align=center, inner sep=5pt] (ordered) at (0,0) {\textbf{Ordered} $({}^nP_r)$\\[2pt]$(A,B)\neq(B,A)$};
+\node[draw=blue!60!black, fill=blue!9, rounded corners=3pt, minimum width=3.5cm, minimum height=1.55cm, align=center, inner sep=5pt] (unordered) at (6.1,0) {\textbf{Unordered} $({}^nC_r)$\\[2pt]$\{A,B\}=\{B,A\}$};
+\draw[->, very thick, blue!75!black] (ordered.east) -- node[above=4pt, font=\small] {$\div r!$} (unordered.west);
+\end{tikzpicture}"""
+
+    if re.search(r"Peel\s+off", diag, re.IGNORECASE) and re.search(r"Remaining\s+countdown", diag, re.IGNORECASE):
+        return r"""\begin{tikzpicture}[>=Stealth]
+\node[draw=blue!60!black, fill=blue!9, rounded corners=3pt, minimum width=1.7cm, minimum height=1.1cm] (factorial) at (0,0) {$n!$};
+\node[draw=green!50!black, fill=green!9, rounded corners=3pt, minimum width=1.5cm, minimum height=1.1cm] (first) at (3.1,0) {$n$};
+\node[font=\large] at (4.55,0) {$\times$};
+\node[draw=orange!70!black, fill=orange!10, rounded corners=3pt, minimum width=2.3cm, minimum height=1.1cm] (rest) at (6.6,0) {$(n-1)!$};
+\draw[->, thick] (factorial.east) -- (first.west);
+\node[font=\scriptsize, align=center, text width=2.8cm] at (3.1,-0.95) {Peel off the first factor};
+\node[font=\scriptsize, align=center, text width=2.9cm] at (6.6,-0.95) {Remaining countdown};
+\end{tikzpicture}"""
+
+    if re.search(r"\bAnchor\b", diag, re.IGNORECASE) and re.search(r"\bChair\s*[2-5]\b", diag, re.IGNORECASE):
+        return r"""\begin{tikzpicture}
+\draw[thick] (0,0) circle (1.15cm);
+\fill[red] (0,1.15) circle (2.2pt);
+\fill[blue] (1.09,0.36) circle (2.2pt);
+\fill[blue] (0.67,-0.93) circle (2.2pt);
+\fill[blue] (-0.67,-0.93) circle (2.2pt);
+\fill[blue] (-1.09,0.36) circle (2.2pt);
+\node[font=\small\bfseries, text=red, anchor=south] at (0,1.48) {Anchor (1 way)};
+\node[font=\small, text=blue, anchor=west] at (1.4,0.36) {Chair 2};
+\node[font=\small, text=blue, anchor=north west] at (0.86,-1.13) {Chair 3};
+\node[font=\small, text=blue, anchor=north east] at (-0.86,-1.13) {Chair 4};
+\node[font=\small, text=blue, anchor=east] at (-1.4,0.36) {Chair 5};
+\node[font=\large] at (0,0) {$(5-1)!=24$};
+\end{tikzpicture}"""
+
+    if re.search(r"Sample\s+Space", diag, re.IGNORECASE) and re.search(r"\bEvent\b", diag, re.IGNORECASE):
+        return r"""\begin{tikzpicture}
+\draw[thick] (-2.7,-1.35) rectangle (2.7,1.35);
+\node[font=\small\bfseries, anchor=north] at (0,1.17) {Sample Space $S$};
+\filldraw[fill=blue!18, draw=black, thick] (0,-0.38) circle (0.73cm);
+\node[font=\small\bfseries] at (0,-0.38) {Event $E$};
+\end{tikzpicture}"""
+    return None
+
+
 def sanitize_tikz_diagram(diag: str) -> str:
     """Sanitizes TikZ diagram code to fix common LLM formatting errors, prevent overflowing, auto-scale coordinates, and fix quadrant collisions."""
     if not diag:
         return ""
     s = str(diag).strip()
+    s = _replace_crowded_combinatorics_diagram(s) or s
     # Australian English spelling
     s = re.sub(r'\bSynthesizer\b', 'Synthesiser', s, flags=re.IGNORECASE)
 
@@ -7624,7 +7671,7 @@ def build_latex_theory_booklet_source(
         r"\thispagestyle{plain}",
         ""
     ]
-    if is_student_private:
+    if not is_teacher:
         tex_lines.append(r"\raggedbottom")
 
     header_lines = [
@@ -7721,7 +7768,7 @@ def build_latex_theory_booklet_source(
             tex_lines.append(r"\vspace{-0.22cm}")
             tex_lines.append(r"\nopagebreak")
         else:
-            tex_lines.append(r"\vspace{0.05cm}")
+            tex_lines.append(r"\vspace{-0.30cm}")
 
         # 1. Theory Box (Core Concept & Strategy)
         if not is_student_class:
@@ -7772,10 +7819,14 @@ def build_latex_theory_booklet_source(
             if is_student_private:
                 first_reserve = private_example_reserve(teacher_examples[0])
                 demo_needspace = "7.0cm" if first_reserve == "6.0cm" else "12.0cm"
+                tex_lines.append(f"\\needspace{{{demo_needspace}}}")
+            elif is_teacher:
+                demo_needspace = "7.0cm"
+                tex_lines.append(f"\\needspace{{{demo_needspace}}}")
+            if is_student_class:
+                tex_lines.append(f"\\noindent{{\\large\\bfseries\\color{{danavy}}Teacher Demonstration Examples}}\\label{{sec:demo_{c_idx}}}\\par\\vspace{{0.10cm}}")
             else:
-                demo_needspace = "6.5cm" if not is_teacher else "7.0cm"
-            tex_lines.append(f"\\needspace{{{demo_needspace}}}")
-            tex_lines.append(f"\\subsection*{{Teacher Demonstration Examples}}\\label{{sec:demo_{c_idx}}}")
+                tex_lines.append(f"\\subsection*{{Teacher Demonstration Examples}}\\label{{sec:demo_{c_idx}}}")
             for ex in teacher_examples:
                 ex_num = ex.get("example_num", 1)
                 ex_title = ex.get("title", f"Example {ex_num}")
@@ -7806,7 +7857,7 @@ def build_latex_theory_booklet_source(
                 tex_lines.append(f"\\noindent\\textbf{{{ex_heading}}}\\\\[0.15cm]")
                 p_lines = format_latex_question_with_subparts(p_text, as_item=False)
                 p_body = "\n".join(p_lines)
-                if is_student_private:
+                if is_student_private or is_student_class:
                     tex_lines.append(p_body + r"\par\vspace{0.02cm}")
                 elif p_body.strip().endswith(r"\end{enumerate}"):
                     tex_lines.append(p_body + r"\par\vspace{0.25cm}")
@@ -7833,7 +7884,7 @@ def build_latex_theory_booklet_source(
                     tex_lines.append(r"\end{solutionbox}")
                     tex_lines.append(r"\vspace{0.25cm}")
                 else:
-                    tex_lines.append(r"\vspace{0.20cm}")
+                    tex_lines.append(r"\vspace{0.10cm}" if is_student_class else r"\vspace{0.20cm}")
                 if is_student_private:
                     tex_lines.append(r"\end{samepage}")
 
@@ -7875,6 +7926,8 @@ def build_latex_theory_booklet_source(
                     tex_lines.append(r"\begin{workingbox}{3.0cm}")
                     tex_lines.append(r"\end{workingbox}")
                 tex_lines.append(r"\vspace{0.18cm}")
+            if is_student_class:
+                tex_lines.append(r"\vspace{0.16cm}")
 
         # 4. Student Practice Questions
         if practice_questions:

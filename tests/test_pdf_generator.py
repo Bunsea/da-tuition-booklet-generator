@@ -1027,7 +1027,11 @@ class TestPdfGenerator(unittest.TestCase):
                     "worked_solution": "4! = 24",
                     "final_answer": "24"
                 }],
-                "practice_questions": []
+                "practice_questions": [{
+                    "q_num": 1,
+                    "text": "Evaluate 5!.",
+                    "part": "Part 1: Commit to Memory",
+                }]
             }]
         }
 
@@ -1035,6 +1039,9 @@ class TestPdfGenerator(unittest.TestCase):
         self.assertNotIn("DA SIGNATURE MASTERCLASS NOTES", class_tex)
         self.assertIn(r"\subsection*{Checking Understanding}", class_tex)
         self.assertNotIn(r"\begin{workingbox}{3.0cm}", class_tex)
+        self.assertRegex(class_tex, r"\\vspace\{-0\.30cm\}\s+\\noindent\{\\large\\bfseries\\color\{danavy\}Teacher Demonstration Examples\}")
+        self.assertIn(r"Arrange three people.\par\vspace{0.02cm}", class_tex)
+        self.assertRegex(class_tex, r"(?s)\\subsection\*\{Checking Understanding\}.*?\\vspace\{0\.16cm\}.*?Practice")
 
         private_tex = pdf_generator.build_latex_theory_booklet_source(booklet_data, mode="student_private")
         self.assertIn(r"\begin{solutionbox}[{Model Whiteboard Solution}]", private_tex)
@@ -1114,6 +1121,42 @@ class TestPdfGenerator(unittest.TestCase):
         self.assertNotIn("Essential Formulae", full_text)
         self.assertNotIn("Student working", full_text)
         self.assertNotIn("Plain Answers", full_text)
+
+    def test_crowded_combinatorics_diagrams_render_with_clear_labels(self):
+        if not pdf_generator.find_pdflatex():
+            self.skipTest("pdflatex is required to inspect rendered diagrams")
+
+        diagram_cases = [
+            ("Ordered selections", "Ordered Unordered", ("Ordered", "Unordered")),
+            ("Factorial countdown", "Peel off leading Remaining countdown", ("Peel off", "Remaining countdown")),
+            ("Circular seating", "Anchor (1 way) Chair 5", ("Anchor (1 way)", "Chair 5")),
+            ("Sample space", "Sample Space Event", ("Sample Space", "Event")),
+        ]
+        concepts = []
+        for name, labels, _ in diagram_cases:
+            concepts.append({
+                "concept_name": name,
+                "theory_content": "A visual model.",
+                "tikz_diagram": rf"\begin{{tikzpicture}}\node at (0,0) {{{labels}}};\end{{tikzpicture}}",
+            })
+        booklet = {
+            "title": "Combinatorics diagram check",
+            "year_level": "Year 11 (Extension)",
+            "topic": "Combinatorics (Ext 1)",
+            "concepts": concepts,
+        }
+        pdf_bytes = pdf_generator.generate_latex_theory_booklet_pdf(booklet, mode="teacher")
+        self.assertTrue(pdf_bytes)
+        pages = pypdf.PdfReader(io.BytesIO(pdf_bytes)).pages
+        self.assertEqual(len(pages), 4)
+        for page, (_, _, expected_labels) in zip(pages, diagram_cases):
+            text = page.extract_text()
+            for label in expected_labels:
+                self.assertIn(label, text)
+
+        circle_source = pdf_generator.sanitize_tikz_diagram(concepts[2]["tikz_diagram"])
+        self.assertNotIn("fill=white", circle_source)
+        self.assertNotIn("fill opacity", circle_source)
 
     def test_review_booklet_student_class_omits_working_boxes(self):
         """Verify that student_class review booklet has no reviewworkingbox, uses green badge, and includes quick answers."""

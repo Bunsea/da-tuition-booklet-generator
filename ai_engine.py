@@ -3896,6 +3896,8 @@ REQUIREMENTS FOR EACH CONCEPT:
    - Include a practical 1-sentence exam-room hack or mental shortcut in `tutor_tips`.
    - ILLUSTRATIVE DIAGRAMS INSIDE THEORY/NOTES BOX: For any concept involving visual structures, geometric figures, angles, network concepts (vertices, edges, loops, degrees, trees), coordinate geometry, graphs/curves, trigonometry, vectors, probability trees, or financial timelines, provide a clean, compilable LaTeX TikZ diagram enclosed in \\begin{{center}}\\begin{{tikzpicture}}...\\end{{tikzpicture}}\\end{{center}} in `tikz_diagram`. This diagram is rendered directly INSIDE the Masterclass Theory Box to visually illustrate the concept before the teacher begins the demonstration examples.
    - DIAGRAM & TABLE FORMATTING RULES (CRITICAL):
+     * Label clearance: Size boxes to fit their full text, leave visible gaps between neighbouring captions, and keep labels outside the shapes they name. Check the final diagram at booklet scale, not only at its original TikZ size.
+     * Combinatorics: For ordered/unordered comparisons and factorial countdowns, keep each label inside its own box and separate captions below boxes. For circular seating, place chair labels outside the table with transparent backgrounds. For sample-space diagrams, place the sample-space title above the event circle with a clear gap.
      * Cartesian Planes: In TikZ, place quadrant labels as stacked nodes safely away from the axes and coordinate points:
        \\node[align=center, font=\\footnotesize] at (2.2, 2.6) {{\\textbf{{Quadrant 1}}\\\\$(+,+)$}}; for Q1, (-2.2, 2.6) for Q2, (-2.2, -2.6) for Q3, (2.2, -2.6) for Q4.
      * Stem-and-Leaf Plots: If displaying stem-and-leaf plots, format strictly as a centered LaTeX tabular with right-aligned stem, vertical dividing bar, left-aligned leaf column, and Key centered below:
@@ -3934,7 +3936,7 @@ REQUIREMENTS FOR EACH CONCEPT:
           * Superannuation: Explain super as compulsory employer retirement investments (11.5% super guarantee). Contrast asset risk vs return: Cash (lowest risk, preserves capital) vs Balanced (moderate risk/growth, default fund) vs High Growth (shares/property, highest long-term growth, higher volatility).
         - Timelines & Diagram Spacing: In any TikZ timeline (e.g. credit card cycles, compounding periods), use a wide axis (11cm to 12cm) and stacked, double-tiered brackets (e.g. `raise=4pt` for sub-periods and `raise=24pt` for overall period) so text labels NEVER collide or overlap.
       * All TikZ code must be clean, 100% syntactically valid LaTeX.
-      * Any descriptive label nodes (e.g. 'Single intersection', 'Vertical Line', 'Turning point') must use `above right=3pt` or `above=3pt` with `fill=white, fill opacity=0.9, inner sep=1.5pt` so the axis line never cuts through the text and never collides with arrow tips.
+      * Descriptive labels on coordinate axes (e.g. 'Single intersection', 'Vertical Line', 'Turning point') must use `above right=3pt` or `above=3pt` with `fill=white, fill opacity=0.9, inner sep=1.5pt` so the axis line never cuts through the text and never collides with arrow tips. Circular seating labels must instead have no fill and sit outside the table.
 
 2. TEACHER DEMONSTRATION EXAMPLES ({total_teacher_examples} TOTAL PER CONCEPT - MANDATORY):
    For EACH concept, provide exactly {total_teacher_examples} worked demonstration examples:
