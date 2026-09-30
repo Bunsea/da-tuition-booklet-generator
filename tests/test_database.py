@@ -105,6 +105,30 @@ class TestDatabase(unittest.TestCase):
         self.assertEqual(matches[0]["set_number"], 3)
         self.assertEqual(database.get_worksheet_by_id(saved_id)["marking_key"], {"1": "24"})
 
+    def test_missing_mistake_question_label_is_resolved_from_marking_key(self):
+        ws_id = database.save_worksheet(
+            "Permutations Homework Set 1", 1, 1, "Year 11 (Extension)",
+            "Permutations", "Mixed", [], {"10": "72", "11": "144", "12": "14,400"}
+        )
+        sub_id = database.save_submission(
+            worksheet_id=ws_id,
+            student_name="Testing 3",
+            raw_file_name="Testing Combined.pdf",
+            score=13.5,
+            total_marks=18.0,
+            accuracy_pct=75.0,
+            pdf_report_path="reports/Testing_3.pdf",
+            mistakes=[{
+                "question_num": "",
+                "correct_answer": "14,400",
+                "student_answer": "wrong",
+                "marks_lost": 1.5,
+            }],
+        )
+
+        mistakes = database.get_submission_mistakes(sub_id)
+        self.assertEqual(mistakes[0]["question_num"], "12")
+
     def test_delete_unmarked_worksheet(self):
         ws_id = database.save_worksheet("Old worksheet", 1, 1, "Year 8", "Algebra", "Easy", [], {})
         self.assertTrue(database.delete_worksheet(ws_id))

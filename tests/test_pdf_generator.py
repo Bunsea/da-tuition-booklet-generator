@@ -109,7 +109,7 @@ class TestPdfGenerator(unittest.TestCase):
         p_reader = pypdf.PdfReader(io.BytesIO(pdf_perfect))
         p_text = "".join(page.extract_text() for page in p_reader.pages)
         self.assertIn("Perfect Score! No corrections needed.", p_text)
-        self.assertNotIn("Yr7 Tues 5-7", p_text)
+        self.assertIn("Class: Yr7 Tues 5-7", p_text)
         self.assertNotIn("\ufffd", p_text)
         self.assertIn("Accuracy Percentage: 100%", p_text)
         self.assertIn("Total Score: 50 out of 50", p_text)
@@ -2229,4 +2229,3 @@ class TestPdfGenerator(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

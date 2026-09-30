@@ -1079,7 +1079,31 @@ def get_submission_mistakes(submission_id: int) -> List[Dict[str, Any]]:
     """, (submission_id,))
     rows = cursor.fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    mistakes = [dict(r) for r in rows]
+
+    # Some AI responses identify a mistake by its correct answer but omit the
+    # question label. Resolve that label from the worksheet marking key so
+    # reports and concept breakdowns remain internally consistent.
+    submission = get_submission_by_id(submission_id)
+    worksheet = get_worksheet_by_id(submission.get("worksheet_id")) if submission and submission.get("worksheet_id") else None
+    answer_key = (worksheet or {}).get("marking_key_json")
+    try:
+        answer_key = json.loads(answer_key) if answer_key else {}
+    except Exception:
+        answer_key = {}
+
+    def normalise_answer(value: Any) -> str:
+        return re.sub(r"[^a-z0-9]", "", str(value or "").lower())
+
+    for mistake in mistakes:
+        q_label = str(mistake.get("question_num") or "").strip()
+        if re.search(r"\d", q_label) or not answer_key:
+            continue
+        target = normalise_answer(mistake.get("correct_answer"))
+        matches = [str(label) for label, answer in answer_key.items() if normalise_answer(answer) == target]
+        if len(matches) == 1:
+            mistake["question_num"] = matches[0]
+    return mistakes
 
 def delete_submission(submission_id: int) -> bool:
     """Delete one marked submission and its diagnostic mistakes."""

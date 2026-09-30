@@ -6508,15 +6508,19 @@ def generate_student_report_pdf(
     # 2. Horizontal Divider
     story.append(HRFlowable(width="100%", thickness=0.75, color=colors.HexColor("#D1D5DB"), spaceBefore=0, spaceAfter=8))
 
-    # 3. Student Name row: Left: "STUDENT NAME:", Right: Bold student name
+    # 3. Student details row: keep the name beside its label and include the
+    # class so printed reports can be identified without relying on the file
+    # name.
     name_display = student_name.strip()
-    # Keep the header focused on the student's name. Class information is
-    # useful in the database, but it should not appear beside the name label.
+    class_display = str(class_name or "").strip()
     left_meta = "STUDENT NAME:"
+    right_meta = f"<b>{name_display}</b>"
+    if class_display:
+        right_meta += f"  <font color='#6B7280'>Class: {class_display}</font>"
 
     meta_table = Table([[
         Paragraph(left_meta, student_lbl_style),
-        Paragraph(f"<b>{name_display}</b>", student_val_style)
+        Paragraph(right_meta, student_val_style)
     ]], colWidths=[200, 295])
     meta_table.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
