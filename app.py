@@ -805,19 +805,25 @@ with col_hdr_text:
     st.markdown('<div class="main-title">DA Tuition — Integrated Tutor Hub</div>', unsafe_allow_html=True)
     st.markdown('<div class="sub-title">Authentic Exam Worksheets • 1-Click AI Handwriting Marking • Student Diagnostics & Remediation</div>', unsafe_allow_html=True)
 
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-    "📖 1. Theory & Practice Materials",
-    "🚀 2. 1-Click AI Marking",
-    "📊 3. Student Tracking & Analytics",
-    "🎯 4. Remedial Revision Packs",
-    "👥 5. Classes & Student Rolls",
-    "📋 6. Lesson Cover Sheets & Progress"
-])
+main_section = st.radio(
+    "Go to feature",
+    [
+        "📖 1. Theory & Practice Materials",
+        "🚀 2. 1-Click AI Marking",
+        "📊 3. Student Tracking & Analytics",
+        "🎯 4. Remedial Revision Packs",
+        "👥 5. Classes & Student Rolls",
+        "📋 6. Lesson Cover Sheets & Progress"
+    ],
+    horizontal=True,
+    key="main_section_navigation",
+    label_visibility="collapsed"
+)
 
 # ==========================================
 # TAB 1: THEORY & PRACTICE MATERIALS
 # ==========================================
-with tab1:
+if main_section == "📖 1. Theory & Practice Materials":
     sub_tab_theory, sub_tab_worksheet, sub_tab_review, sub_tab_package, sub_tab_cloud = st.tabs([
         "📖 1. Generate Theory Booklet (Teacher & Student)",
         "📝 2. Generate Practice Worksheet (Homework / In-Class)",
@@ -3658,7 +3664,7 @@ def _save_marked_submission_result(
 # ==========================================
 # TAB 2: 1-CLICK AI HOMEWORK MARKING
 # ==========================================
-with tab2:
+if main_section == "🚀 2. 1-Click AI Marking":
     st.markdown("### 1-Click AI Homework Marking")
     st.caption("Upload your students' handwritten PDF scans. The AI matches answers against the marking key and reconciles against your class roll.")
 
@@ -4101,7 +4107,7 @@ with tab2:
 # ==========================================
 # TAB 3: STUDENT TRACKING & ANALYTICS
 # ==========================================
-with tab3:
+if main_section == "📊 3. Student Tracking & Analytics":
     st.markdown("### Student Progress & Class Diagnostics")
     st.caption("Track cohort curriculum coverage, detect systemic teaching gaps across concepts, and inspect weakness heatmaps.")
 
@@ -4442,7 +4448,7 @@ with tab3:
 # ==========================================
 # TAB 4: REMEDIAL REVISION PACKS
 # ==========================================
-with tab4:
+if main_section == "🎯 4. Remedial Revision Packs":
     st.markdown("### Generate Targeted Remedial Revision Pack")
     st.caption("Automatically create personalized revision homework tailored to a student's weak topics.")
 
@@ -4579,7 +4585,7 @@ with tab4:
 # ==========================================
 # TAB 5: CLASSES & STUDENT ROLLS
 # ==========================================
-with tab5:
+if main_section == "👥 5. Classes & Student Rolls":
     st.markdown("### Class Rosters & Student Rolls")
     st.caption("Manage multiple teachers, classes, and student attendance/submission rolls with strict tutor isolation.")
 
@@ -4722,7 +4728,7 @@ with tab5:
 # ==========================================
 # TAB 6: LESSON COVER SHEETS & PROGRESS
 # ==========================================
-with tab6:
+if main_section == "📋 6. Lesson Cover Sheets & Progress":
     st.markdown("### 📋 High School Lesson Cover Sheets & Progress Tracking")
     st.caption("FD Elite Continuous Learning System: <90s diagnostic tracking, cognitive independence matrix, student reflection pulse, and 15-second Director parent inquiry reporting.")
 
