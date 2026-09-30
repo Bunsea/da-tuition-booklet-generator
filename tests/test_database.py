@@ -123,6 +123,19 @@ class TestDatabase(unittest.TestCase):
         self.assertIsNotNone(database.get_worksheet_by_id(ws_id))
         self.assertIsNotNone(database.get_submission_by_id(sub_id))
 
+    def test_delete_single_submission_preserves_worksheet(self):
+        ws_id = database.save_worksheet("Testing worksheet", 1, 1, "Year 8", "Algebra", "Easy", [], {})
+        sub_id = database.save_submission(
+            worksheet_id=ws_id, student_name="Testing Student", raw_file_name="test.pdf",
+            score=0, total_marks=2, accuracy_pct=0, pdf_report_path="report.pdf",
+            summary_text="Retry", mistakes=[{"question_num": "1", "status": "Incorrect", "marks_lost": 1}]
+        )
+        self.assertTrue(database.delete_submission(sub_id))
+        self.assertIsNone(database.get_submission_by_id(sub_id))
+        self.assertEqual(database.get_submission_mistakes(sub_id), [])
+        self.assertIsNotNone(database.get_worksheet_by_id(ws_id))
+        self.assertFalse(database.delete_submission(sub_id))
+
     def test_user_authentication(self):
         # Default seeded users
         bunsea = database.authenticate_user("bunsea", "password123")

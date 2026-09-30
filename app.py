@@ -4390,7 +4390,7 @@ with tab3:
                                 sub_acc = sub_item.get('accuracy_pct', 0)
                                 graded_date = str(sub_item.get('graded_at', ''))[:10]
 
-                                row_col1, row_col2 = st.columns([3, 1])
+                                row_col1, row_col2, row_col3 = st.columns([3, 1, 0.8])
                                 with row_col1:
                                     st.markdown(f"**{term_wk_str}** — Score: `{sub_score}/{sub_total}` ({round(sub_acc)}%) • *{graded_date}*")
                                 with row_col2:
@@ -4415,6 +4415,22 @@ with tab3:
                                         mime="application/pdf",
                                         key=f"dl_hist_rep_{sub_id}"
                                     )
+                                with row_col3:
+                                    if st.button("🗑️ Delete", key=f"delete_hist_sub_{sub_id}", use_container_width=True):
+                                        st.session_state["pending_delete_submission_id"] = sub_id
+                                        st.rerun()
+                                if st.session_state.get("pending_delete_submission_id") == sub_id:
+                                    st.warning(f"Delete the test report for {selected_stu}? This removes this submission and its diagnostic mistakes, but keeps the worksheet.")
+                                    confirm_col, cancel_col = st.columns(2)
+                                    with confirm_col:
+                                        if st.button("Confirm Delete Report", key=f"confirm_delete_hist_sub_{sub_id}", type="primary", use_container_width=True):
+                                            database.delete_submission(sub_id)
+                                            st.session_state.pop("pending_delete_submission_id", None)
+                                            st.rerun()
+                                    with cancel_col:
+                                        if st.button("Cancel", key=f"cancel_delete_hist_sub_{sub_id}", use_container_width=True):
+                                            st.session_state.pop("pending_delete_submission_id", None)
+                                            st.rerun()
 
             st.markdown("---")
             st.markdown("#### 📋 Detailed Submissions Log")

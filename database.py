@@ -1081,6 +1081,25 @@ def get_submission_mistakes(submission_id: int) -> List[Dict[str, Any]]:
     conn.close()
     return [dict(r) for r in rows]
 
+def delete_submission(submission_id: int) -> bool:
+    """Delete one marked submission and its diagnostic mistakes."""
+    conn = get_connection()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        exists = conn.execute("SELECT 1 FROM submissions WHERE id = ?", (submission_id,)).fetchone()
+        if not exists:
+            conn.rollback()
+            return False
+        conn.execute("DELETE FROM mistakes WHERE submission_id = ?", (submission_id,))
+        conn.execute("DELETE FROM submissions WHERE id = ?", (submission_id,))
+        conn.commit()
+        return True
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
 # --- Analytics Operations ---
 def get_submissions_summary(worksheet_id: Optional[int] = None, class_id: Optional[int] = None,
                             user_id: Optional[int] = None, role: Optional[str] = None) -> List[Dict[str, Any]]:
