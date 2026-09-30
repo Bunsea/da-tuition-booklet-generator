@@ -909,6 +909,40 @@ class TestAiEngine(unittest.TestCase):
         self.assertEqual(combined[1]["page_range"], "5-8")
 
     @patch("ai_engine.get_client")
+    def test_grading_recovers_missing_question_corrections(self, mock_get_client):
+        mock_client = MagicMock()
+        first_response = MagicMock()
+        first_response.text = json.dumps({
+            "extracted_name": "Testing 1",
+            "score": 2.0,
+            "total_marks": 4.0,
+            "accuracy_pct": 50.0,
+            "mistakes": [],
+        })
+        audit_response = MagicMock()
+        audit_response.text = json.dumps({
+            "mistakes": [{
+                "question_num": "3",
+                "status": "Incorrect",
+                "marks_lost": 2.0,
+                "student_answer": "12",
+                "correct_answer": "24",
+            }]
+        })
+        mock_client.models.generate_content.side_effect = [first_response, audit_response]
+        mock_get_client.return_value = mock_client
+
+        result = ai_engine.grade_student_submission(
+            student_pdf_bytes=b"%PDF-1.4...",
+            marking_key={"1": "8", "2": "16", "3": "24"},
+            total_marks=4.0,
+            api_key="fake-key",
+        )
+
+        self.assertEqual(result["mistakes"][0]["question_num"], "3")
+        self.assertEqual(result["mistakes"][0]["correct_answer"], "24")
+
+    @patch("ai_engine.get_client")
     def test_generate_topic_mastery_exam_more_than_four_questions(self, mock_get_client):
         """Verify generate_topic_mastery_exam supports >4 questions and concept_counts customization."""
         mock_client = MagicMock()

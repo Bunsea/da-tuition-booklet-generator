@@ -3212,7 +3212,7 @@ OFFICIAL MARKING KEY (EVERY ITEM IS STRICTLY 1 MARK):
 TOTAL MARKS: {total_marks}
 HEADER CONTEXT: Term {term} Week {week} Homework ({worksheet_title})
 {meta_prompt_section}
-EVALUATION RULES:
+    EVALUATION RULES:
 1. NAME EXTRACTION: Extract student First and Last Name from top of paper.
 2. ACCURATE SCORING & PARTIAL MARKS:
    - Each answer box corresponds to a question/subpart label (e.g. '1(a)', '1(b)', '2').
@@ -3225,6 +3225,10 @@ EVALUATION RULES:
    - Accuracy Percentage = round((Total Score / {total_marks}) * 100).
 4. DIAGNOSTIC TAGGING:
    - For every mistake or lost mark, tag the topic, subtopic, concept_name, cognitive_level, marks lost, and diagnostic error type.
+5. CORRECTION COMPLETENESS:
+   - The `mistakes` list is mandatory whenever score is below total marks.
+   - Include one row for every question that lost marks, including blank or unanswered questions.
+   - Never return an empty `mistakes` list when any marks were lost.
 
 OUTPUT FORMAT:
 Respond with valid JSON ONLY:
@@ -3290,12 +3294,114 @@ Respond with valid JSON ONLY:
                         if not m.get("cognitive_level"):
                             m["cognitive_level"] = matched_meta.get("cognitive_level") or matched_meta.get("difficulty") or ""
 
+            result = _ensure_question_corrections(
+                result=result,
+                student_pdf_bytes=student_pdf_bytes,
+                marking_key=marking_key,
+                total_marks=total_marks,
+                api_key=api_key,
+                questions_metadata=questions_metadata,
+            )
             return result
         except Exception as e:
             last_err = e
             continue
 
     raise RuntimeError(f"Grading failed across models: {last_err}")
+
+
+def _ensure_question_corrections(
+    result: Dict[str, Any],
+    student_pdf_bytes: bytes,
+    marking_key: Dict[str, Any],
+    total_marks: float,
+    api_key: Optional[str] = None,
+    questions_metadata: Optional[List[Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
+    """Recover question-level corrections when the first grading response omits them.
+
+    Gemini occasionally returns a reduced score with an empty or incomplete
+    ``mistakes`` list. A short audit request makes the correction report useful
+    and prevents a score/corrections mismatch.
+    """
+    if not isinstance(result, dict):
+        return result
+
+    # Always fill the official answer from the key when the model omitted it.
+    # This guarantees the generated report can print ``Question (correct
+    # answer)`` even when Gemini only returned a question label.
+    key_lookup = {str(label).strip().lower(): answer for label, answer in marking_key.items()}
+    metadata_lookup = {
+        str(qm.get("item_label") or qm.get("num") or "").strip(): qm
+        for qm in (questions_metadata or [])
+        if str(qm.get("item_label") or qm.get("num") or "").strip()
+    }
+    for mistake in result.get("mistakes", []) if isinstance(result.get("mistakes"), list) else []:
+        if not isinstance(mistake, dict):
+            continue
+        label = str(mistake.get("question_num", "")).strip()
+        bare_label = label[3:].strip() if label.lower().startswith("qn ") else label
+        if not str(mistake.get("correct_answer", "")).strip():
+            answer = key_lookup.get(bare_label.lower())
+            if answer is not None:
+                mistake["correct_answer"] = str(answer)
+        matched_meta = metadata_lookup.get(bare_label) or metadata_lookup.get(label)
+        if matched_meta:
+            mistake.setdefault("concept_name", matched_meta.get("concept_name") or matched_meta.get("subtopic") or "")
+            mistake.setdefault("cognitive_level", matched_meta.get("cognitive_level") or matched_meta.get("difficulty") or "")
+
+    try:
+        score = float(result.get("score", total_marks))
+        total = float(result.get("total_marks", total_marks) or total_marks)
+    except (TypeError, ValueError):
+        return result
+    existing = result.get("mistakes") if isinstance(result.get("mistakes"), list) else []
+    lost = max(0.0, total - score)
+    recorded_loss = sum(
+        float(m.get("marks_lost", 0) or 0)
+        for m in existing
+        if isinstance(m, dict)
+    )
+    if lost <= 0.01 or recorded_loss >= lost - 0.01:
+        return result
+
+    key_formatted = json.dumps(marking_key, indent=2)
+    audit_prompt = f"""Audit the attached handwritten homework against this official marking key:
+{key_formatted}
+
+The marker awarded {score} out of {total} marks, so {lost:g} marks were lost.
+Return every question that lost any marks. This is a correction audit, so do
+not omit blank answers or questions with partial credit. The correct answer
+must be copied exactly from the marking key.
+
+Respond with JSON only:
+{{"mistakes": [{{"question_num": "1", "status": "Incorrect", "marks_lost": 1.0,
+"student_answer": "", "correct_answer": "...", "error_type": "...",
+"details": "..."}}]}}
+"""
+    try:
+        client = get_client(api_key)
+        response = client.models.generate_content(
+            model="gemini-3.8-flash",
+            contents=[types.Part.from_bytes(data=student_pdf_bytes, mime_type="application/pdf"), audit_prompt],
+            config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.0),
+        )
+        audit = clean_json_response(response.text)
+        recovered = audit.get("mistakes", []) if isinstance(audit, dict) else []
+        if isinstance(recovered, list) and recovered:
+            merged = {}
+            for mistake in existing + recovered:
+                if not isinstance(mistake, dict):
+                    continue
+                label = str(mistake.get("question_num", "")).strip()
+                if label:
+                    merged[label] = mistake
+            result["mistakes"] = list(merged.values())
+    except Exception:
+        # Keep the original grade if the audit request fails; the caller still
+        # receives the score and any corrections returned by the first pass.
+        pass
+    return result
 
 
 def grade_combined_student_submissions(
@@ -3334,6 +3440,7 @@ HEADER CONTEXT: Term {term} Week {week} Homework ({worksheet_title})
 {meta_section}
 
 For each student, identify their name and the page range you graded. Apply the same scoring and diagnostic rules as a single submission: compare every answer, award partial marks where justified, and list every lost mark with question number, status, correct answer, error type, and details. The score and accuracy must agree exactly.
+If a student's score is below the total, their `mistakes` list must contain one correction row for every question that lost marks. Never return an empty mistakes list for a student with a non-perfect score.
 
 Respond with valid JSON only in this shape:
 {{
