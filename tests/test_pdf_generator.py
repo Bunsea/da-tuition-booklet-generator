@@ -111,6 +111,23 @@ class TestPdfGenerator(unittest.TestCase):
         self.assertIn("Accuracy Percentage: 100%", p_text)
         self.assertIn("Total Score: 50 out of 50", p_text)
 
+        # A low score must require correction even when the marker returned no
+        # question-level mistake records.
+        pdf_low = pdf_generator.generate_student_report_pdf(
+            student_name="Testing 3",
+            term_week_header="Homework Set 1 Report",
+            score=12,
+            total_marks=18,
+            accuracy_pct=66.7,
+            mistakes=[]
+        )
+        low_reader = pypdf.PdfReader(io.BytesIO(pdf_low))
+        low_text = "".join(page.extract_text() for page in low_reader.pages)
+        self.assertIn("Correction required", low_text)
+        self.assertNotIn("Perfect Score! No corrections needed.", low_text)
+        self.assertIn("Accuracy Percentage: 67%", low_text)
+        self.assertIn("Total Score: 12 out of 18", low_text)
+
     def test_blank_answer_sheet_with_labels(self):
         labels = ["1(a)", "1(b)", "2", "3(a)", "3(b)(i)", "3(b)(ii)", "4"]
         pdf_bytes = pdf_generator.generate_blank_answer_sheet_pdf(
@@ -2209,6 +2226,5 @@ class TestPdfGenerator(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
 
 

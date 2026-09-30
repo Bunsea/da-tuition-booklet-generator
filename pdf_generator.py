@@ -6649,6 +6649,31 @@ def generate_student_report_pdf(
             ('RIGHTPADDING', (0, 0), (-1, -1), 10),
         ]))
         story.append(corrections_table)
+    elif float(accuracy_pct) < 80.0:
+        correction_required_style = ParagraphStyle(
+            'RepCorrectionRequired',
+            parent=styles['Normal'],
+            fontName=REPORT_FONT_BOLD,
+            fontSize=11.5,
+            leading=16,
+            alignment=1,
+            textColor=colors.HexColor("#B91C1C")
+        )
+        story.append(Spacer(1, 10))
+        story.append(Paragraph("Correction required", correction_required_style))
+        story.append(Spacer(1, 4))
+        story.append(Paragraph(
+            "The overall score is below 80%, but the marker did not return question-level corrections. Review the submitted work against the teacher answer key.",
+            ParagraphStyle(
+                'RepCorrectionNote',
+                parent=styles['Normal'],
+                fontName=REPORT_FONT,
+                fontSize=9.5,
+                leading=13,
+                alignment=1,
+                textColor=colors.HexColor("#374151")
+            )
+        ))
     else:
         perfect_style = ParagraphStyle(
             'RepPerfect',

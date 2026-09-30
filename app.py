@@ -3948,7 +3948,11 @@ with tab2:
                     student_name = grade_data.get("extracted_name", file.name.replace(".pdf", ""))
                     submitted_names.add(student_name.lower().strip())
                     score = float(grade_data.get("score", 0.0))
-                    accuracy_pct = float(grade_data.get("accuracy_pct", 0.0))
+                    # The score is the authoritative result. Recalculate the
+                    # percentage so an inconsistent AI JSON response cannot
+                    # produce a contradictory report or database record.
+                    score = max(0.0, min(score, float(active_total_marks)))
+                    accuracy_pct = round((score / float(active_total_marks)) * 100.0, 1) if active_total_marks else 0.0
                     mistakes = grade_data.get("mistakes", [])
                     summary_text = grade_data.get("summary_text", "")
 
