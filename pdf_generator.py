@@ -3114,6 +3114,18 @@ def strip_mc_options_from_text(text: str) -> str:
 
 def _replace_crowded_combinatorics_diagram(diag: str) -> Optional[str]:
     """Use measured layouts for recurring generated diagrams with colliding labels."""
+    if ("5!" in diag and "120" in diag
+            and re.search(r"n\s*!", diag)
+            and re.search(r"n\s*[-−]\s*2", diag)):
+        return r"""\begin{tikzpicture}[>=Stealth]
+\node[draw=blue!65, fill=blue!8, rounded corners=3pt, minimum width=1.9cm, minimum height=1.0cm, font=\large] (five) at (0,1.05) {$5!$};
+\node[draw=green!60!black, fill=green!8, rounded corners=3pt, minimum width=1.9cm, minimum height=1.0cm, font=\large] (ratio) at (0,-1.05) {$\dfrac{n!}{(n-2)!}$};
+\draw[->, thick, blue!75] (five.east) -- (2.45,1.05);
+\draw[->, thick, green!60!black] (ratio.east) -- (2.45,-1.05);
+\node[anchor=west, font=\large] at (2.65,1.05) {$5\times4\times3\times2\times1=120$};
+\node[anchor=west, font=\normalsize] at (2.65,-1.05) {$\dfrac{n(n-1)(n-2)!}{(n-2)!}=n(n-1)$};
+\end{tikzpicture}"""
+
     if (re.search(r"\bPeel\b", diag, re.IGNORECASE)
             and re.search(r"n\s*!", diag)
             and re.search(r"n\s*[-−]\s*2", diag)):
@@ -7877,9 +7889,9 @@ def build_latex_theory_booklet_source(
                 if is_student_private or is_student_class:
                     tex_lines.append(p_body + r"\par\vspace{0.02cm}")
                 elif p_body.strip().endswith(r"\end{enumerate}"):
-                    tex_lines.append(p_body + r"\par\vspace{0.08cm}")
+                    tex_lines.append(p_body + r"\vspace{-0.25cm}")
                 else:
-                    tex_lines.append(p_body + r"\par\vspace{0.03cm}")
+                    tex_lines.append(p_body + r"\par\vspace{-0.12cm}")
                 if ex_diag and str(ex_diag).strip():
                     clean_ex_diag = sanitize_tikz_diagram(str(ex_diag).strip())
                     clean_ex_diag = re.sub(r'max totalheight=[0-9\.]+cm', 'max totalheight=2.8cm', clean_ex_diag)
@@ -7955,10 +7967,10 @@ def build_latex_theory_booklet_source(
                     heading_str = f"Practice ({part_title})"
                 else:
                     heading_str = f"Practice {part_letter} ({part_title})"
-                if is_teacher and any(k in part_title for k in ["Exam", "Extension", "Part 5", "Part 4"]) and len(part_qs) > 1:
-                    part_needspace = "4.0cm"
+                if is_teacher and any(k in part_title for k in ["Exam", "Extension", "Part 5", "Part 4"]):
+                    part_needspace = "12.0cm"
                 else:
-                    part_needspace = "4.2cm" if not is_teacher else "4.5cm"
+                    part_needspace = "5.0cm" if not is_teacher else "7.0cm"
                 tex_lines.append(f"\\needspace{{{part_needspace}}}")
                 tex_lines.append(f"\\noindent{{\\textbf{{\\large\\color{{danavy}}{heading_str}}}}}\\par\\vspace{{0.12cm}}")
                 itemsep = "0.45em" if is_teacher else "0.22em"

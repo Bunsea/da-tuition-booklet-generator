@@ -1030,7 +1030,7 @@ class TestPdfGenerator(unittest.TestCase):
                 "practice_questions": [{
                     "q_num": 1,
                     "text": "Evaluate 5!.",
-                    "part": "Part 1: Commit to Memory",
+                    "difficulty": "Part 5: Exam Questions",
                 }]
             }]
         }
@@ -1045,7 +1045,8 @@ class TestPdfGenerator(unittest.TestCase):
 
         teacher_tex = pdf_generator.build_latex_theory_booklet_source(booklet_data, mode="teacher")
         self.assertIn(r"\raggedbottom", teacher_tex)
-        self.assertIn(r"Arrange three people.\par\vspace{0.03cm}", teacher_tex)
+        self.assertIn(r"Arrange three people.\par\vspace{-0.12cm}", teacher_tex)
+        self.assertIn(r"\needspace{12.0cm}", teacher_tex)
         self.assertIn("before skip=1pt", teacher_tex)
 
         private_tex = pdf_generator.build_latex_theory_booklet_source(booklet_data, mode="student_private")
@@ -1135,6 +1136,7 @@ class TestPdfGenerator(unittest.TestCase):
             ("Ordered selections", "Ordered Unordered", ("Ordered", "Unordered")),
             ("Factorial countdown", "Peel off leading Remaining countdown", ("Unroll", "Remaining countdown")),
             ("Factorial unrolling", "Peel n! n(n-2)!", ("Unroll", "(n−2)!")),
+            ("Factorial examples", "5! 120 n! (n-2)!", ("5!", "120")),
             ("Circular seating", "Anchor (1 way) Chair 5", ("Anchor (1 way)", "Chair 5")),
             ("Sample space", "Sample Space Event", ("Sample Space", "Event")),
         ]
@@ -1164,9 +1166,49 @@ class TestPdfGenerator(unittest.TestCase):
         self.assertIn("Unroll $(n-1)$", unroll_source)
         self.assertNotIn("Peel", unroll_source)
 
-        circle_source = pdf_generator.sanitize_tikz_diagram(concepts[3]["tikz_diagram"])
+        examples_source = pdf_generator.sanitize_tikz_diagram(concepts[3]["tikz_diagram"])
+        self.assertNotIn(r"\$5", examples_source)
+        self.assertNotIn("fill=white", examples_source)
+
+        circle_source = pdf_generator.sanitize_tikz_diagram(concepts[4]["tikz_diagram"])
         self.assertNotIn("fill=white", circle_source)
         self.assertNotIn("fill opacity", circle_source)
+
+    def test_teacher_exam_practice_heading_stays_with_first_question(self):
+        if not pdf_generator.find_pdflatex():
+            self.skipTest("pdflatex is required to check page breaks")
+
+        questions = [
+            {
+                "difficulty": "Part 4: Thinking Creatively",
+                "text": f"Explain arrangement pattern {number}.",
+                "final_answer": str(number),
+                "worked_solution": "Count the arrangements and state the result.",
+            }
+            for number in range(4)
+        ]
+        questions.append({
+            "difficulty": "Part 5: Exam Questions",
+            "text": "First exam question about COMMITTEE arrangements.",
+            "final_answer": "17640",
+            "worked_solution": "Count the arrangements with separated Ts.",
+        })
+        booklet = {
+            "title": "Practice pagination check",
+            "year_level": "Year 11 (Extension)",
+            "topic": "Combinatorics",
+            "concepts": [{
+                "concept_name": "Restricted arrangements",
+                "theory_content": "Count systematically.",
+                "practice_questions": questions,
+            }],
+        }
+        pdf_bytes = pdf_generator.generate_latex_theory_booklet_pdf(booklet, mode="teacher")
+        self.assertTrue(pdf_bytes)
+        page_texts = [page.extract_text() for page in pypdf.PdfReader(io.BytesIO(pdf_bytes)).pages]
+        heading_pages = [text for text in page_texts if "Part 5: Exam Questions" in text]
+        self.assertEqual(len(heading_pages), 1)
+        self.assertIn("First exam question", heading_pages[0])
 
     def test_review_booklet_student_class_omits_working_boxes(self):
         """Verify that student_class review booklet has no reviewworkingbox, uses green badge, and includes quick answers."""
@@ -1672,7 +1714,7 @@ class TestPdfGenerator(unittest.TestCase):
         }
         tex = pdf_generator.build_latex_theory_booklet_source(booklet_data, mode="student_class")
         self.assertNotIn(r"\begin{multicols}{2}", tex)
-        self.assertIn(r"\needspace{4.2cm}", tex)
+        self.assertIn(r"\needspace{5.0cm}", tex)
 
     def test_clean_set_notation(self):
         """Verify that clean_set_notation removes formal university set notation and translates to high school English."""
