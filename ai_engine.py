@@ -2,9 +2,134 @@ import os
 import json
 import re
 import logging
+from functools import lru_cache
 from typing import List, Dict, Any, Optional, Union
 
 logger = logging.getLogger(__name__)
+
+
+def _textbook_reference_roots() -> List[str]:
+    """Return local, teacher-supplied textbook roots without bundling PDFs."""
+    roots = []
+    configured = os.environ.get("DA_TEXTBOOK_REFERENCE_DIR", "").strip()
+    if configured:
+        roots.append(configured)
+    # This is the teacher's local synced folder. It is intentionally optional;
+    # Streamlit Cloud simply skips it unless a matching folder is configured.
+    roots.append("/Users/bunsea/My Drive/Textbooks/New Syllabus")
+    return [p for p in roots if os.path.isdir(p)]
+
+
+def _reference_folder_terms(textbook: str, year_level: str) -> List[str]:
+    text = f"{textbook} {year_level}".lower()
+    if "new senior" in text or "fitzy" in text:
+        return ["New Senior Maths", "Fitzy"]
+    if "standard" in text and "11" in text:
+        return ["Yr11 Standard Cambridge"]
+    if "extension" in text and "11" in text:
+        return ["Yr11 Ext Cambridge"]
+    if "advanced" in text and "9" in text:
+        return ["Cambridge Yr9 Advanced"]
+    if "10" in text:
+        return ["Cambridge Yr10"]
+    if "7" in text:
+        return ["Cambridge Yr7"]
+    if "9" in text:
+        return ["Cambridge Yr9"]
+    return []
+
+
+@lru_cache(maxsize=64)
+def get_textbook_exercise_reference(textbook: str, year_level: str, topic: str, max_chars: int = 9000) -> str:
+    """Extract a compact, local reference excerpt from the selected textbook chapter.
+
+    The excerpt is used as a generation reference only. Full textbook files stay
+    on the teacher's machine and are never committed to the repository.
+    """
+    topic_tokens = [t for t in re.findall(r"[a-z0-9]+", str(topic).lower()) if len(t) >= 4]
+    topic_aliases = {
+        "permutations": ["combinatorics", "permutation", "combination"],
+        "combinations": ["combinatorics", "permutation", "combination"],
+        "binomial": ["binomial"],
+        "trigonometric": ["trigonometry"],
+        "differentiation": ["differentiation"],
+        "probability": ["probability"],
+        "statistics": ["data", "statistics"],
+    }
+    search_tokens = set(topic_tokens)
+    for token in topic_tokens:
+        search_tokens.update(topic_aliases.get(token, []))
+    candidates = []
+    for root in _textbook_reference_roots():
+        folder_terms = _reference_folder_terms(textbook, year_level)
+        matching_dirs = []
+        for dp, dirs, _ in os.walk(root):
+            if any(all(term.lower() in os.path.basename(dp).lower() for term in folder_terms if term) for _ in [0]):
+                matching_dirs.append(dp)
+        for folder in matching_dirs:
+            candidates.extend(os.path.join(dp, f) for dp, _, fs in os.walk(folder) for f in fs if f.lower().endswith(".pdf"))
+        if not candidates:
+            candidates.extend(os.path.join(dp, f) for dp, _, fs in os.walk(root) for f in fs if f.lower().endswith(".pdf"))
+
+    if not candidates:
+        return ""
+    scored = []
+    for path in sorted(set(candidates)):
+        name = os.path.basename(path).lower()
+        score = sum(2 for token in search_tokens if token in name)
+        if "answer" in name or "solution" in name or "skillsheet" in name:
+            score -= 10
+        scored.append((score, path))
+    selected = [p for score, p in sorted(scored, key=lambda item: (-item[0], item[1])) if score > 0][:2]
+    if not selected:
+        non_answer = [p for score, p in scored if score > -5]
+        selected = [sorted(non_answer)[0]] if non_answer else []
+
+    try:
+        from pypdf import PdfReader
+        chunks = []
+        for path in selected:
+            reader = PdfReader(path)
+            text_parts = []
+            for page in reader.pages[:12]:
+                page_text = page.extract_text() or ""
+                if page_text:
+                    text_parts.append(page_text)
+            excerpt = "\n".join(text_parts)
+            # Keep the beginning of each exercise so demonstrations follow the
+            # textbook's opening progression without copying a whole chapter.
+            exercise_positions = [m.start() for m in re.finditer(r"(?i)\bexercise\s+[0-9A-Za-z.]+", excerpt)]
+            if exercise_positions:
+                pieces = [excerpt[pos:pos + 1300] for pos in exercise_positions[:8]]
+                excerpt = "\n\n".join(pieces)
+            chunks.append(f"SOURCE: {os.path.basename(path)}\n{excerpt[:max_chars]}")
+        return "\n\n".join(chunks)[:max_chars]
+    except Exception as exc:
+        logger.warning("Unable to extract textbook reference: %s", exc)
+        return ""
+
+
+def extract_uploaded_textbook_reference(uploaded_files: List[Any], max_chars: int = 9000) -> str:
+    """Extract exercise openings from teacher-uploaded textbook chapter PDFs."""
+    if not uploaded_files:
+        return ""
+    try:
+        from io import BytesIO
+        from pypdf import PdfReader
+        chunks = []
+        for uploaded in uploaded_files:
+            raw = uploaded.getvalue() if hasattr(uploaded, "getvalue") else bytes(uploaded)
+            reader = PdfReader(BytesIO(raw))
+            text = "\n".join((page.extract_text() or "") for page in reader.pages[:20])
+            positions = [m.start() for m in re.finditer(r"(?i)\bexercise\s+[0-9A-Za-z.]+", text)]
+            if positions:
+                text = "\n\n".join(text[pos:pos + 1300] for pos in positions[:8])
+            name = getattr(uploaded, "name", "uploaded textbook chapter.pdf")
+            chunks.append(f"SOURCE: {name}\n{text[:max_chars]}")
+        return "\n\n".join(chunks)[:max_chars]
+    except Exception as exc:
+        logger.warning("Unable to extract uploaded textbook reference: %s", exc)
+        return ""
 
 try:
     from google import genai
@@ -3611,6 +3736,7 @@ def generate_theory_booklet(
     api_key: Optional[str] = None,
     question_distribution: Optional[Dict[str, Any]] = None,
     level_distribution: Optional[Dict[str, int]] = None,
+    textbook_reference: str = "",
     **kwargs
 ) -> Dict[str, Any]:
     """
@@ -3680,6 +3806,16 @@ def generate_theory_booklet(
         if tier_strs:
             dist_prompt = f"- Exact Question Tier Breakdown Per Concept (MANDATORY): Each concept must have: {', '.join(tier_strs)}.\n"
 
+    textbook_reference = str(textbook_reference or "").strip() or get_textbook_exercise_reference(textbook, year_level, topic_str)
+    reference_prompt = ""
+    if textbook_reference:
+        reference_prompt = f"""
+TEXTBOOK EXERCISE REFERENCE (TEACHER-SUPPLIED LOCAL COPY):
+Use this excerpt to align the sequence, notation, and difficulty of the Teacher Demonstration Examples.
+For each selected chapter exercise, model the first few exercise questions and explain the same method with fresh numbers and wording. Do not copy the source verbatim and do not reproduce textbook answers.
+{textbook_reference}
+"""
+
     yl_lower = str(year_level).lower()
     is_senior_stage6 = any(k in yl_lower for k in ["11", "12", "hsc", "prelim"])
     if is_senior_stage6:
@@ -3705,6 +3841,7 @@ BOOKLET SPECIFICATIONS:
 - Student Practice Questions per concept: {total_practice_questions} (composed of {student_practice_count} progressive practice questions [Level 1, Level 2, ...] + 1 MANDATORY Exam-Style practice question [Exam Style])
 - Checking Understanding Questions per concept: {checking_questions_count} (short questions immediately after the demonstrations; students answer these independently in the booklet)
 {dist_prompt}{f'- Special Tutor Instructions: {custom_instructions}' if custom_instructions else ''}
+{reference_prompt}
 - LANGUAGE REQUIREMENT: STRICT AUSTRALIAN ENGLISH SPELLING throughout (e.g. 'factorise', 'rationalise', 'centre', 'metres', 'centimetres', 'labelled', 'modelling', 'colour', 'behaviour', 'minimise', 'maximise', 'summarise'). NEVER use US spellings.
 
 {get_stage6_syllabus_boundary_prompt(year_level, topic_str)}
@@ -3978,6 +4115,7 @@ Respond with valid JSON ONLY matching this exact structure:
             data["custom_instructions"] = custom_instructions_val or ""
             data["custom_notes"] = custom_instructions_val or ""
             data["extra_instructions"] = custom_instructions_val or ""
+            data["textbook_reference_used"] = bool(textbook_reference)
 
             # Normalize difficulty labels across concepts
             for c in data.get("concepts", []):

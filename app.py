@@ -1121,6 +1121,17 @@ if main_section == "📖 1. Theory & Practice Materials":
             key="theory_custom_notes"
         )
 
+        theory_reference_uploads = st.file_uploader(
+            "📚 Optional textbook chapter PDFs for exercise alignment",
+            type=["pdf"],
+            accept_multiple_files=True,
+            key="theory_reference_uploads",
+            help="Upload the selected textbook's chapter or exercise pages. The first questions from each exercise will guide the Teacher Demonstration Examples."
+        )
+        uploaded_reference_text = ai_engine.extract_uploaded_textbook_reference(theory_reference_uploads)
+        if uploaded_reference_text:
+            st.info(f"Textbook exercise reference loaded from {len(theory_reference_uploads)} uploaded PDF(s).")
+
         if st.button("🚀 Generate Theory Booklet (Teacher, Student & Class Editions)", type="primary", key="btn_generate_theory_booklet"):
             current_api_key = (st.session_state.get("gemini_api_key") or "").strip()
             if not current_api_key:
@@ -1145,7 +1156,8 @@ if main_section == "📖 1. Theory & Practice Materials":
                             textbook=theory_textbook,
                             api_key=current_api_key,
                             question_distribution=theory_custom_distribution,
-                            level_distribution=theory_level_distribution
+                            level_distribution=theory_level_distribution,
+                            textbook_reference=uploaded_reference_text
                         )
 
                         booklet_data["textbook"] = theory_textbook
@@ -1169,7 +1181,8 @@ if main_section == "📖 1. Theory & Practice Materials":
                         st.session_state["latest_theory_booklet_id"] = booklet_id
                         tb_gen_cost = booklet_data.get('meta_cost', 0.0)
                         tb_gen_tokens = booklet_data.get('meta_tokens', 0)
-                        st.success(f"🎉 Generated & Saved Theory Booklet #{booklet_id}: {booklet_data.get('title')}! (💰 Cost: ${tb_gen_cost:.4f} AUD • {tb_gen_tokens:,} tokens) — Practice Worksheet #{practice_ws_id} registered.")
+                        reference_note = " Textbook exercise reference applied." if booklet_data.get("textbook_reference_used") else " No local textbook chapter reference was found; syllabus guidance was used."
+                        st.success(f"🎉 Generated & Saved Theory Booklet #{booklet_id}: {booklet_data.get('title')}! (💰 Cost: ${tb_gen_cost:.4f} AUD • {tb_gen_tokens:,} tokens) — Practice Worksheet #{practice_ws_id} registered.{reference_note}")
                     except Exception as e:
                         st.error(f"Error generating theory booklet: {e}")
 
