@@ -4416,7 +4416,27 @@ def build_masterclass_theory_box_content(
     ])
 
     curated = None
-    if is_fin:
+    is_combinatorics = any(k in t_lower or k in c_lower for k in [
+        "combinatorics", "permutation", "combination", "factorial", "counting principle"
+    ])
+    if is_combinatorics:
+        curated = {
+            "intuition": r"A factorial is a countdown multiplication: $5! = 5\times4\times3\times2\times1 = 120$. In general, $n! = n(n-1)(n-2)\cdots3\times2\times1$, and $0! = 1$. Factorials are the building blocks for counting arrangements and selections.",
+            "formulas": [
+                r"n! = n(n-1)(n-2)\cdots 3\times2\times1,\qquad 0! = 1",
+                r"n! = n\times(n-1)! \qquad\text{and}\qquad \frac{n!}{(n-r)!} = n(n-1)\cdots(n-r+1)",
+            ],
+            "variable_defs": r"$n$ is a non-negative integer; $n!$ counts the ways to arrange $n$ distinct objects in a line.",
+            "method_title": r"DA MASTER METHOD (FACTORIAL COUNTDOWN)",
+            "steps": [
+                r"\textbf{\color{dablue}[Step 1] Identify the count:} Decide whether the question asks for an arrangement, selection, or repeated objects.",
+                r"\textbf{\color{dablue}[Step 2] Write the factorial:} Expand only as far as needed, for example $10! = 10\times9\times8\times7!$.",
+                r"\textbf{\color{dablue}[Step 3] Cancel before calculating:} Cancel common factorial factors first, then simplify the small remaining product.",
+            ],
+            "pitfall": r"Do not treat $n!$ as $n\times n$; it is the product of every positive integer from $n$ down to $1$.",
+            "self_check": r"Check the endpoint: every factorial expansion must finish at $\times2\times1$, while $0!$ is defined as $1$.",
+        }
+    elif is_fin:
         if any(k in c_lower for k in ["compound", "future value", "present value", "principal", "interest calculation"]):
             curated = {
                 "intuition": r"Compound interest is the \textbf{Snowball Effect}---interest is earned on your initial deposit PLUS on all accumulated interest. In exams: $A$ is the final growing snowball, $P$ is the starting snowball. Money compounds forward in time.",
@@ -4681,7 +4701,7 @@ def build_masterclass_theory_box_content(
         sentences = re.split(r'(?<=[.!?])\s+', intuition_text)
         clean_s = [s.strip() for s in sentences if s.strip()]
         c_body = " ".join(clean_s[:3]).strip()
-        if curated and "snowball effect" not in c_body.lower() and len(c_body) < 150:
+        if curated and len(c_body) < 180:
             c_body = f"{c_body} " + curated["intuition"]
         cards.append(
             r"\noindent\colorbox{slatebg}{\parbox{\dimexpr\linewidth-2\fboxsep\relax}{"
@@ -4691,6 +4711,8 @@ def build_masterclass_theory_box_content(
 
     # Card 2: Formulas (Each law/formula on its own distinct line)
     f_list = list(key_formulas) if key_formulas else (curated["formulas"] if curated else [])
+    if curated and key_formulas and is_combinatorics and not any("!" in str(item) for item in f_list):
+        f_list.extend(curated["formulas"])
     if f_list:
         f_items = []
         for kf in f_list:
@@ -7722,7 +7744,7 @@ def build_latex_theory_booklet_source(
 
         # 2. Teacher Demonstration Examples
         if teacher_examples:
-            if is_teacher or (is_student_private and c_idx == 1):
+            if is_student_private and c_idx == 1:
                 tex_lines.append(r"\newpage")
             demo_needspace = "6.5cm" if not is_teacher else "7.0cm"
             tex_lines.append(f"\\needspace{{{demo_needspace}}}")
