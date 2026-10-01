@@ -8,6 +8,7 @@ import base64
 import hashlib
 import zipfile
 import importlib.util
+import sys
 from datetime import datetime, date
 from typing import Optional, List, Dict, Any, Tuple
 from dotenv import load_dotenv
@@ -29,11 +30,19 @@ _WORKSPACE_CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".ca
 os.makedirs(_WORKSPACE_CACHE, exist_ok=True)
 
 _database_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "database.py")
-_database_spec = importlib.util.spec_from_file_location("da_tuition_project_database", _database_path)
-if _database_spec is None or _database_spec.loader is None:
-    raise ImportError(f"Could not load the app's database module from {_database_path}")
-database = importlib.util.module_from_spec(_database_spec)
-_database_spec.loader.exec_module(database)
+_database_module_name = "da_tuition_project_database"
+database = sys.modules.get(_database_module_name)
+if database is None:
+    _database_spec = importlib.util.spec_from_file_location(_database_module_name, _database_path)
+    if _database_spec is None or _database_spec.loader is None:
+        raise ImportError(f"Could not load the app's database module from {_database_path}")
+    database = importlib.util.module_from_spec(_database_spec)
+    sys.modules[_database_module_name] = database
+    try:
+        _database_spec.loader.exec_module(database)
+    except Exception:
+        sys.modules.pop(_database_module_name, None)
+        raise
 import ai_engine
 import pdf_generator
 import cloud_sync
