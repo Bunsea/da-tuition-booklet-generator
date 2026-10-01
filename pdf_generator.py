@@ -3212,6 +3212,28 @@ def _replace_crowded_combinatorics_diagram(diag: str) -> Optional[str]:
     """Use measured layouts for recurring generated diagrams with colliding labels."""
     # These compact topic diagrams are common sources of label collisions in
     # generated combinatorics content. Replace them with spaced, measured layouts.
+    if (re.search(r"\(\s*n\s*\+\s*3\s*\)\s*!", diag)
+            and re.search(r"\(\s*n\s*\+\s*1\s*\)\s*!", diag)):
+        return r"""\begin{tikzpicture}[>=Stealth]
+\node[draw=blue!60!black,fill=blue!9,rounded corners=3pt,minimum width=2.7cm,minimum height=0.9cm,font=\large] (top) at (0,0.85) {$(n+3)!$};
+\node[draw=blue!60!black,fill=blue!9,rounded corners=3pt,minimum width=2.7cm,minimum height=0.9cm,font=\large] (bottom) at (0,-0.85) {$(n+1)!$};
+\node[font=\normalsize,anchor=west] at (2.15,0.85) {$(n+3)(n+2)(n+1)!$};
+\node[font=\normalsize,anchor=west] at (2.15,-0.85) {$(n+1)!$};
+\draw[->,thick,blue!70!black] (top.east) -- (1.85,0.85);
+\draw[->,thick,blue!70!black] (bottom.east) -- (1.85,-0.85);
+\node[font=\small,anchor=north] at (3.5,-1.55) {Unroll the numerator until it matches the denominator};
+\end{tikzpicture}"""
+
+    if re.search(r"6\s*!", diag) and re.search(r"4\s*!", diag) and re.search(r"3\s*(?:!|×|x|\\times)", diag):
+        return r"""\begin{tikzpicture}[>=Stealth]
+\node[draw=blue!60!black,fill=blue!8,rounded corners=3pt,minimum width=2.0cm,minimum height=0.85cm,font=\large] (start) at (0,0) {$\dfrac{6!}{4!}$};
+\node[draw=green!50!black,fill=green!8,rounded corners=3pt,minimum width=3.8cm,minimum height=0.85cm,font=\normalsize] (expand) at (4.0,0) {$\dfrac{6\times5\times4!}{4!}$};
+\node[draw=orange!70!black,fill=orange!10,rounded corners=3pt,minimum width=2.2cm,minimum height=0.85cm,font=\large] (answer) at (8.0,0) {$6\times5=30$};
+\draw[->,thick,blue!70!black] (start.east) -- (expand.west);
+\draw[->,thick,green!60!black] (expand.east) -- (answer.west);
+\node[font=\small,anchor=north] at (4.0,-0.75) {Expand to the shared $4!$, then cancel};
+\end{tikzpicture}"""
+
     if re.search(r"Gold\s*\(?1st\)?", diag, re.IGNORECASE) and re.search(r"Silver\s*\(?2nd\)?", diag, re.IGNORECASE) and re.search(r"Bronze\s*\(?3rd\)?", diag, re.IGNORECASE):
         return r"""\begin{tikzpicture}[x=1cm,y=1cm]
 \draw[fill=yellow!18,draw=black] (0,0) rectangle (2.2,1.25);
