@@ -1262,6 +1262,8 @@ class TestPdfGenerator(unittest.TestCase):
             ("Podium arrangements", "Gold (1st) Silver (2nd) Bronze (3rd)", ("Gold (1st)", "Silver (2nd)", "Bronze (3rd)")),
             ("Gap method", "Gap 1 U_1 Gap 2 U_2 Gap 3 U_3 Gap 4", ("Gap 1", "Gap 4", "U1", "U2", "U3")),
             ("Factorial equation", "n! = 20(n-2)!", ("n!", "20(n−2)!")),
+            ("Factorial cancellation", "6! 4! 3!", ("6!", "4!", "30")),
+            ("Factorial ladder", "(n+3)! (n+1)!", ("(n+ 3)!", "(n+ 1)!")),
         ]
         concepts = []
         for name, labels, _ in diagram_cases:
@@ -1487,6 +1489,18 @@ class TestPdfGenerator(unittest.TestCase):
         self.assertNotIn(r"\colorbox{white}", transparent)
         self.assertNotIn("fill=white", transparent)
         self.assertIn("$(A,B)$", transparent)
+
+        cancellation = pdf_generator.sanitize_tikz_diagram(
+            r"\begin{tikzpicture}\node {$6!$};\node {$4!$};\node {$3!$};\end{tikzpicture}"
+        )
+        self.assertIn(r"\dfrac{6\times5\times4!}{4!}", cancellation)
+        self.assertIn("at (8.0,0)", cancellation)
+
+        ladder = pdf_generator.sanitize_tikz_diagram(
+            r"\begin{tikzpicture}\node {Factorial ladder};\node {$(n+3)!$};\node {$(n+1)!$};\end{tikzpicture}"
+        )
+        self.assertIn(r"$(n+3)(n+2)(n+1)!$", ladder)
+        self.assertIn("at (2.15,-0.85)", ladder)
 
     def test_solution_letter_frequency_tally_is_compact(self):
         formatted = pdf_generator.format_latex_solution_steps(
