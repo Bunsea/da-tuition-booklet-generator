@@ -7,6 +7,7 @@ import time
 import base64
 import hashlib
 import zipfile
+import importlib.util
 from datetime import datetime, date
 from typing import Optional, List, Dict, Any, Tuple
 from dotenv import load_dotenv
@@ -27,7 +28,12 @@ import plotly.express as px
 _WORKSPACE_CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".cache", "matplotlib")
 os.makedirs(_WORKSPACE_CACHE, exist_ok=True)
 
-import database
+_database_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "database.py")
+_database_spec = importlib.util.spec_from_file_location("da_tuition_project_database", _database_path)
+if _database_spec is None or _database_spec.loader is None:
+    raise ImportError(f"Could not load the app's database module from {_database_path}")
+database = importlib.util.module_from_spec(_database_spec)
+_database_spec.loader.exec_module(database)
 import ai_engine
 import pdf_generator
 import cloud_sync
@@ -163,10 +169,33 @@ def get_worksheet_download_filename(worksheet: dict, sheet_type: str = "homework
 database.init_db()
 booklet_sync_status = None
 booklet_sync_error = None
-try:
-    booklet_sync_status = database.sync_booklets_from_cloud()
-except Exception as exc:
-    booklet_sync_error = str(exc)
+_sync_booklets_from_cloud = getattr(database, "sync_booklets_from_cloud", None)
+_booklet_cloud_enabled = getattr(database, "booklet_cloud_enabled", None)
+
+
+def booklet_cloud_is_enabled() -> bool:
+    """Guard the optional cloud library if an old deployment is running stale code."""
+    if not callable(_booklet_cloud_enabled):
+        return False
+    try:
+        return bool(_booklet_cloud_enabled())
+    except Exception:
+        return False
+
+
+def sync_booklets_from_cloud(force: bool = False):
+    if not callable(_sync_booklets_from_cloud):
+        return None
+    return _sync_booklets_from_cloud(force=force)
+
+
+if callable(_sync_booklets_from_cloud):
+    try:
+        booklet_sync_status = sync_booklets_from_cloud()
+    except Exception as exc:
+        booklet_sync_error = str(exc)
+else:
+    booklet_sync_error = "The deployed database module is missing cloud booklet support. Restart the app after its latest deployment."
 
 @st.cache_data(show_spinner=False)
 def get_cached_worksheet_pdf(
@@ -851,15 +880,15 @@ if main_section == "📖 1. Theory & Practice Materials":
         st.markdown("### 📖 Generate Theory Booklet (Teacher & Student Editions)")
         st.caption("Aligned with NSW Syllabus textbooks (CambridgeMATHS & Maths in Focus). Generates complete concept explanations, key formula callout boxes, tutor tips, TikZ geometry diagrams, teacher demonstration examples (with full step-by-step whiteboard solutions), and tiered student practice questions (Easy, Medium, Hard).")
         if booklet_sync_error:
-            st.error(f"Permanent booklet storage could not sync: {booklet_sync_error}. Check the Supabase connection before generating more booklets.")
-        elif not database.booklet_cloud_enabled():
+            st.warning(f"Cloud booklet storage is unavailable: {booklet_sync_error}. You can continue using the app, but new booklets may not survive an app restart until storage reconnects.")
+        elif not booklet_cloud_is_enabled():
             st.warning("Permanent booklet storage is not configured. Saved theory and worksheets will only remain on this app instance.")
         elif booklet_sync_status and (booklet_sync_status["uploaded"] or booklet_sync_status["restored"]):
             st.success(f"Cloud booklet library synced: {booklet_sync_status['uploaded']} existing records backed up, {booklet_sync_status['restored']} restored.")
 
-        if database.booklet_cloud_enabled() and st.button("🔄 Refresh Saved Booklets from Cloud", key="refresh_cloud_booklet_library"):
+        if booklet_cloud_is_enabled() and st.button("🔄 Refresh Saved Booklets from Cloud", key="refresh_cloud_booklet_library"):
             try:
-                database.sync_booklets_from_cloud(force=True)
+                sync_booklets_from_cloud(force=True)
                 st.rerun()
             except Exception as exc:
                 st.error(f"Could not refresh saved booklets: {exc}")
@@ -867,7 +896,7 @@ if main_section == "📖 1. Theory & Practice Materials":
         # Saved Theory Booklets Library
         saved_tbs = database.get_theory_booklets()
         if saved_tbs:
-            library_label = "☁️ Saved Theory Booklets Library (Load Existing Booklet)" if database.booklet_cloud_enabled() else "📚 Saved Theory Booklets Library (Load Existing Booklet)"
+            library_label = "☁️ Saved Theory Booklets Library (Load Existing Booklet)" if booklet_cloud_is_enabled() else "📚 Saved Theory Booklets Library (Load Existing Booklet)"
             with st.expander(library_label, expanded=False):
                 tb_lib_opts = {
                     f"#{b['id']} — {b['title']} ({b.get('year_level', '')} • {b.get('topic', '')})": b['id']
