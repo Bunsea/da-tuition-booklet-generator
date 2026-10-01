@@ -18,6 +18,12 @@ MIN_UNUSED_RATIO = 0.28  # 30% target, with a small tolerance for headers and pa
 PAGE_MARGIN = 54.0
 MAX_PANEL_RATIO = 0.72
 CONTENT_TO_PANEL_GAP = 30.0
+ACTIVITY_HEADINGS = ("QUICK MATHS PUZZLE", "QUICK MATHS FACT", "MATHS PUN", "VISUAL MATHS")
+
+
+def _has_activity_panel(text: str) -> bool:
+    normalized = str(text or "").casefold()
+    return "maths brain break" in normalized or any(title.casefold() in normalized for title in ACTIVITY_HEADINGS)
 
 
 def _question_activity(concept: str, topic: str, page_context: str = "", variant: int = 0) -> Tuple[str, str, str, str]:
@@ -322,7 +328,7 @@ def _draw_activity_panel(
 
     page_canvas.setFillColor(colors.HexColor("#25345B"))
     page_canvas.setFont("Helvetica-Bold", 13)
-    page_canvas.drawString(x + 14, top - 24, "MATHS BRAIN BREAK")
+    page_canvas.drawString(x + 14, top - 24, ACTIVITY_HEADINGS[variant % len(ACTIVITY_HEADINGS)])
     page_canvas.setStrokeColor(colors.HexColor("#D4DAEA"))
     page_canvas.line(x + 14, top - 33, x + width - 14, top - 33)
 
@@ -539,7 +545,7 @@ def fill_sparse_private_theory_pages(pdf_bytes: bytes, booklet_data: Dict[str, A
                 continue
             # Make the operation idempotent: never add a second panel to a page
             # that already contains one.
-            if "maths brain break" in text.casefold():
+            if _has_activity_panel(text):
                 output.add_page(original_page)
                 continue
             heading = re.search(r"Concept\s+[A-Z0-9]+:\s*([^\r\n]+)", text, re.IGNORECASE)

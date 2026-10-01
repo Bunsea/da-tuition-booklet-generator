@@ -1857,6 +1857,26 @@ def is_prose_line(line: str) -> bool:
     return len(english_words) >= 2
 
 
+def _join_bulleted_label_value_lines(lines: List[str]) -> List[str]:
+    """Keep a colon-ended working label with its value on the same paragraph line."""
+    joined = []
+    index = 0
+    label_pattern = re.compile(r"^(\s*[-–•]\s*(?:\*{1,2})?[^:\n]+:\s*(?:\*{1,2})?)\s*$")
+    next_heading = re.compile(r"^\s*(?:[-–•]|Case\s*\d+\s*:|Step\s*\d+\s*:|\([a-z0-9]+\))", re.IGNORECASE)
+    while index < len(lines):
+        line = lines[index]
+        label_match = label_pattern.match(line)
+        if label_match and index + 1 < len(lines):
+            value = lines[index + 1].strip()
+            if value and not next_heading.match(value):
+                joined.append(f"{label_match.group(1)} {value}")
+                index += 2
+                continue
+        joined.append(line)
+        index += 1
+    return joined
+
+
 def split_implication_chain(raw_line: str, indent: str = r"\hspace*{0.4cm}", mark: str = "") -> List[str]:
     r"""
     Safely splits a mathematical line with implications (\implies, \Rightarrow, \iff)
@@ -1961,7 +1981,7 @@ def format_latex_solution_steps(raw_sol: str) -> str:
     # 2. Convert explicit LaTeX linebreaks outside math/environments into newlines
     text_clean = re.sub(r"(?<!\\)\\\\\s*(?!\s*(?:\[|begin|end))", "\n", text_clean)
 
-    lines = text_clean.split("\n")
+    lines = _join_bulleted_label_value_lines(text_clean.split("\n"))
     # Compact the vertical letter-frequency tally often emitted by the model
     # (for example ``S:\n3\nT:\n3``) into one readable line.
     compacted_lines = []
@@ -2231,7 +2251,7 @@ def format_latex_practice_solution(raw_sol: str) -> str:
             block_lines.append(f"\\noindent\\textbf{{\\color{{danavy}}{lbl}}}")
 
         raw_steps = []
-        for line in p_text.split("\n"):
+        for line in _join_bulleted_label_value_lines(p_text.split("\n")):
             line = line.strip()
             if not line or re.match(r"^[,;:.!\-\]\[\s]+$", line):
                 continue
@@ -2309,6 +2329,17 @@ def format_latex_practice_solution(raw_sol: str) -> str:
             if colon_m and not colon_m.group(1).startswith("$") and not colon_m.group(1).startswith(r"\("):
                 exp_part = colon_m.group(1).strip()
                 math_part = colon_m.group(2).strip()
+                if exp_part.lstrip().startswith(("-", "–", "•")):
+                    value_is_prose = is_prose_line(math_part) or bool(
+                        re.search(r"\b(?:choice|choices|option|options|ways|possibilities|outcomes)\b", math_part, re.IGNORECASE)
+                    )
+                    if not value_is_prose and not math_part.startswith(("$", r"\(", r"\[")) and "$" not in math_part:
+                        math_part = f"$\\displaystyle {math_part}$"
+                    block_lines.append(
+                        f"\\noindent\\hspace*{{0.15cm}}\\textit{{{sanitize_for_latex(exp_part)}}}"
+                        f"\\enspace {sanitize_for_latex(math_part)}"
+                    )
+                    continue
                 block_lines.append(f"\\noindent\\hspace*{{0.15cm}}\\textit{{{sanitize_for_latex(exp_part)}}}")
                 chunk = math_part
 

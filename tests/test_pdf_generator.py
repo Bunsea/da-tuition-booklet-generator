@@ -1509,6 +1509,25 @@ class TestPdfGenerator(unittest.TestCase):
         self.assertIn("Letter frequencies: S: 3, T: 3, I: 2, A: 1, C: 1", formatted)
         self.assertLess(formatted.count(r"\par"), 3)
 
+    def test_bulleted_solution_labels_stay_inline_with_their_values(self):
+        solution = (
+            "Case 1:\nFirst digit is even (8)\n- First digit:\n1 choice(8).\n"
+            "- Last digit:\n3 choices (3, 5, or 7)."
+        )
+        for formatted in (
+            pdf_generator.format_latex_solution_steps(solution),
+            pdf_generator.format_latex_practice_solution(solution),
+        ):
+            self.assertIn("First digit:", formatted)
+            self.assertIn("1 choice(8)", formatted)
+            self.assertNotRegex(formatted, r"(?s)First digit:.*?\\par.*?1 choice")
+            self.assertNotRegex(formatted, r"(?s)Last digit:.*?\\par.*?3 choices")
+
+        repeated_letter_steps = pdf_generator.format_latex_practice_solution(
+            "- Choose repeated letter:\n2 choices (I or S)."
+        )
+        self.assertIn(r"Choose repeated letter:}\enspace 2 choices", repeated_letter_steps)
+
     def test_format_practice_difficulty_all_five_tiers(self):
         """Verify modern pedagogical tier formatting for all 5 tiers (Section 1 through 4 + Exam Style)."""
         self.assertEqual(pdf_generator.format_practice_difficulty("Level 1"), "Section 1 - Practice")

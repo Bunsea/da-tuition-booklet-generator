@@ -40,7 +40,7 @@ class TestPrivateTheoryPageFillers(unittest.TestCase):
         reader = PdfReader(io.BytesIO(result))
         self.assertEqual(len(reader.pages), 1)
         text = reader.pages[0].extract_text()
-        self.assertIn("MATHS BRAIN BREAK", text)
+        self.assertIn("QUICK MATHS PUZZLE", text)
         self.assertIn("BRAIN TEASER", text)
 
     def test_leaves_well_used_page_unchanged(self):
@@ -74,8 +74,16 @@ class TestPrivateTheoryPageFillers(unittest.TestCase):
             "concepts": [{"name": "Factorial notation"}],
         })
         texts = [p.extract_text() for p in PdfReader(io.BytesIO(result)).pages]
-        card_content = [t.split("MATHS BRAIN BREAK", 1)[1].strip() for t in texts]
+        card_content = []
+        for text in texts:
+            for heading in ("QUICK MATHS PUZZLE", "QUICK MATHS FACT", "MATHS PUN", "VISUAL MATHS"):
+                if heading in text:
+                    card_content.append(text.split(heading, 1)[1].strip())
+                    break
         self.assertEqual(len(set(card_content)), 8)
+        headings = [heading for heading in ("QUICK MATHS PUZZLE", "QUICK MATHS FACT", "MATHS PUN", "VISUAL MATHS")
+                    if any(heading in text for text in texts)]
+        self.assertEqual(len(headings), 4)
         self.assertTrue(any("DID YOU KNOW" in t for t in texts))
         self.assertTrue(any("MATHS PUN" in t for t in texts))
         self.assertTrue(any("A LITTLE MATHS PICTURE" in t for t in texts))
@@ -92,7 +100,8 @@ class TestPrivateTheoryPageFillers(unittest.TestCase):
         first_pass = fill_sparse_private_theory_pages(_sample_pdf(430), booklet)
         second_pass = fill_sparse_private_theory_pages(first_pass, booklet)
         text = PdfReader(io.BytesIO(second_pass)).pages[0].extract_text()
-        self.assertEqual(text.count("MATHS BRAIN BREAK"), 1)
+        self.assertEqual(sum(text.count(heading) for heading in
+                             ("QUICK MATHS PUZZLE", "QUICK MATHS FACT", "MATHS PUN", "VISUAL MATHS")), 1)
 
 
 if __name__ == "__main__":
