@@ -104,9 +104,34 @@ class TestPrivateTheoryPageFillers(unittest.TestCase):
     def test_activity_bank_returns_four_distinct_activity_types(self):
         samples = [_activity_for("Factorial notation", "Combinatorics", variant=i) for i in range(4)]
         self.assertIn("Find the error", samples[0][1])
-        self.assertIn("factorials grow faster", samples[1][1])
+        self.assertIn("10! is 3,628,800", samples[1][1])
         self.assertIn("Permutations are so orderly", samples[2][1])
-        self.assertIn("countdown view", samples[3][1])
+        self.assertIn("Unroll a factorial", samples[3][1])
+
+    def test_factorial_visuals_and_puns_are_substantively_distinct(self):
+        visuals = [_activity_for("Factorial notation", "Combinatorics", variant=3 + 4 * serial)[1]
+                   for serial in range(8)]
+        facts = [_activity_for("Factorial notation", "Combinatorics", variant=1 + 4 * serial)[1]
+                 for serial in range(8)]
+        puns = [_activity_for("Factorial notation", "Combinatorics", variant=2 + 4 * serial)[1]
+                for serial in range(8)]
+        self.assertEqual(len(set(visuals)), 8)
+        self.assertEqual(len(set(facts)), 8)
+        self.assertEqual(len(set(puns)), 8)
+        self.assertIn("consecutive factorial values", visuals[1])
+        self.assertIn("available choices shrink", visuals[2])
+
+    def test_pun_panel_uses_a_distinct_label_and_no_generic_starburst(self):
+        from page_fillers import _draw_activity_panel
+
+        output = io.BytesIO()
+        page = canvas.Canvas(output, pagesize=A4)
+        _draw_activity_panel(page, A4[0], 54, 330, "Factorial notation", "Combinatorics", "", variant=2)
+        page.save()
+        text = PdfReader(io.BytesIO(output.getvalue())).pages[0].extract_text()
+        self.assertIn("MATHS PUN", text)
+        self.assertIn("WORDPLAY", text)
+        self.assertNotIn("MATHS PUN\nMATHS PUN", text)
 
     def test_filling_is_idempotent(self):
         booklet = {"topic": "Combinatorics", "concepts": [{"name": "Factorial notation"}]}

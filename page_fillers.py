@@ -92,14 +92,15 @@ def _question_activity(concept: str, topic: str, page_context: str = "", variant
                 ("In a circle, a rotation preserves who sits next to whom.", "Three friends sit around a tiny round table. How many different neighbour pairs can be formed?", "3", "Each pair of friends sits next to each other in a three-seat circle."),
             ]
             if variant >= len(activities):
-                people = variant + 6
-                answer = math.factorial(people - 1)
-                return (
-                    "Fix one person to remove rotations that represent the same circular seating.",
-                    f"How many distinct ways can {people} people sit around a circular table?",
-                    f"{answer:,}",
-                    f"Fix one person and arrange the other {people - 1}: ({people - 1})! = {answer:,}.",
-                )
+                circle_puzzles = [
+                    ("A seating shifts one chair clockwise for everyone. What changes about each person's neighbours?", "Nothing", "A rotation preserves the relative order and neighbour pairs."),
+                    ("Two circular seating sketches are mirror images. Are they always the same arrangement?", "No", "A reflection reverses clockwise order; rotation alone does not."),
+                    ("Why can one person be fixed before counting a round-table seating?", "It removes duplicate rotations", "Every circular arrangement can be rotated until the chosen person is at the reference seat."),
+                    ("A round table has no labelled first chair. Which part of a seating matters: absolute chair numbers or neighbour order?", "Neighbour order", "Rotating everyone changes chair numbers but preserves who sits next to whom."),
+                    ("If a seating is turned halfway around the table, has the arrangement changed?", "No", "A whole-table rotation keeps the same circular order."),
+                ]
+                fact, answer, explanation = circle_puzzles[(variant - len(activities)) % len(circle_puzzles)]
+                return fact, answer, answer, explanation
             return choose(activities)
         if any(word in text for word in ("combination", "unordered", "selection")):
             activities = [
@@ -113,15 +114,15 @@ def _question_activity(concept: str, topic: str, page_context: str = "", variant
                 ("Order matters for roles but not for an unassigned group.", "Is choosing a captain and vice-captain an unordered selection?", "No", "The roles differ, so swapping the two people changes the outcome."),
             ]
             if variant >= len(activities):
-                group_size = 2 + variant % 4
-                population = variant + 10
-                answer = math.comb(population, group_size)
-                return (
-                    "For an unordered selection, changing the order of the chosen people does not create a new group.",
-                    f"How many different groups of {group_size} can be chosen from {population} students?",
-                    f"{answer:,}",
-                    f"Use combinations: {population}C{group_size} = {answer:,}.",
-                )
+                group_puzzles = [
+                    ("A committee list reads Ava, Ben, Chloe. Would writing the same names in reverse create a new committee?", "No", "A committee records membership, not the order of names."),
+                    ("A team needs a captain and vice-captain. Does swapping the two people leave the team roles unchanged?", "No", "The roles distinguish the two positions, so order matters."),
+                    ("A playlist order changes but its selected songs stay the same. Is it the same selection?", "Yes", "The chosen set is unchanged even if the listing order changes."),
+                    ("Two students are chosen for an unlabelled pair. Does choosing Sam before Lee make a different pair?", "No", "The same two members form one unordered group."),
+                    ("Which cares about order: choosing a team, or assigning first and second place?", "Assigning places", "A team is unordered; first and second are distinct roles."),
+                ]
+                fact, answer, explanation = group_puzzles[(variant - len(activities)) % len(group_puzzles)]
+                return fact, answer, answer, explanation
             return choose(activities)
         if "factorial" in text:
             activities = [
@@ -135,14 +136,15 @@ def _question_activity(concept: str, topic: str, page_context: str = "", variant
                 ("A factorial contains every positive whole number down to 1.", "If 6! = 720, what is the remainder when 6! is divided by 7?", "6", "720 = 7 × 102 + 6, so the remainder is 6."),
             ]
             if variant >= len(activities):
-                numerator = variant + 20
-                answer = sum(numerator // (5 ** power) for power in range(1, 8) if 5 ** power <= numerator)
-                return (
-                    "Trailing zeroes come from factors of 10, so count pairs of 2s and 5s in the factorial.",
-                    f"Without expanding it, how many trailing zeroes does {numerator}! have?",
-                    str(answer),
-                    f"Count factors of 5: floor({numerator}/5) + floor({numerator}/25) + ... = {answer}.",
-                )
+                extra_puzzles = [
+                    ("Without expanding it, how many trailing zeroes does 25! have?", "6", "Count factors of 5: floor(25/5) + floor(25/25) = 5 + 1 = 6."),
+                    ("A student says 0! = 0 because zero appears in its name. What is 0! by definition?", "1", "The empty product is defined as 1, which keeps factorial rules consistent."),
+                    ("Complete the unrolling: 7! = 7 × 6 × ___.", "5!", "Since 6! = 6 × 5!, then 7! = 7 × 6 × 5!."),
+                    ("How many factors are in the fully expanded product 8 × 7 × 6 × 5 × 4 × 3 × 2 × 1?", "8", "There is one factor for each whole number from 8 down to 1."),
+                    ("True or false: the jump from 6! to 7! multiplies the value by 7.", "True", "The recurrence is 7! = 7 × 6!."),
+                ]
+                fact, answer, explanation = extra_puzzles[variant - len(activities)]
+                return "Use factorial structure rather than expanding a long product.", fact, answer, explanation
             return choose(activities)
         activities = [
             (
@@ -155,14 +157,15 @@ def _question_activity(concept: str, topic: str, page_context: str = "", variant
             ("For an ordered selection, reduce the number of choices after each pick.", "How many ordered pairs can be chosen from six different objects?", "30", "There are 6 choices first and 5 second: 6 x 5 = 30."),
         ]
         if variant >= len(activities):
-            finalists = variant + 7
-            answer = math.perm(finalists, 3)
-            return (
-                "When order matters, the same people in different roles count as different outcomes.",
-                f"{finalists} finalists compete for gold, silver and bronze. How many podiums are possible?",
-                f"{answer:,}",
-                f"The places are ordered: {finalists}P3 = {finalists} x {finalists - 1} x {finalists - 2} = {answer:,}.",
-            )
+            ordered_puzzles = [
+                ("Kai earns gold and Noor earns silver. Would swapping their medals be the same podium?", "No", "Gold and silver are distinct positions, so the order changes the result."),
+                ("A code uses A, B and C once each. Is ABC the same code as BAC?", "No", "Codes are ordered; changing the position changes the code."),
+                ("For a race podium, why does swapping first and second place create a new outcome?", "The roles are different", "A gold-medal result differs from a silver-medal result."),
+                ("A, B and C are assigned to president, secretary and treasurer. Does changing the assignment matter?", "Yes", "Each role is distinct, so a different order is a different assignment."),
+                ("A seating chart is read from left to right. Would reversing the row usually create a new arrangement?", "Yes", "The objects occupy different ordered positions."),
+            ]
+            fact, answer, explanation = ordered_puzzles[(variant - len(activities)) % len(ordered_puzzles)]
+            return "In an arrangement, position or role changes the outcome.", fact, answer, explanation
         return choose(activities)
     if any(word in text for word in ("probability", "chance", "random")):
         activities = [
@@ -245,14 +248,41 @@ def _activity_for(concept: str, topic: str, page_context: str = "", variant: int
 
     if kind == "fact":
         if any(word in text for word in ("factorial", "permutation", "arrangement", "combinatoric", "combination")):
-            n = 8 + serial
-            fact = f"{n}! = {math.factorial(n):,} — factorials grow faster than most people expect."
+            facts = [
+                "10! is 3,628,800, so factorials become enormous surprisingly quickly.",
+                "0! equals 1: the empty product has to act as the multiplication identity.",
+                "Every new factorial multiplies the previous one by the next whole number.",
+                "5! counts the 120 possible orders of five distinct objects in a line.",
+                "Once n is at least 2, n! is even because its product contains a factor of 2.",
+                "The number of trailing zeroes in 25! is 6: five factors of 5, plus one more from 25.",
+                "For r objects chosen and ordered from n, nPr = n!/(n-r)!; the leftover factorial cancels.",
+                "A circular arrangement of n distinct people has (n-1)! orders because rotations repeat.",
+            ]
+            fact = facts[serial % len(facts)]
         elif any(word in text for word in ("probability", "chance", "random")):
-            total = 6 + serial
-            fact = f"For a fair spinner numbered 1 to {total}, each number has probability 1/{total}."
+            facts = [
+                "A probability of 0 means impossible; a probability of 1 means certain.",
+                "The probabilities of all outcomes in a complete sample space add to 1.",
+                "For a fair coin, yesterday's result does not change the next toss.",
+                "Complementary events have probabilities that add to 1.",
+                "If two events cannot happen together, they are mutually exclusive.",
+                "An outcome can belong to several events, even though it occurs only once.",
+                "For equally likely outcomes, probability is a count of favourable outcomes divided by the total.",
+                "A probability is a number from 0 to 1, inclusive; it is never a percentage above 100%.",
+            ]
+            fact = facts[serial % len(facts)]
         elif "binomial" in text:
-            power = 4 + serial
-            fact = f"The coefficients in row {power} of Pascal's triangle add to 2^{power} = {2 ** power}."
+            facts = [
+                "Pascal's triangle starts with 1, and each inside entry adds the two above it.",
+                "The rows of Pascal's triangle read the same forwards and backwards.",
+                "The coefficients in row n add to 2^n, the number of subsets of n items.",
+                "The first and last coefficient in every Pascal row are 1.",
+                "Binomial coefficients count which factors contribute a chosen term in an expansion.",
+                "The middle coefficient is largest in an even-numbered row of Pascal's triangle.",
+                "Pascal's triangle can be built without expanding any brackets.",
+                "Each new row in Pascal's triangle begins and ends with 1.",
+            ]
+            fact = facts[serial % len(facts)]
         else:
             start = serial + 1
             fact = f"The sequence {start}, {start + 2}, {start + 4}, ... has a constant difference of 2."
@@ -276,9 +306,30 @@ def _activity_for(concept: str, topic: str, page_context: str = "", variant: int
 
     # The visual cards are drawn with ReportLab vector shapes, so they remain
     # crisp in print and never depend on an external image or opaque label.
+    if "circle" in text or "circular" in text:
+        circle_captions = [
+            "Anchor one seat to see why rotations are duplicates.",
+            "Follow each neighbour clockwise around a circular table.",
+            "A mirror image reverses the order; a rotation does not.",
+            "Six seats, one fixed person, and five positions left to fill.",
+            "Trace the same seating from a different starting chair.",
+            "Compare clockwise order with its reflected arrangement.",
+            "A circular arrangement has no special first seat.",
+            "Rotate the table: the relative seating stays unchanged.",
+        ]
+        return circle_captions[serial % len(circle_captions)], circle_captions[serial % len(circle_captions)], "", ""
     if any(word in text for word in ("factorial", "permutation", "arrangement", "combinatoric", "combination")):
-        n = 4 + serial
-        caption = f"A countdown view of {n}!"
+        visual_captions = [
+            "Unroll a factorial one factor at a time.",
+            "Compare how quickly consecutive factorial values grow.",
+            "Watch the available choices shrink across five positions.",
+            "Match each factorial to its evaluated value.",
+            "Build an arrangement count from the choices at each position.",
+            "See how adding one object multiplies the previous total.",
+            "Split a factorial into a short product and a smaller factorial.",
+            "Follow the branching choices for ordering four objects.",
+        ]
+        caption = visual_captions[serial % len(visual_captions)]
     elif any(word in text for word in ("probability", "chance", "random")):
         n = 5 + serial
         caption = f"A sample space with {n} equally likely outcomes"
@@ -400,9 +451,9 @@ def _draw_activity_panel(
         visual_bottom = body_bottom + 8
         visual_height = max(0, visual_top - visual_bottom)
         if visual_height >= 38:
-            _draw_math_doodle(
+            _draw_pun_visual(
                 page_canvas, x + width / 2, (visual_top + visual_bottom) / 2,
-                serial, radius=min(48, visual_height * 0.34),
+                serial, width=min(240, width - 40), height=visual_height,
             )
     else:
         page_canvas.setFillColor(muted)
@@ -411,7 +462,10 @@ def _draw_activity_panel(
         caption = Paragraph(challenge, main_style)
         _, caption_height = caption.wrap(inner_width, 34)
         caption.drawOn(page_canvas, x + 14, body_bottom + 3)
-        _draw_mini_visual(page_canvas, x, width, body_top - 12, body_bottom + caption_height + 14, concept, topic, serial)
+        _draw_mini_visual(
+            page_canvas, x, width, body_top - 12, body_bottom + caption_height + 14,
+            concept, topic, serial, mode="picture",
+        )
 
 
 def _draw_mini_visual(page_canvas, x, width, top, bottom, concept, topic, serial, mode="steps", activity_text=""):
@@ -451,7 +505,7 @@ def _draw_mini_visual(page_canvas, x, width, top, bottom, concept, topic, serial
         page_canvas.drawCentredString(center_x, row_y - 31, caption)
         return
 
-    if mode == "steps" and "circular" in text:
+    if mode in ("steps", "picture") and ("circular" in text or "circle" in text):
         radius = min(52, max(28, available * 0.30))
         center_y = bottom + available * 0.54
         page_canvas.setStrokeColor(stroke)
@@ -465,10 +519,41 @@ def _draw_mini_visual(page_canvas, x, width, top, bottom, concept, topic, serial
             page_canvas.setFillColor(colors.HexColor("#25345B"))
             page_canvas.setFont("Helvetica-Bold", 7.5)
             page_canvas.drawCentredString(cx, cy - 2.5, str(i + 1))
+        if mode == "picture":
+            page_canvas.setFillColor(colors.HexColor("#596B9D"))
+            page_canvas.setFont("Helvetica-Oblique", 8.5)
+            labels = ["Anchor one seat.", "Track neighbour order.", "Rotation keeps the order.",
+                      "A reflection reverses it.", "There is no first seat.", "Same neighbours, new view.",
+                      "Fix a chair, then count.", "Turn the table, not the seating."]
+            page_canvas.drawCentredString(center_x, center_y - radius - 18, labels[serial % len(labels)])
         return
 
     if any(word in text for word in ("factorial", "permutation", "arrangement", "combinatoric", "combination")):
-        if mode == "growth":
+        if mode == "picture" and serial != 0:
+            _draw_factorial_picture(page_canvas, center_x, mid_y, width, available, serial, fills, stroke)
+        elif mode == "growth" or (mode == "picture" and serial == 0):
+            if mode == "picture":
+                # The first visual variant is the clear vertical countdown.
+                labels = ["5!", "5 × 4!", "5 × 4 × 3!"]
+                rows = 3 if available >= 140 else 2 if available >= 88 else 1
+                row_gap = min(90, available / (rows + 1))
+                for i, label in enumerate(labels[:rows]):
+                    y = top - row_gap * (i + 1)
+                    box_width = min(width - 48, max(170, len(label) * 9 + 48))
+                    page_canvas.setFillColor(fills[i % len(fills)])
+                    page_canvas.roundRect(center_x - box_width / 2, y - 15, box_width, 30, 7, stroke=1, fill=1)
+                    page_canvas.setFillColor(colors.HexColor("#25345B"))
+                    page_canvas.setFont("Helvetica-Bold", 11)
+                    page_canvas.drawCentredString(center_x, y - 4, label)
+                    if i < rows - 1:
+                        page_canvas.setStrokeColor(stroke)
+                        page_canvas.line(center_x, y - 18, center_x, y - row_gap + 20)
+                        page_canvas.line(center_x, y - row_gap + 20, center_x - 3, y - row_gap + 25)
+                        page_canvas.line(center_x, y - row_gap + 20, center_x + 3, y - row_gap + 25)
+                page_canvas.setFillColor(colors.HexColor("#596B9D"))
+                page_canvas.setFont("Helvetica-Oblique", 8.5)
+                page_canvas.drawCentredString(center_x, bottom + 2, "Unroll one factor at a time.")
+                return
             base_y = bottom + 20
             chart_height = max(10, min(available - 28, 125))
             values = [(5, 120), (6, 720), (7, 5040), (8, 40320)]
@@ -551,21 +636,204 @@ def _draw_mini_visual(page_canvas, x, width, top, bottom, concept, topic, serial
             page_canvas.drawCentredString(bx, mid_y - 3, label)
 
 
-def _draw_math_doodle(page_canvas, center_x, center_y, serial, radius=None):
+def _draw_factorial_picture(page_canvas, center_x, center_y, width, height, serial, fills, stroke):
+    """Render varied factorial visual explainers instead of a number-swapped template."""
     page_canvas.saveState()
-    page_canvas.setStrokeColor(colors.HexColor("#A6B3DA"))
-    page_canvas.setFillColor(colors.HexColor("#E7ECFA"))
+    page_canvas.setStrokeColor(stroke)
     page_canvas.setLineWidth(1.2)
-    radius = radius or 18 + serial % 3 * 2
-    page_canvas.circle(center_x, center_y, radius, stroke=1, fill=1)
-    page_canvas.setStrokeColor(colors.HexColor("#596B9D"))
-    for angle in range(0, 360, 60):
-        radians = math.radians(angle)
-        end_x = center_x + radius * 0.75 * math.cos(radians)
-        end_y = center_y + radius * 0.75 * math.sin(radians)
-        page_canvas.line(center_x, center_y, end_x, end_y)
-        page_canvas.setFillColor(colors.HexColor("#596B9D"))
-        page_canvas.circle(end_x, end_y, 2.2, stroke=0, fill=1)
+    ink = colors.HexColor("#25345B")
+    labels = ["5", "4", "3", "2", "1"]
+    if serial == 1:
+        # A compact value comparison chart.
+        values = [(3, 6), (4, 24), (5, 120), (6, 720)]
+        bar_w = 42
+        gap = min(72, (width - 100) / 3)
+        base = center_y - min(56, height * .30)
+        max_h = min(112, height * .56)
+        for i, (n, value) in enumerate(values):
+            cx = center_x + (i - 1.5) * gap
+            bar_h = max(9, max_h * value / 720)
+            page_canvas.setFillColor(fills[i % len(fills)])
+            page_canvas.roundRect(cx - bar_w / 2, base, bar_w, bar_h, 4, stroke=1, fill=1)
+            page_canvas.setFillColor(ink)
+            page_canvas.setFont("Helvetica-Bold", 8)
+            page_canvas.drawCentredString(cx, base - 12, f"{n}!")
+            page_canvas.setFont("Helvetica", 7.5)
+            page_canvas.drawCentredString(cx, base + bar_h + 4, f"{value:,}")
+    elif serial == 2:
+        # Choice slots shrink from left to right.
+        count = 5
+        gap = min(80, (width - 100) / (count - 1))
+        start_x = center_x - gap * (count - 1) / 2
+        for i, number in enumerate(range(count, 0, -1)):
+            cx = start_x + i * gap
+            page_canvas.setFillColor(fills[i % len(fills)])
+            page_canvas.roundRect(cx - 28, center_y - 22, 56, 44, 6, stroke=1, fill=1)
+            page_canvas.setFillColor(ink)
+            page_canvas.setFont("Helvetica-Bold", 10)
+            page_canvas.drawCentredString(cx, center_y + 2, f"{number} choices")
+            page_canvas.setFont("Helvetica", 8)
+            page_canvas.drawCentredString(cx, center_y - 12, f"slot {i + 1}")
+    elif serial == 3:
+        # Four matching cards pair factorials with their values.
+        pairs = [(3, 6), (4, 24), (5, 120), (6, 720)]
+        for i, (n, value) in enumerate(pairs):
+            row, col = divmod(i, 2)
+            cx = center_x + (col - .5) * min(150, width * .34)
+            cy = center_y + (.5 - row) * min(42, height * .23)
+            page_canvas.setFillColor(fills[i % len(fills)])
+            page_canvas.roundRect(cx - 62, cy - 14, 124, 28, 6, stroke=1, fill=1)
+            page_canvas.setFillColor(ink)
+            page_canvas.setFont("Helvetica-Bold", 10)
+            page_canvas.drawCentredString(cx, cy - 3, f"{n}! = {value}")
+    elif serial == 4:
+        # Product tiles show the factors individually.
+        gap = min(66, (width - 100) / 4)
+        start_x = center_x - 2 * gap
+        for i, factor in enumerate(labels):
+            cx = start_x + i * gap
+            page_canvas.setFillColor(fills[i % len(fills)])
+            page_canvas.circle(cx, center_y, 20, stroke=1, fill=1)
+            page_canvas.setFillColor(ink)
+            page_canvas.setFont("Helvetica-Bold", 12)
+            page_canvas.drawCentredString(cx, center_y - 4, factor)
+            if i < 4:
+                page_canvas.setFont("Helvetica", 11)
+                page_canvas.drawCentredString(cx + gap / 2, center_y - 4, "×")
+    elif serial == 5:
+        # A horizontal chain demonstrates recursive reduction.
+        items = ["5!", "5 × 4!", "5 × 4 × 3!"]
+        gap = min(155, (width - 90) / 2)
+        for i, item in enumerate(items):
+            cx = center_x + (i - 1) * gap
+            page_canvas.setFillColor(fills[i % len(fills)])
+            page_canvas.roundRect(cx - 51, center_y - 18, 102, 36, 7, stroke=1, fill=1)
+            page_canvas.setFillColor(ink)
+            page_canvas.setFont("Helvetica-Bold", 10)
+            page_canvas.drawCentredString(cx, center_y - 4, item)
+            if i < 2:
+                end_x = cx + gap - 56
+                page_canvas.setStrokeColor(stroke)
+                page_canvas.line(cx + 54, center_y, end_x, center_y)
+                page_canvas.line(end_x - 5, center_y + 4, end_x, center_y)
+                page_canvas.line(end_x - 5, center_y - 4, end_x, center_y)
+    elif serial == 6:
+        # A number line highlights factorial jumps rather than just listing them.
+        values = [(1, "1!"), (2, "2!"), (6, "3!"), (24, "4!"), (120, "5!")]
+        left = center_x - min(width * .40, 205)
+        right = center_x + min(width * .40, 205)
+        y = center_y
+        page_canvas.setStrokeColor(stroke)
+        page_canvas.line(left, y, right, y)
+        for i, (_, label) in enumerate(values):
+            cx = left + (right - left) * i / (len(values) - 1)
+            page_canvas.setFillColor(fills[i % len(fills)])
+            page_canvas.circle(cx, y, 10, stroke=1, fill=1)
+            page_canvas.setFillColor(ink)
+            page_canvas.setFont("Helvetica-Bold", 8)
+            page_canvas.drawCentredString(cx, y - 25, label)
+    else:
+        # A branching arrangement tree shows the shrinking choice count.
+        top_y = center_y + min(48, height * .25)
+        levels = [[(center_x, top_y, "5")],
+                  [(center_x - 84, center_y + 5, "4"), (center_x + 84, center_y + 5, "4")],
+                  [(center_x - 130, center_y - 42, "3"), (center_x - 43, center_y - 42, "3"),
+                   (center_x + 43, center_y - 42, "3"), (center_x + 130, center_y - 42, "3")]]
+        previous = levels[0][0]
+        for node in levels[1]:
+            page_canvas.setStrokeColor(stroke)
+            page_canvas.line(previous[0], previous[1] - 8, node[0], node[1] + 8)
+        for row, level in enumerate(levels):
+            for cx, cy, label in level:
+                page_canvas.setFillColor(fills[row % len(fills)])
+                page_canvas.circle(cx, cy, 11, stroke=1, fill=1)
+                page_canvas.setFillColor(ink)
+                page_canvas.setFont("Helvetica-Bold", 8)
+                page_canvas.drawCentredString(cx, cy - 3, label)
+    page_canvas.restoreState()
+
+
+def _draw_pun_visual(page_canvas, center_x, center_y, serial, width=180, height=100):
+    """Draw a visual that explains the punchline instead of an unrelated starburst."""
+    page_canvas.saveState()
+    ink = colors.HexColor("#596B9D")
+    pale = colors.HexColor("#E7ECFA")
+    accent = colors.HexColor("#7285C2")
+    page_canvas.setStrokeColor(ink)
+    page_canvas.setFillColor(pale)
+    page_canvas.setLineWidth(2)
+    if serial == 0:
+        for y, text in ((center_y + 14, "A B C"), (center_y - 16, "B A C")):
+            page_canvas.setFillColor(ink)
+            page_canvas.setFont("Helvetica-Bold", 14)
+            page_canvas.drawCentredString(center_x, y, text)
+        page_canvas.setFillColor(ink)
+        page_canvas.setFont("Helvetica-Bold", 12)
+        page_canvas.drawCentredString(center_x + 70, center_y, "not =")
+    elif serial == 1:
+        page_canvas.roundRect(center_x - 74, center_y - 22, 62, 44, 9, stroke=1, fill=1)
+        page_canvas.roundRect(center_x + 12, center_y - 22, 62, 44, 9, stroke=1, fill=1)
+        page_canvas.setFillColor(ink)
+        page_canvas.setFont("Helvetica-Bold", 11)
+        page_canvas.drawCentredString(center_x - 43, center_y - 4, "A, B")
+        page_canvas.drawCentredString(center_x + 43, center_y - 4, "B, A")
+        page_canvas.drawCentredString(center_x, center_y - 4, "=")
+    elif serial == 2:
+        page_canvas.setFillColor(ink)
+        page_canvas.setFont("Helvetica-Bold", 15)
+        page_canvas.drawCentredString(center_x, center_y + 16, "5!")
+        page_canvas.setStrokeColor(accent)
+        page_canvas.line(center_x - 78, center_y + 2, center_x + 78, center_y + 2)
+        page_canvas.setFillColor(ink)
+        page_canvas.setFont("Helvetica-Bold", 12)
+        page_canvas.drawCentredString(center_x, center_y - 20, "5 × 4 × 3 × 2 × 1")
+    elif serial == 3:
+        path = page_canvas.beginPath()
+        path.moveTo(center_x, center_y)
+        path.curveTo(center_x - 72, center_y + 62, center_x - 72, center_y - 62, center_x, center_y)
+        path.curveTo(center_x + 72, center_y + 62, center_x + 72, center_y - 62, center_x, center_y)
+        page_canvas.setStrokeColor(accent)
+        page_canvas.drawPath(path, stroke=1, fill=0)
+        page_canvas.setFillColor(ink)
+        page_canvas.setFont("Helvetica-Bold", 14)
+        page_canvas.drawCentredString(center_x, center_y - 5, "INFINITE")
+    elif serial == 4:
+        page_canvas.setStrokeColor(ink)
+        page_canvas.line(center_x - 90, center_y + 13, center_x + 90, center_y + 13)
+        page_canvas.line(center_x - 90, center_y - 13, center_x + 90, center_y - 13)
+        page_canvas.setFillColor(ink)
+        page_canvas.setFont("Helvetica-Bold", 10)
+        page_canvas.drawCentredString(center_x, center_y - 4, "NEVER MEET")
+    elif serial == 5:
+        page_canvas.setFillColor(ink)
+        page_canvas.setFont("Helvetica-Bold", 22)
+        page_canvas.drawCentredString(center_x - 48, center_y - 8, "7")
+        page_canvas.drawCentredString(center_x + 48, center_y - 8, "9")
+        page_canvas.setFillColor(colors.HexColor("#FCE5EA"))
+        page_canvas.circle(center_x, center_y, 20, stroke=1, fill=1)
+        page_canvas.setFillColor(ink)
+        page_canvas.setFont("Helvetica-Bold", 11)
+        page_canvas.drawCentredString(center_x, center_y - 4, "8")
+    elif serial == 6:
+        page_canvas.roundRect(center_x - 53, center_y - 34, 106, 68, 8, stroke=1, fill=1)
+        page_canvas.setFillColor(colors.white)
+        page_canvas.roundRect(center_x - 42, center_y + 7, 84, 17, 3, stroke=0, fill=1)
+        page_canvas.setFillColor(ink)
+        page_canvas.setFont("Helvetica-Bold", 13)
+        page_canvas.drawCentredString(center_x, center_y + 11, "0")
+        for row in range(2):
+            for col in range(3):
+                page_canvas.setFillColor(accent)
+                page_canvas.circle(center_x - 22 + col * 22, center_y - 9 - row * 17, 4, stroke=0, fill=1)
+    else:
+        page_canvas.circle(center_x, center_y, 34, stroke=1, fill=0)
+        page_canvas.setFillColor(ink)
+        page_canvas.setFont("Helvetica-Bold", 11)
+        page_canvas.drawCentredString(center_x, center_y - 4, "PUNCHLINE")
+        page_canvas.setStrokeColor(accent)
+        page_canvas.line(center_x + 22, center_y + 26, center_x + 40, center_y + 40)
+        page_canvas.line(center_x + 40, center_y + 40, center_x + 37, center_y + 31)
+        page_canvas.line(center_x + 40, center_y + 40, center_x + 30, center_y + 39)
     page_canvas.restoreState()
 
 
