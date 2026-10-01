@@ -19,71 +19,109 @@ PAGE_MARGIN = 54.0
 MAX_PANEL_RATIO = 0.72
 
 
-def _activity_for(concept: str, topic: str, page_context: str = "") -> Tuple[str, str, str, str]:
+def _activity_for(concept: str, topic: str, page_context: str = "", variant: int = 0) -> Tuple[str, str, str, str]:
     """Return a checked fact, challenge, answer, and answer explanation."""
     text = f"{concept} {topic} {page_context}".lower()
+    def choose(items):
+        return items[variant % len(items)]
     if any(word in text for word in ("factorial", "permutation", "arrangement", "combinatoric")):
         if "letters" in text and any(word in text for word in ("word", "repeated", "together")):
-            return (
+            return choose([
+                (
                 "Repeated letters are indistinguishable, so divide by the factorial of each repeated count.",
                 "How many distinct arrangements can be made from the letters in BANANA?",
                 "60",
                 "There are 6 letters, with A repeated 3 times and N repeated twice: 6!/(3!2!) = 60.",
-            )
+                ),
+                ("Repeated letters are counted once by dividing out their repeated factorials.", "How many distinct arrangements can be made from LEVEL?", "30", "LEVEL has 5 letters, with L and E each repeated twice: 5!/(2!2!) = 30."),
+                ("A repeated letter does not create a new arrangement when identical copies swap.", "How many distinct arrangements can be made from MAMA?", "6", "There are 4 letters with M and A each repeated twice: 4!/(2!2!) = 6."),
+            ])
         if any(word in text for word in ("together", "adjacent", "gap")):
-            return (
+            return choose([
+                (
                 "Grouping items together turns the group into one unit before you arrange the units.",
                 "Four friends and three siblings sit in a row. How many arrangements keep the siblings together?",
                 "720",
                 "Arrange the five units in 5! ways, then the siblings in 3! ways: 5! x 3! = 720.",
-            )
+                ),
+                ("Treat the required adjacent pair as one block, then arrange the block and remaining people.", "Five students line up. How many arrangements keep Ava and Ben together?", "48", "Treat Ava and Ben as one block: 4! ways to arrange the units and 2! ways within the block, so 4! x 2 = 48."),
+                ("A block can be arranged internally after its position among the other units is chosen.", "Six books are arranged in a row. How many arrangements keep two particular books together?", "240", "Treat the pair as one unit: 5! x 2! = 240."),
+            ])
         if "circle" in text or "circular" in text:
-            return (
+            return choose([
+                (
                 "At a round table, rotating everyone together does not create a new arrangement.",
                 "Six friends sit around a circular table. How many distinct arrangements are there?",
                 "120",
                 "Fix one friend as an anchor, then arrange the other five: 5! = 120.",
-            )
+                ),
+                ("For circular arrangements, fix one person to remove rotations that represent the same seating.", "How many ways can seven people sit around a round table?", "720", "Fix one person, then arrange the other six: 6! = 720."),
+                ("A circular arrangement of n distinct people has (n-1)! rotations.", "How many distinct circular arrangements are there for five people?", "24", "Fix one person and arrange the remaining four: 4! = 24."),
+            ])
         if any(word in text for word in ("combination", "unordered", "selection")):
-            return (
+            return choose([
+                (
                 "For a committee, swapping two members does not make a new committee.",
                 "Choose a 3-person team from 8 students. How many teams can be formed?",
                 "56",
                 "Order does not matter, so use 8C3 = 8!/(3!5!) = 56.",
-            )
+                ),
+                ("A selection is unordered, so use combinations rather than permutations.", "Choose 2 students from a group of 9. How many pairs are possible?", "36", "9C2 = 9 x 8 / 2 = 36."),
+                ("Count each group once, regardless of the order in which its members are chosen.", "A club selects 4 people from 10 volunteers. How many groups can it form?", "210", "10C4 = 10!/(4!6!) = 210."),
+            ])
         if "factorial" in text:
-            return (
+            return choose([
+                (
                 "Factorials grow quickly: 10! is already 3,628,800.",
-                "No calculator: simplify 9!/7!.",
+                "Without a calculator, simplify the ratio of nine factorial to seven factorial.",
                 "72",
-                "Cancel 7!: 9!/7! = 9 x 8 = 72.",
-            )
-        return (
+                "Cancel 7!: the ratio is 9 x 8 = 72.",
+                ),
+                ("A factorial ratio often simplifies by cancelling the smaller factorial.", "Without a calculator, simplify the ratio of eight factorial to six factorial.", "56", "Cancel 6!: the ratio is 8 x 7 = 56."),
+                ("Expand only as many factors as are needed to cancel the denominator.", "Without a calculator, simplify the ratio of ten factorial to eight factorial.", "90", "Cancel 8!: the ratio is 10 x 9 = 90."),
+            ])
+        return choose([
+            (
             "When order matters, assigning the same people to different roles changes the outcome.",
             "Seven finalists compete for gold, silver and bronze. How many podiums are possible?",
             "210",
             "The three places are ordered: 7P3 = 7 x 6 x 5 = 210.",
-        )
+            ),
+            ("Permutations count selections where different orders represent different outcomes.", "How many ways can four students be assigned president and vice-president from a group of ten?", "90", "There are 10 choices for president and 9 for vice-president: 10 x 9 = 90."),
+            ("For an ordered selection, reduce the number of choices after each pick.", "How many ordered pairs can be chosen from six different objects?", "30", "There are 6 choices first and 5 second: 6 x 5 = 30."),
+        ])
     if any(word in text for word in ("probability", "chance", "random")):
-        return (
+        return choose([
+            (
             "A probability is always between 0 and 1, inclusive.",
             "A bag has 4 red and 6 blue counters. What is the chance of drawing red?",
             "2/5",
             "There are 4 red counters out of 10 equally likely counters: 4/10 = 2/5.",
-        )
+            ),
+            ("The probabilities of all outcomes in a complete sample space add to 1.", "A fair coin is tossed twice. What is the probability of two heads?", "1/4", "The equally likely outcomes are HH, HT, TH and TT; only HH works."),
+            ("For equally likely outcomes, probability is favourable outcomes divided by total outcomes.", "A fair six-sided die is rolled. What is the probability of an even result?", "1/2", "Three of the six outcomes are even, so 3/6 = 1/2."),
+        ])
     if "binomial" in text:
-        return (
+        return choose([
+            (
             "The coefficients in each row of Pascal's triangle add to a power of 2.",
             "What is the coefficient of x^2 in (x + 2)^4?",
             "24",
             "Choose two x factors and two 2 factors: 4C2 x 2^2 = 6 x 4 = 24.",
-        )
-    return (
+            ),
+            ("The general term in a binomial expansion combines a choose coefficient with powers of each term.", "What is the coefficient of x in (x + 3)^3?", "27", "Choose one x: 3C1 x 3^2 = 27."),
+            ("Pascal's triangle gives the coefficients for powers of a binomial.", "What is the coefficient of x^2 in (x + 1)^5?", "10", "The coefficient is 5C2 = 10."),
+        ])
+    return choose([
+        (
         "Look for a pattern in the differences between consecutive terms.",
         "What number comes next: 1, 2, 4, 7, 11, ...?",
         "16",
         "The differences are 1, 2, 3, 4, so add 5 next: 11 + 5 = 16.",
-    )
+        ),
+        ("A constant second difference often signals a quadratic sequence.", "What number comes next: 2, 5, 10, 17, ...?", "26", "The differences are 3, 5, 7; add 9 next to get 26."),
+        ("Check whether each term is made by multiplying the previous term by a fixed number.", "What number comes next: 3, 6, 12, 24, ...?", "48", "Each term doubles, so 24 x 2 = 48."),
+    ])
 
 
 def _page_text_and_lowest_body_y(page) -> Tuple[str, Optional[float]]:
@@ -108,8 +146,9 @@ def _draw_activity_panel(
     concept: str,
     topic: str,
     page_context: str,
+    variant: int = 0,
 ) -> None:
-    fact, challenge, answer, explanation = _activity_for(concept, topic, page_context)
+    fact, challenge, answer, explanation = _activity_for(concept, topic, page_context, variant)
     x = PAGE_MARGIN
     width = page_width - 2 * PAGE_MARGIN
     top = panel_bottom + panel_height
@@ -199,6 +238,8 @@ def fill_sparse_private_theory_pages(pdf_bytes: bytes, booklet_data: Dict[str, A
         active_concept = ""
         topic = str(booklet_data.get("topic") or "Mathematics")
         changed = False
+        used_challenges = set()
+        activity_index = 0
 
         for index, original_page in enumerate(source.pages):
             text = page_texts[index]
@@ -230,10 +271,27 @@ def fill_sparse_private_theory_pages(pdf_bytes: bytes, booklet_data: Dict[str, A
                 output.add_page(original_page)
                 continue
 
+            # Pick a different checked activity for each inserted page. If a
+            # booklet has more sparse pages than available activities in that
+            # concept family, leave the remaining page clean instead of repeat.
+            selected = None
+            for variant_offset in range(3):
+                candidate = _activity_for(active_concept, topic, text, activity_index + variant_offset)
+                if candidate[1] not in used_challenges:
+                    selected = (variant_offset, candidate)
+                    break
+            if selected is None:
+                output.add_page(original_page)
+                continue
+            variant_offset, candidate = selected
+            used_challenges.add(candidate[1])
+            activity_index += 1
+
             overlay_buffer = BytesIO()
             overlay_canvas = canvas.Canvas(overlay_buffer, pagesize=(page_width, page_height))
             _draw_activity_panel(
-                overlay_canvas, page_width, PAGE_MARGIN, panel_height, active_concept, topic, text
+                overlay_canvas, page_width, PAGE_MARGIN, panel_height, active_concept, topic, text,
+                activity_index - 1 + variant_offset,
             )
             overlay_canvas.save()
             overlay_buffer.seek(0)

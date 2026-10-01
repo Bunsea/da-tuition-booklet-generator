@@ -1233,6 +1233,9 @@ class TestPdfGenerator(unittest.TestCase):
             ("Factorial examples", "5! 120 n! (n-2)!", ("5!", "120")),
             ("Circular seating", "Anchor (1 way) Chair 5", ("Anchor (1 way)", "Chair 5")),
             ("Sample space", "Sample Space Event", ("Sample Space", "Event")),
+            ("Podium arrangements", "Gold (1st) Silver (2nd) Bronze (3rd)", ("Gold (1st)", "Silver (2nd)", "Bronze (3rd)")),
+            ("Gap method", "Gap 1 U_1 Gap 2 U_2 Gap 3 U_3 Gap 4", ("Gap 1", "Gap 4", "U1", "U2", "U3")),
+            ("Factorial equation", "n! = 20(n-2)!", ("n!", "20(n−2)!")),
         ]
         concepts = []
         for name, labels, _ in diagram_cases:
@@ -1428,7 +1431,43 @@ class TestPdfGenerator(unittest.TestCase):
         self.assertIn(r"at (-2.0, 1.4) {\textbf{Quadrant 2}\\$(-,+)$};", cleaned)
         self.assertIn(r"at (-2.0, -2.6) {\textbf{Quadrant 3}\\$(-,-)$};", cleaned)
         self.assertIn(r"at (2.0, -1.4) {\textbf{Quadrant 4}\\$(+,-)$};", cleaned)
-        self.assertIn(r"fill=white", cleaned)
+        self.assertIn(r"fill=none", cleaned)
+        self.assertNotIn(r"fill=white", cleaned)
+
+    def test_combinatorics_crowded_diagrams_are_replaced_with_spaced_layouts(self):
+        podium = pdf_generator.sanitize_tikz_diagram(
+            r"\begin{tikzpicture}\node {Gold (1st) Silver (2nd) Bronze (3rd)};\end{tikzpicture}"
+        )
+        self.assertIn("Gold (1st)", podium)
+        self.assertIn("Silver (2nd)", podium)
+        self.assertIn("Bronze (3rd)", podium)
+        self.assertIn("at (-1.4,0.4)", podium)
+
+        gaps = pdf_generator.sanitize_tikz_diagram(
+            r"\begin{tikzpicture}\node {Gap 1 U_1 Gap 2 U_2 Gap 3 U_3 Gap 4};\end{tikzpicture}"
+        )
+        self.assertIn("at (9.3,0)", gaps)
+        self.assertIn("at (7.75,0)", gaps)
+
+        factorial = pdf_generator.sanitize_tikz_diagram(
+            r"\begin{tikzpicture}\node {$n!=20(n-2)!$};\end{tikzpicture}"
+        )
+        self.assertIn(r"$20(n-2)!$", factorial)
+        self.assertNotIn(r"fill=white", factorial)
+
+        transparent = pdf_generator.sanitize_tikz_diagram(
+            r"\begin{tikzpicture}\node[fill=white,fill opacity=0.9] {\colorbox{white}{$(A,B)$}};\end{tikzpicture}"
+        )
+        self.assertNotIn(r"\colorbox{white}", transparent)
+        self.assertNotIn("fill=white", transparent)
+        self.assertIn("$(A,B)$", transparent)
+
+    def test_solution_letter_frequency_tally_is_compact(self):
+        formatted = pdf_generator.format_latex_solution_steps(
+            "STATISTICS has 10 letters:\nS:\n3\nT:\n3\nI:\n2\nA:\n1\nC:\n1"
+        )
+        self.assertIn("Letter frequencies: S: 3, T: 3, I: 2, A: 1, C: 1", formatted)
+        self.assertLess(formatted.count(r"\par"), 3)
 
     def test_format_practice_difficulty_all_five_tiers(self):
         """Verify modern pedagogical tier formatting for all 5 tiers (Section 1 through 4 + Exam Style)."""

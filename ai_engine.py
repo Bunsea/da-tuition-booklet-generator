@@ -3936,7 +3936,7 @@ REQUIREMENTS FOR EACH CONCEPT:
           * Superannuation: Explain super as compulsory employer retirement investments (11.5% super guarantee). Contrast asset risk vs return: Cash (lowest risk, preserves capital) vs Balanced (moderate risk/growth, default fund) vs High Growth (shares/property, highest long-term growth, higher volatility).
         - Timelines & Diagram Spacing: In any TikZ timeline (e.g. credit card cycles, compounding periods), use a wide axis (11cm to 12cm) and stacked, double-tiered brackets (e.g. `raise=4pt` for sub-periods and `raise=24pt` for overall period) so text labels NEVER collide or overlap.
       * All TikZ code must be clean, 100% syntactically valid LaTeX.
-      * Descriptive labels on coordinate axes (e.g. 'Single intersection', 'Vertical Line', 'Turning point') must use `above right=3pt` or `above=3pt` with `fill=white, fill opacity=0.9, inner sep=1.5pt` so the axis line never cuts through the text and never collides with arrow tips. Circular seating labels must instead have no fill and sit outside the table.
+      * Descriptive labels on coordinate axes (e.g. 'Single intersection', 'Vertical Line', 'Turning point') must use `above right=3pt` or `above=3pt`, with no fill so the page watermark shows through. Circular seating labels must have no fill and sit outside the table.
 
 2. TEACHER DEMONSTRATION EXAMPLES ({total_teacher_examples} TOTAL PER CONCEPT - MANDATORY):
    For EACH concept, provide exactly {total_teacher_examples} worked demonstration examples:
@@ -5204,7 +5204,7 @@ CRITICAL DESIGN DIRECTIVES (SELF-LEARNING TUITION GUIDE • COMPREHENSIVE & INTU
    - TikZ must be 100% syntactically clean LaTeX enclosed in \\begin{{center}}\\begin{{tikzpicture}}...\\end{{tikzpicture}}\\end{{center}}.
    - VERTICAL LINE TEST TIKZ RULES:
      * NEVER place the vertical test line along the y-axis ($x = 0$)! Always offset the vertical test line to $x = 1$ or $x = 2$ where it intersects the curve clearly.
-     * For the test line label, ALWAYS place it with `node[above=3pt, red, fill=white, inner sep=1.5pt] {{$x = 1$}};` so it never collides with any axis arrow tip or axis label.
+     * For the test line label, place it with `node[above=3pt, red, fill=none, inner sep=1.5pt] {{$x = 1$}};` and keep it clear of axis arrow tips and labels.
      * Ensure the y-axis is clearly labeled with `node[above left] {{$y$}}` and x-axis with `node[right] {{$x$}}`.
    - GRAPH SCALING RULES:
      * For all function graphs, parabolas, cubics, quartics, hyperbolas, and circles, ALWAYS BALANCE AXIS SCALING on \\begin{{tikzpicture}}[x=...cm, y=...cm]:
@@ -5212,7 +5212,7 @@ CRITICAL DESIGN DIRECTIVES (SELF-LEARNING TUITION GUIDE • COMPREHENSIVE & INTU
        - NEVER use default 1cm:1cm scaling when the y-values span more than 6 units (e.g. y from -12 to 8 with 1cm=1unit produces an absurd 20cm needle graph that ruins the page!).
        - Keep total diagram width between 6.0cm and 8.5cm, and total diagram height between 4.0cm and 5.2cm.
      * PREVENT ASYMPTOTE BLOWUPS: For hyperbolas and curves with asymptotes, use \\clip or domain restrictions so curves do not shoot off to infinity.
-     * LABEL COLLISION PREVENTION: Never place two labels with identical anchors near the origin. Use contrasting anchors (e.g. node[above right] vs node[below left]) and add fill=white, inner sep=1pt so labels never collide or get obscured.
+     * LABEL COLLISION PREVENTION: Never place two labels with identical anchors near the origin. Use contrasting anchors (e.g. node[above right] vs node[below left]), transparent label backgrounds (`fill=none`), and enough spacing that text never overlaps.
 
 STRICT LATEX & JSON FORMATTING:
 - Enclose all mathematical variables, expressions, and equations in single dollar signs $...$ (e.g. '$y = mx + b$', '$\\vec{{v}} = 3\\mathbf{{i}} - 4\\mathbf{{j}}$').

@@ -1,4 +1,5 @@
 import io
+import re
 import unittest
 
 import pypdfium2 as pdfium
@@ -19,7 +20,11 @@ def _sample_pdf(text_y):
 
 class TestPrivateTheoryPageFillers(unittest.TestCase):
     def test_selects_correct_activity_for_concept(self):
-        self.assertIn("9!/7!", _activity_for("Factorial notation", "Combinatorics")[1])
+        self.assertIn("nine factorial to seven factorial", _activity_for("Factorial notation", "Combinatorics")[1])
+        self.assertNotEqual(
+            _activity_for("Factorial notation", "Combinatorics", variant=0)[1],
+            _activity_for("Factorial notation", "Combinatorics", variant=1)[1],
+        )
         self.assertIn("team", _activity_for("Counting unordered selections", "Combinatorics")[1])
         self.assertIn("circular table", _activity_for("Arrangements in a circle", "Combinatorics")[1])
         self.assertIn("BANANA", _activity_for(
@@ -56,6 +61,21 @@ class TestPrivateTheoryPageFillers(unittest.TestCase):
         self.assertGreater(document[0].get_size()[1], 800)
         text = document[0].get_textpage().get_text_range()
         self.assertIn("Self-check: 72", text)
+
+    def test_sparse_pages_get_distinct_brain_breaks(self):
+        output = io.BytesIO()
+        page = canvas.Canvas(output, pagesize=A4)
+        for _ in range(2):
+            page.drawString(54, 430, "Concept A: Factorial notation")
+            page.showPage()
+        page.save()
+        result = fill_sparse_private_theory_pages(output.getvalue(), {
+            "topic": "Combinatorics",
+            "concepts": [{"name": "Factorial notation"}],
+        })
+        texts = [p.extract_text() for p in PdfReader(io.BytesIO(result)).pages]
+        challenges = [re.search(r"CHALLENGE\s+(.*?)\s+Self-check", t, re.S).group(1) for t in texts]
+        self.assertEqual(len(set(challenges)), 2)
 
 
 if __name__ == "__main__":

@@ -1962,6 +1962,39 @@ def format_latex_solution_steps(raw_sol: str) -> str:
     text_clean = re.sub(r"(?<!\\)\\\\\s*(?!\s*(?:\[|begin|end))", "\n", text_clean)
 
     lines = text_clean.split("\n")
+    # Compact the vertical letter-frequency tally often emitted by the model
+    # (for example ``S:\n3\nT:\n3``) into one readable line.
+    compacted_lines = []
+    i = 0
+    while i < len(lines):
+        match = re.fullmatch(r"\s*([A-Z]):\s*(\d+)?\s*", lines[i])
+        if not match:
+            compacted_lines.append(lines[i])
+            i += 1
+            continue
+        counts = []
+        start = i
+        while i < len(lines):
+            item = re.fullmatch(r"\s*([A-Z]):\s*(\d+)?\s*", lines[i])
+            if not item:
+                break
+            letter, count = item.groups()
+            i += 1
+            if count is None and i < len(lines) and re.fullmatch(r"\s*\d+\s*", lines[i]):
+                count = lines[i].strip()
+                i += 1
+            if count is None:
+                i = start
+                counts = []
+                break
+            counts.append(f"{letter}: {count}")
+        if len(counts) >= 3:
+            compacted_lines.append("Letter frequencies: " + ", ".join(counts) + ".")
+        else:
+            compacted_lines.extend(lines[start:i] if i > start else [lines[start]])
+            if i == start:
+                i += 1
+    lines = compacted_lines
     formatted_steps = []
     first_item = True
 
@@ -3177,6 +3210,37 @@ def strip_mc_options_from_text(text: str) -> str:
 
 def _replace_crowded_combinatorics_diagram(diag: str) -> Optional[str]:
     """Use measured layouts for recurring generated diagrams with colliding labels."""
+    # These compact topic diagrams are common sources of label collisions in
+    # generated combinatorics content. Replace them with spaced, measured layouts.
+    if re.search(r"Gold\s*\(?1st\)?", diag, re.IGNORECASE) and re.search(r"Silver\s*\(?2nd\)?", diag, re.IGNORECASE) and re.search(r"Bronze\s*\(?3rd\)?", diag, re.IGNORECASE):
+        return r"""\begin{tikzpicture}[x=1cm,y=1cm]
+\draw[fill=yellow!18,draw=black] (0,0) rectangle (2.2,1.25);
+\draw[fill=gray!15,draw=black] (-2.5,0) rectangle (-0.3,0.82);
+\draw[fill=orange!18,draw=black] (2.5,0) rectangle (4.7,0.55);
+\node[font=\small\bfseries] at (1.1,0.62) {Gold (1st)};
+\node[font=\small\bfseries] at (-1.4,0.4) {Silver (2nd)};
+\node[font=\small\bfseries] at (3.6,0.27) {Bronze (3rd)};
+\end{tikzpicture}"""
+
+    if re.search(r"Gap\s*1", diag, re.IGNORECASE) and re.search(r"U[_ ]?1", diag) and re.search(r"Gap\s*4", diag, re.IGNORECASE):
+        return r"""\begin{tikzpicture}[x=1cm,y=1cm]
+\node[draw=black,fill=yellow!20,minimum width=1.2cm,minimum height=0.65cm] at (0,0) {Gap 1};
+\node[draw=black,fill=gray!12,circle,minimum size=0.8cm] at (1.55,0) {$U_1$};
+\node[draw=black,fill=yellow!20,minimum width=1.2cm,minimum height=0.65cm] at (3.1,0) {Gap 2};
+\node[draw=black,fill=gray!12,circle,minimum size=0.8cm] at (4.65,0) {$U_2$};
+\node[draw=black,fill=yellow!20,minimum width=1.2cm,minimum height=0.65cm] at (6.2,0) {Gap 3};
+\node[draw=black,fill=gray!12,circle,minimum size=0.8cm] at (7.75,0) {$U_3$};
+\node[draw=black,fill=yellow!20,minimum width=1.2cm,minimum height=0.65cm] at (9.3,0) {Gap 4};
+\end{tikzpicture}"""
+
+    if re.search(r"20\s*\(?\s*n\s*[-−]\s*2\s*\)?\s*!", diag) and re.search(r"n\s*!", diag):
+        return r"""\begin{tikzpicture}[x=1cm,y=1cm]
+\node[draw=blue!60!black,fill=blue!10,rounded corners,minimum width=2cm,minimum height=0.9cm,font=\large] at (0,0) {$n!$};
+\node[font=\Large] at (2.0,0) {$=$};
+\node[draw=green!50!black,fill=green!10,rounded corners,minimum width=3.2cm,minimum height=0.9cm,font=\large] at (4.8,0) {$20(n-2)!$};
+\node[font=\small,align=center] at (2.4,-0.85) {Balance the two expressions};
+\end{tikzpicture}"""
+
     if ("5!" in diag and "120" in diag
             and re.search(r"n\s*!", diag)
             and re.search(r"n\s*[-−]\s*2", diag)):
@@ -3252,6 +3316,25 @@ def sanitize_tikz_diagram(diag: str) -> str:
         return ""
     s = str(diag).strip()
     s = _replace_crowded_combinatorics_diagram(s) or s
+    # LLMs sometimes add opaque white TeX color boxes around labels even when
+    # the surrounding TikZ node already has its own shape fill.
+    colorbox_pattern = re.compile(r"\\colorbox\s*\{\s*white\s*\}\s*\{")
+    while True:
+        match = colorbox_pattern.search(s)
+        if not match:
+            break
+        content_start = match.end()
+        depth = 1
+        cursor = content_start
+        while cursor < len(s) and depth:
+            if s[cursor] == "{" and (cursor == 0 or s[cursor - 1] != "\\"):
+                depth += 1
+            elif s[cursor] == "}" and (cursor == 0 or s[cursor - 1] != "\\"):
+                depth -= 1
+            cursor += 1
+        if depth:
+            break
+        s = s[:match.start()] + s[content_start:cursor - 1] + s[cursor:]
     # Australian English spelling
     s = re.sub(r'\bSynthesizer\b', 'Synthesiser', s, flags=re.IGNORECASE)
 
@@ -3264,10 +3347,10 @@ def sanitize_tikz_diagram(diag: str) -> str:
     # Fix Cartesian plane quadrant label collisions:
     # Stack the quadrant name and sign tuple vertically, add a semi-opaque background badge, and position away from axes and coordinate points
     quad_nodes = {
-        1: r"\node[align=center, font=\footnotesize, fill=white, fill opacity=0.85, text opacity=1, inner sep=1.5pt] at (1.8, 3.1) {\textbf{Quadrant 1}\\$(+,+)$};",
-        2: r"\node[align=center, font=\footnotesize, fill=white, fill opacity=0.85, text opacity=1, inner sep=1.5pt] at (-2.0, 1.4) {\textbf{Quadrant 2}\\$(-,+)$};",
-        3: r"\node[align=center, font=\footnotesize, fill=white, fill opacity=0.85, text opacity=1, inner sep=1.5pt] at (-2.0, -2.6) {\textbf{Quadrant 3}\\$(-,-)$};",
-        4: r"\node[align=center, font=\footnotesize, fill=white, fill opacity=0.85, text opacity=1, inner sep=1.5pt] at (2.0, -1.4) {\textbf{Quadrant 4}\\$(+,-)$};"
+        1: r"\node[align=center, font=\footnotesize, fill=none, inner sep=1.5pt] at (1.8, 3.1) {\textbf{Quadrant 1}\\$(+,+)$};",
+        2: r"\node[align=center, font=\footnotesize, fill=none, inner sep=1.5pt] at (-2.0, 1.4) {\textbf{Quadrant 2}\\$(-,+)$};",
+        3: r"\node[align=center, font=\footnotesize, fill=none, inner sep=1.5pt] at (-2.0, -2.6) {\textbf{Quadrant 3}\\$(-,-)$};",
+        4: r"\node[align=center, font=\footnotesize, fill=none, inner sep=1.5pt] at (2.0, -1.4) {\textbf{Quadrant 4}\\$(+,-)$};"
     }
     q_roman = {1: r"(?:1|I\b)", 2: r"(?:2|II\b)", 3: r"(?:3|III\b)", 4: r"(?:4|IV\b)"}
     for q_num, node_repl in quad_nodes.items():
@@ -3281,7 +3364,7 @@ def sanitize_tikz_diagram(diag: str) -> str:
         opts = m.group(2)
         suffix = m.group(3)
         if "fill=" not in opts:
-            opts = f"{opts}, fill=white, fill opacity=0.85, text opacity=1, inner sep=1pt" if opts else "fill=white, fill opacity=0.85, text opacity=1, inner sep=1pt"
+            opts = f"{opts}, fill=none, inner sep=1pt" if opts else "fill=none, inner sep=1pt"
         return f"{prefix}{opts}{suffix}"
     s = re.sub(r'((?:\\node|node)\s*\[)([^\]]*?)(\]\s*(?:at\s*\([^\)]*\)\s*)?\{(?:\$)?\([^\)]*\)(?:\$)?\};?)', _halo_node, s)
 
@@ -3299,7 +3382,7 @@ def sanitize_tikz_diagram(diag: str) -> str:
             opts = re.sub(r'\bright(?:\s*=\s*[^,\]]+)?\b', 'above right=3pt', opts)
             opts = re.sub(r'\bleft(?:\s*=\s*[^,\]]+)?\b', 'above left=3pt', opts)
         if "fill=" not in opts:
-            opts = f"{opts}, fill=white, fill opacity=0.92, text opacity=1, inner sep=1.5pt" if opts else "fill=white, fill opacity=0.92, text opacity=1, inner sep=1.5pt"
+            opts = f"{opts}, fill=none, inner sep=1.5pt" if opts else "fill=none, inner sep=1.5pt"
         return f"{prefix}[{opts}]{content}"
 
     s = re.sub(r'((?:\\node|node)\s*)\[([^\]]*?)\](\s*\{[^\}]+\})', _halo_text_node, s)
@@ -3310,7 +3393,7 @@ def sanitize_tikz_diagram(diag: str) -> str:
     def _halo_edge_label(m):
         prefix, opts, suffix = m.group(1), m.group(2), m.group(3)
         if "fill=" not in opts:
-            opts = f"{opts}, fill=white, fill opacity=0.92, text opacity=1, inner sep=1.2pt"
+            opts = f"{opts}, fill=none, inner sep=1.2pt"
         return f"{prefix}{opts}{suffix}"
 
     s = re.sub(
@@ -3326,13 +3409,29 @@ def sanitize_tikz_diagram(diag: str) -> str:
         opts = m.group(2)
         content = m.group(3)
         opts_clean = re.sub(r'\babove\s*(?:left)?\b', '', opts).strip(', ')
-        opts_clean = f'{opts_clean}, above right=4pt, fill=white, fill opacity=0.92, text opacity=1, inner sep=1.5pt' if opts_clean else 'above right=4pt, fill=white, fill opacity=0.92, text opacity=1, inner sep=1.5pt'
+        opts_clean = f'{opts_clean}, above right=4pt, fill=none, inner sep=1.5pt' if opts_clean else 'above right=4pt, fill=none, inner sep=1.5pt'
         return f'{prefix}{opts_clean}{content}'
 
     s = re.sub(r'((?:\\node|node)\s*\[)([^\]]*?)(\]\s*(?:at\s*\(\s*0(?:\.0+)?\s*,[^\)]*\)\s*)?\{(?:\$)?x\s*=\s*0(?:\$)?\}(?:;|\s))', _fix_vlt_node, s, flags=re.IGNORECASE)
 
     if re.search(r'x\s*=\s*0', s):
         s = re.sub(r'(node\s*\[)([^\]]*?\babove\b[^\]]*?)(\]\s*\{(?:\$)?y(?:\$)?\})', r'\1above left\3', s, flags=re.IGNORECASE)
+
+    # White node fills create opaque rectangles behind labels. Keep deliberate
+    # diagram shapes (nodes with borders) filled, while making text-only nodes
+    # transparent so diagrams share the page watermark cleanly.
+    def _transparent_text_node(match):
+        prefix, opts = match.group(1), match.group(2)
+        if re.search(r"\bdraw\s*=|\bdraw\b", opts):
+            return match.group(0)
+        opts = re.sub(r"\s*,?\s*fill\s*=\s*white\b", "", opts, flags=re.IGNORECASE)
+        opts = re.sub(r"\s*,?\s*fill\s+opacity\s*=\s*[\d.]+", "", opts, flags=re.IGNORECASE)
+        opts = re.sub(r"\s*,?\s*text\s+opacity\s*=\s*1\b", "", opts, flags=re.IGNORECASE)
+        opts = re.sub(r",\s*,", ",", opts).strip(" ,")
+        if "fill=" not in opts.lower():
+            opts = (opts + ", " if opts else "") + "fill=none"
+        return prefix + "[" + opts + "]"
+    s = re.sub(r"(node\s*)\[([^\]]*)\]", _transparent_text_node, s)
 
     # Auto-scale TikZ coordinates if large coordinate ranges are detected without explicit unit scaling
     coords = re.findall(r'\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)', s)
