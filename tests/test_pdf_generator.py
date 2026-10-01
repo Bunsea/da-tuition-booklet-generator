@@ -7,6 +7,56 @@ import pypdf
 import io
 
 class TestPdfGenerator(unittest.TestCase):
+    def test_proof_answer_sheet_uses_worked_proof_and_student_space(self):
+        questions = [
+            {"item_label": str(i), "text": f"Evaluate {i}+1.", "correct_answer": str(i+1)}
+            for i in range(1, 5)
+        ] + [{
+            "item_label": "5",
+            "text": "(a) Prove that $1/(n-1)!-1/n!=(n-1)/n!$ for $n\\geq 2$. "
+                    "(b) Hence, evaluate the sum.",
+            "correct_answer": "(a) Proof as shown\n(b) $719/720$",
+            "solution_steps": "(a) Use $n!=n(n-1)!$ and a common denominator: "
+                              "$1/(n-1)!-1/n!=n/n!-1/n!=(n-1)/n!$. "
+                              "(b) The sum telescopes to $719/720$.",
+        }]
+        labels, answers, key, items = pdf_generator.extract_worksheet_answer_sheet_data(questions)
+        self.assertIn("5(a)", labels)
+        self.assertEqual(next(item for item in items if item["label"] == "5(a)")["type"], "reasoning")
+        self.assertIn("common denominator", key["5(a)"])
+        self.assertNotIn("Proof as shown", key["5(a)"])
+        self.assertIn("719/720", key["5(b)"])
+
+        student_pdf = pdf_generator.generate_blank_answer_sheet_pdf(question_labels=labels, items=items)
+        teacher_pdf = pdf_generator.generate_teacher_answer_sheet_pdf(
+            question_labels=labels, answers=answers, items=items
+        )
+        student_text = "".join(page.extract_text() for page in pypdf.PdfReader(io.BytesIO(student_pdf)).pages)
+        teacher_text = "".join(page.extract_text() for page in pypdf.PdfReader(io.BytesIO(teacher_pdf)).pages)
+        self.assertIn("Show every step and give reasons", student_text)
+        self.assertIn("common denominator", teacher_text)
+        self.assertNotIn("Proof as shown", teacher_text)
+
+    def test_teacher_solution_answers_are_compact_and_letter_counts_stay_inline(self):
+        questions = [
+            {"item_label": "1", "text": "Evaluate $5!$.", "correct_answer": "$120$", "solution_steps": "$5!=120$", "marks": 1},
+            {"item_label": "2", "text": "Arrange SUCCESSFUL.", "correct_answer": "$151200$",
+             "solution_steps": "Tally the letter frequencies in SUCCESSFUL.\nS: 3\nU: 2\nC: 2\nUsing the repeated elements formula.", "marks": 2},
+        ]
+        source = pdf_generator.build_latex_worksheet_source(
+            title="Combinatorics Homework Set 1", year_level="Year 11 (Extension)",
+            topic="Combinatorics", questions=questions, include_solutions=True,
+            sheet_type="Homework"
+        )
+        answers_section = source.split(r"\textbf{ANSWERS}", 1)[1].split("FULLY WORKED SOLUTIONS", 1)[0]
+        self.assertIn(r"\begin{multicols}{2}", answers_section)
+        self.assertIn(r"\textbf{1.}", answers_section)
+        self.assertIn(r"\textbf{2.}", answers_section)
+        self.assertNotIn("Section 1:", answers_section)
+        self.assertNotIn("Set A", answers_section)
+        formatted = pdf_generator.format_latex_practice_solution(questions[1]["solution_steps"])
+        self.assertIn(r"\textit{S: 3, U: 2, C: 2}", formatted)
+
     def test_answer_space_uses_student_instructions_only(self):
         question = (
             "Five people are to be seated around a circular dining table as shown "

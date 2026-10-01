@@ -1604,31 +1604,34 @@ if main_section == "📖 1. Theory & Practice Materials":
                 with col_hw_opt2:
                     st.caption("Each set produces distinct numerical twin problems, allowing re-tests or separated weekly homework sets.")
 
-                st.markdown("##### 📝 Select Total Homework Questions")
+                st.markdown("##### 📝 Select Homework Questions")
                 num_concepts = len(tb_concepts_list) if tb_concepts_list else 3
                 default_total_hw = max(3, num_concepts * 3)
 
-                col_tot_q, col_alloc_mode = st.columns([1, 1])
-                with col_tot_q:
+                allocation_mode = st.radio(
+                    "Distribution Mode",
+                    (["Evenly Distribute", "Custom per Concept", "Custom by Difficulty"]
+                     if tb_concepts_list else ["Evenly Distribute"]),
+                    index=0,
+                    key=f"hw_alloc_mode_{tb_id}",
+                    horizontal=True
+                )
+                if allocation_mode == "Evenly Distribute":
                     total_hw_target = st.number_input(
                         "Total Questions in Homework Booklet",
                         min_value=1,
                         max_value=40,
-                        value=default_total_hw,
+                        value=min(default_total_hw, 40),
                         step=1,
                         key=f"total_hw_q_{tb_id}",
-                        help=f"Select total number of homework questions to generate across the concepts."
+                        help="Select the total number of homework questions across all concepts."
                     )
-                with col_alloc_mode:
-                    allocation_mode = st.radio(
-                        "Distribution Mode",
-                        ["Evenly Distribute", "Custom per Concept"],
-                        index=0,
-                        key=f"hw_alloc_mode_{tb_id}",
-                        horizontal=True
-                    )
+                else:
+                    total_hw_target = 0
+                    st.caption("The total is calculated from your concept selections below.")
 
                 hw_counts = {}
+                hw_difficulty_counts = None
                 if tb_concepts_list:
                     if allocation_mode == "Evenly Distribute":
                         base_count = total_hw_target // num_concepts
@@ -1642,7 +1645,7 @@ if main_section == "📖 1. Theory & Practice Materials":
                             alloc_summary.append(f"**{c_name[:25]}**: `{cnt} Qs`")
                         
                         st.caption("Distribution across concepts: " + " • ".join(alloc_summary))
-                    else:
+                    elif allocation_mode == "Custom per Concept":
                         st.caption("Customize the exact question count for each concept:")
                         hw_cols = st.columns(2)
                         for c_idx, c in enumerate(tb_concepts_list, 1):
@@ -1656,6 +1659,30 @@ if main_section == "📖 1. Theory & Practice Materials":
                                     help=f"Full concept name: {c_name}"
                                 )
                                 hw_counts[c_name] = q_cnt
+                    else:
+                        st.caption("Choose how many questions to generate at each difficulty for every concept. Enter 0 to skip a level or concept.")
+                        hw_difficulty_counts = {}
+                        difficulty_levels = ("Easy", "Medium", "Hard", "Extremely Hard")
+                        default_levels = (1, 1, 1, 0)
+                        for c_idx, c in enumerate(tb_concepts_list, 1):
+                            c_name = c.get("concept_name") or c.get("name") or f"Concept {c_idx}"
+                            st.markdown(f"**Concept {c_idx}: {c_name}**")
+                            tier_cols = st.columns(4)
+                            tier_counts = {}
+                            for tier_idx, level in enumerate(difficulty_levels):
+                                with tier_cols[tier_idx]:
+                                    tier_counts[level] = st.number_input(
+                                        level,
+                                        min_value=0,
+                                        max_value=15,
+                                        value=default_levels[tier_idx],
+                                        step=1,
+                                        key=f"hw_difficulty_{tb_id}_{c_idx}_{tier_idx}",
+                                        help=f"Number of {level.lower()} questions for {c_name}."
+                                    )
+                            hw_difficulty_counts[c_name] = tier_counts
+                            hw_counts[c_name] = sum(tier_counts.values())
+                            st.caption(f"{hw_counts[c_name]} questions for this concept")
                 else:
                     st.info("No explicit concepts found in booklet content; generating questions across standard curriculum subtopics.")
 
@@ -1669,6 +1696,8 @@ if main_section == "📖 1. Theory & Practice Materials":
                         st.error("🔑 Personal Gemini API Key required. Please configure your key in the sidebar.")
                     elif total_hw_questions <= 0:
                         st.warning("Please select at least 1 question across your concepts.")
+                    elif total_hw_questions > 40:
+                        st.warning("Please select no more than 40 homework questions in one booklet.")
                     else:
                         with st.spinner(f"Generating Aligned Homework Booklet (Set {hw_set_sel}) via Gemini..."):
                             try:
@@ -1676,6 +1705,7 @@ if main_section == "📖 1. Theory & Practice Materials":
                                     theory_booklet=tb,
                                     sheet_type="Homework",
                                     concept_counts=hw_counts,
+                                    difficulty_counts=hw_difficulty_counts,
                                     set_number=hw_set_sel,
                                     year_level=tb.get("year_level"),
                                     topic=tb.get("topic"),

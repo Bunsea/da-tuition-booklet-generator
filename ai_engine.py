@@ -4365,6 +4365,7 @@ def generate_aligned_companion_worksheet(
     theory_booklet: Dict[str, Any],
     sheet_type: str = "In-Class",
     concept_counts: Optional[Dict[str, int]] = None,
+    difficulty_counts: Optional[Dict[str, Dict[str, int]]] = None,
     set_number: int = 1,
     year_level: Optional[str] = None,
     topic: Optional[str] = None,
@@ -4378,7 +4379,7 @@ def generate_aligned_companion_worksheet(
     """
     Generates a 100% pedagogical companion worksheet (In-Class Practice or Homework)
     directly aligned with a parent Theory Booklet.
-    Allows specifying exact question counts per concept separately.
+    Allows specifying exact question counts per concept, and per difficulty for homework.
 
     Pedagogical Modes:
     - In-Class Practice: Stepped, scaffolded whiteboard practice directly mirroring the teacher examples.
@@ -4398,13 +4399,38 @@ def generate_aligned_companion_worksheet(
     normalized_sheet_type = "In-Class" if "in" in str(sheet_type).lower() and "class" in str(sheet_type).lower() else "Homework"
     assessment_type = "in_class" if normalized_sheet_type == "In-Class" else "homework"
     default_q_count = 2 if normalized_sheet_type == "In-Class" else 3
+    difficulty_levels = ("Easy", "Medium", "Hard", "Extremely Hard")
+    if difficulty_counts is not None and normalized_sheet_type != "Homework":
+        raise ValueError("Per-difficulty question counts are available for homework booklets only.")
+
+    def requested_difficulties(name: str, index: int) -> Optional[Dict[str, int]]:
+        if difficulty_counts is None:
+            return None
+        raw = difficulty_counts.get(name, difficulty_counts.get(str(index), {}))
+        if not isinstance(raw, dict) or set(raw) - set(difficulty_levels):
+            raise ValueError(f"Invalid difficulty allocation for {name}.")
+        tiers = {}
+        for level in difficulty_levels:
+            value = raw.get(level, 0)
+            if isinstance(value, bool):
+                raise ValueError(f"Invalid {level} question count for {name}.")
+            try:
+                count = int(value)
+            except (TypeError, ValueError):
+                raise ValueError(f"Invalid {level} question count for {name}.")
+            if count < 0 or str(value).strip() != str(count):
+                raise ValueError(f"Invalid {level} question count for {name}.")
+            tiers[level] = count
+        return tiers
 
     concept_briefs = []
     total_requested = 0
+    expected_difficulties: Dict[str, Dict[str, int]] = {}
 
     if tb_concepts:
         for idx, c in enumerate(tb_concepts, 1):
             c_name = c.get("concept_name") or c.get("name") or f"Concept {idx}"
+            tiers = requested_difficulties(c_name, idx)
             
             # Determine question count for this concept
             count = None
@@ -4418,6 +4444,8 @@ def generate_aligned_companion_worksheet(
                         if k.strip().lower() == c_name.strip().lower() or k.strip().lower() in c_name.strip().lower():
                             count = v
                             break
+            if tiers is not None:
+                count = sum(tiers.values())
             if count is None:
                 count = default_q_count
             
@@ -4430,6 +4458,8 @@ def generate_aligned_companion_worksheet(
                 continue
 
             total_requested += count
+            if tiers is not None:
+                expected_difficulties[c_name] = tiers
             f_list = c.get("key_formulas", [])
             f_str = "; ".join([str(f) for f in f_list]) if f_list else "Standard formulas"
             tips = c.get("tutor_tips", "")
@@ -4442,27 +4472,46 @@ def generate_aligned_companion_worksheet(
                     ex_lines.append(f"      Prototype Example {e_idx}: {p_text}")
             ex_str = ("\n" + "\n".join(ex_lines)) if ex_lines else ""
 
+            tier_note = ("\n   Exact Difficulty Counts: " + ", ".join(
+                f"{level}: {tiers[level]}" for level in difficulty_levels
+            )) if tiers is not None else ""
             concept_briefs.append(
                 f"Concept {idx}: {c_name} (Requested Questions: {count})\n"
                 f"   Key Formulas: {f_str}\n"
-                f"   Tutor Insights / Trap to Avoid: {tips}{ex_str}"
+                f"   Tutor Insights / Trap to Avoid: {tips}{tier_note}{ex_str}"
             )
     else:
         subtopics = get_curriculum_subtopics(eff_year, eff_topic, textbook=eff_tb)
         for idx, s in enumerate(subtopics[:4], 1):
-            count = default_q_count
-            if concept_counts and (s in concept_counts or str(idx) in concept_counts):
+            tiers = requested_difficulties(s, idx)
+            count = sum(tiers.values()) if tiers is not None else default_q_count
+            if tiers is None and concept_counts and (s in concept_counts or str(idx) in concept_counts):
                 count = concept_counts.get(s, concept_counts.get(str(idx), default_q_count))
             if count > 0:
                 total_requested += count
-                concept_briefs.append(f"Concept {idx}: {s} (Requested Questions: {count})")
+                if tiers is not None:
+                    expected_difficulties[s] = tiers
+                tier_note = ("; Exact Difficulty Counts: " + ", ".join(
+                    f"{level}: {tiers[level]}" for level in difficulty_levels
+                )) if tiers is not None else ""
+                concept_briefs.append(f"Concept {idx}: {s} (Requested Questions: {count}{tier_note})")
 
     if total_requested <= 0 or not concept_briefs:
+        if difficulty_counts is not None or concept_counts is not None:
+            raise ValueError("Select at least one homework question before generating.")
         # Fallback: ensure at least default items
         concept_briefs = [f"Concept 1: {eff_topic} Foundations (Requested Questions: {default_q_count})"]
         total_requested = default_q_count
 
     concepts_text = "\n\n".join(concept_briefs)
+    difficulty_instruction = (
+        "- For EACH concept, generate exactly its Easy, Medium, Hard, and Extremely Hard counts listed above. "
+        "A zero count means no questions at that difficulty. These counts are mandatory, not suggestions.\n"
+        "- Set each question's difficulty field to exactly one of: Easy, Medium, Hard, Extremely Hard.\n"
+        if difficulty_counts is not None else
+        '- Assign a realistic difficulty level to each question: "Easy", "Medium", "Hard", or "Extremely Hard".\n'
+        '- Early questions for each concept should be "Easy" or "Medium"; later questions can be "Hard".\n'
+    )
 
     if normalized_sheet_type == "In-Class":
         sheet_title = f"{eff_year} Mathematics - {eff_topic} (In-Class Practice)"
@@ -4498,8 +4547,11 @@ CONCEPTS AND EXACT QUESTION ALLOCATION:
 TOTAL QUESTIONS TO GENERATE: EXACTLY {total_requested}
 
 DIFFICULTY LEVEL DISTRIBUTION:
-- Assign a realistic difficulty level to each question: "Easy", "Medium", "Hard", or "Extremely Hard".
-- Early questions for each concept should be "Easy" or "Medium"; later questions can be "Hard".
+{difficulty_instruction}
+
+PROOF AND REASONING ANSWERS:
+- If a question asks students to prove, show, explain, or justify a result, provide the actual line-by-line argument in "solution_steps".
+- Never use "Proof as shown", "See solution", or another placeholder as the correct answer or marking key. State the proof or its essential reasoning explicitly.
 
 LATEX MATHEMATICAL FORMATTING:
 Enclose all mathematical expressions, equations, coordinates, fractions, and variables in single dollar signs $...$ (e.g. '$y = 2x - 5$', '$\\sqrt{{x+1}}$', '$(3, -4)$').
@@ -4570,6 +4622,44 @@ Respond with valid JSON ONLY:
             data["assessment_type"] = assessment_type
             data["sheet_type"] = normalized_sheet_type
             data["set_number"] = set_number
+
+            if expected_difficulties:
+                questions = data.get("questions")
+                if not isinstance(questions, list) or len(questions) != total_requested:
+                    raise ValueError(f"Generated {len(questions) if isinstance(questions, list) else 0} questions; requested {total_requested}.")
+                def normalized_concept_name(name: str) -> str:
+                    name = re.sub(r"^concept\s+\d+\s*[:.\-]\s*", "", str(name).strip(), flags=re.IGNORECASE)
+                    return re.sub(r"\s+", " ", name).strip().casefold()
+
+                name_lookup = {normalized_concept_name(name): name for name in expected_difficulties}
+                actual = {name: {level: 0 for level in difficulty_levels} for name in expected_difficulties}
+                for question in questions:
+                    if not isinstance(question, dict):
+                        raise ValueError("Generated homework contains an invalid question.")
+                    raw_name = normalized_concept_name(question.get("concept_name") or "")
+                    concept_name = name_lookup.get(raw_name)
+                    if concept_name is None:
+                        raise ValueError(f"Generated question has an unknown concept: {question.get('concept_name')!r}.")
+                    raw_level = str(question.get("difficulty") or "").strip().casefold()
+                    level = next((item for item in difficulty_levels if item.casefold() == raw_level), None)
+                    if level is None:
+                        raise ValueError(f"Generated question has an invalid difficulty: {question.get('difficulty')!r}.")
+                    question["concept_name"] = concept_name
+                    question["difficulty"] = level
+                    actual[concept_name][level] += 1
+                if actual != expected_difficulties:
+                    raise ValueError(f"Generated difficulty counts {actual} do not match requested counts {expected_difficulties}.")
+                data["total_items"] = total_requested
+
+            for question in data.get("questions", []):
+                answer = str(question.get("correct_answer") or question.get("final_answer") or "")
+                if re.search(r"\b(?:proof as shown|see (?:the )?(?:proof|solution)|proof omitted)\b", answer, re.IGNORECASE):
+                    worked = str(question.get("solution_steps") or question.get("worked_solution") or "").strip()
+                    if len(worked) < 20:
+                        raise ValueError("A proof question was generated without a usable model proof.")
+                    label = str(question.get("item_label") or question.get("num") or "").strip()
+                    if label:
+                        data.setdefault("marking_key", {})[label] = worked
 
             # Ensure marking key is clean
             if "marking_key" not in data or not data["marking_key"]:

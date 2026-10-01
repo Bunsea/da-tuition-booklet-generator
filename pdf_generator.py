@@ -4,6 +4,7 @@ import re
 import shutil
 import tempfile
 import subprocess
+from xml.sax.saxutils import escape
 from io import BytesIO
 from typing import List, Dict, Any, Optional, Tuple
 from PIL import Image
@@ -2190,7 +2191,29 @@ def format_latex_practice_solution(raw_sol: str) -> str:
                 last_c, _ = raw_steps[-1]
                 raw_steps[-1] = (last_c, part_marks[lbl_key])
 
+        # Keep consecutive letter counts together rather than spreading a short
+        # frequency tally over most of a page.
+        compact_steps = []
+        frequency_group = []
+        def flush_frequencies():
+            if frequency_group:
+                compact_steps.append(("__LETTER_COUNTS__" + ", ".join(frequency_group), ""))
+                frequency_group.clear()
+
         for chunk, mark in raw_steps:
+            frequency_match = re.fullmatch(r"([A-Za-z]):\s*\$?(\d+)\$?\.?", chunk.strip())
+            if frequency_match and not mark:
+                frequency_group.append(f"{frequency_match.group(1)}: {frequency_match.group(2)}")
+            else:
+                flush_frequencies()
+                compact_steps.append((chunk, mark))
+        flush_frequencies()
+
+        for chunk, mark in compact_steps:
+            if chunk.startswith("__LETTER_COUNTS__"):
+                counts = chunk[len("__LETTER_COUNTS__"):]
+                block_lines.append(f"\\noindent\\hspace*{{0.25cm}}\\textit{{{counts}}}")
+                continue
             # Clean leading/trailing punctuation and stray brackets
             chunk = re.sub(r"^[,;:\s\]\[]+", "", chunk).strip()
             chunk = re.sub(r"[,;:\s\]\[]+$", "", chunk).strip()
@@ -2206,6 +2229,13 @@ def format_latex_practice_solution(raw_sol: str) -> str:
                 imp_steps = split_implication_chain(chunk, indent=r"\hspace*{0.25cm}", mark=mark)
                 for s in imp_steps:
                     block_lines.append(s)
+                continue
+
+            # Letter-frequency tallies belong on one line: S: 3, U: 2, etc.
+            frequency_m = re.fullmatch(r"([A-Za-z]):\s*\$?(\d+)\$?\.?", chunk)
+            if frequency_m:
+                letter, frequency = frequency_m.groups()
+                block_lines.append(f"\\noindent\\hspace*{{0.25cm}}\\textit{{{letter}:}}\\enspace {frequency}")
                 continue
 
             # Check if chunk has a colon separating explanation and equation
@@ -4993,6 +5023,7 @@ def build_latex_worksheet_source(
         r"\usepackage{adjustbox}",
         r"\usepackage{needspace}",
         r"\usepackage{enumitem}",
+        r"\usepackage{multicol}",
         r"\usepackage{tikz}",
         r"\usetikzlibrary{arrows.meta,calc,angles,quotes,shapes.geometric,patterns,decorations.pathreplacing}",
         r"\hyphenpenalty=10000",
@@ -5177,24 +5208,17 @@ def build_latex_worksheet_source(
             r"\vspace{0.4cm}"
         ])
 
-        for grp in groups:
-            tex_lines.append(r"\needspace{4.0cm}")
-            tex_lines.append(f"\\subsection*{{{sanitize_for_latex(grp['set_title'])}}}")
-            tex_lines.append(r"\nopagebreak")
-            sections = get_tiered_sections_for_questions(grp["questions"])
-            for sec in sections:
-                tex_lines.append(r"\needspace{3.5cm}")
-                tex_lines.append(f"\\noindent{{\\textbf{{\\large {sanitize_for_latex(sec['section_title'])}}}}}\\\\[0.15cm]")
-                tex_lines.append(r"\nopagebreak")
-                tex_lines.append(r"\begin{enumerate}[leftmargin=2.2em, itemsep=0.45em]")
-
-                for q in sec["questions"]:
-                    item_label = q.get('item_label', str(q.get('num', '')))
-                    ans = format_answer_parts_latex(sanitize_for_latex(q.get('correct_answer', '')))
-                    tex_lines.append(f"\\item[\\textbf{{{item_label}.}}] {ans}")
-
-                tex_lines.append(r"\end{enumerate}")
-                tex_lines.append(r"\vspace{0.2cm}")
+        tex_lines.append(r"\setlength{\columnsep}{0.85cm}")
+        tex_lines.append(r"\begin{multicols}{2}\raggedcolumns\small")
+        for q in questions:
+            item_label = q.get('item_label', str(q.get('num', '')))
+            raw_ans = str(q.get('correct_answer') or q.get('final_answer') or '').strip()
+            raw_ans = re.sub(r'\bProof as shown\b', 'Proved (see worked solution)', raw_ans, flags=re.IGNORECASE)
+            if len(raw_ans) > 160 and detect_question_response_type(q.get('text', ''), raw_ans) == 'reasoning':
+                raw_ans = 'Proved (see worked solution)'
+            ans = format_answer_parts_latex(sanitize_for_latex(raw_ans))
+            tex_lines.append(f"\\noindent\\textbf{{{item_label}.}}\\enspace {ans}\\par\\vspace{{0.06cm}}")
+        tex_lines.append(r"\end{multicols}")
 
         # 3. FULLY WORKED SOLUTIONS
         tex_lines.extend([
@@ -5222,7 +5246,11 @@ def build_latex_worksheet_source(
 
                 for q in sec["questions"]:
                     item_label = q.get('item_label', str(q.get('num', '')))
-                    ans = format_answer_parts_latex(sanitize_for_latex(q.get('correct_answer', '')))
+                    raw_ans = re.sub(
+                        r'\bProof as shown\b', 'Identity proved in the working below',
+                        str(q.get('correct_answer') or ''), flags=re.IGNORECASE
+                    )
+                    ans = format_answer_parts_latex(sanitize_for_latex(raw_ans))
                     working = format_latex_practice_solution(q.get('solution_steps', ''))
 
                     tex_lines.append(f"\\item[\\textbf{{{item_label}.}}] \\textbf{{Final Answer:}} {ans}\\\\")
@@ -5956,7 +5984,7 @@ def generate_answer_sheet_pdf(
     Generates official DA Tuition Answer Sheet (Student Blank or Teacher Key).
     If questions contain items requiring diagrams/sketches or mathematical proofs/reasoning,
     it dynamically generates an adaptive layout providing dedicated sketch canvases (100pt)
-    and ruled reasoning boxes (60pt) alongside compact items.
+    and spacious ruled reasoning boxes alongside compact items.
     Otherwise, if all items are compact and Answer Sheet Template.pdf exists,
     it overlays question labels directly onto the template's gold crest grid.
     """
@@ -6323,26 +6351,31 @@ def _build_adaptive_answer_sheet_pdf(
             cur_page_h += block_h
 
         elif itype == "reasoning":
-            block_h = 75.0
+            lbl = item.get("label", "")
+            raw_ans = clean_answer_for_answer_sheet(item.get("answer", ""))
+            header_cell = Paragraph(f"<b>Question {escape(str(lbl))}</b> — <i>Mathematical Reasoning & Proof</i>", styles['Normal'])
+
+            if is_teacher and raw_ans:
+                proof_lines = [escape(line.strip()) for line in raw_ans.splitlines() if line.strip()]
+                content_cell = Paragraph(
+                    "<b>Model Proof / Justification:</b><br/>" + "<br/>".join(proof_lines),
+                    teacher_exp_style
+                )
+                content_height = max(100.0, content_cell.wrap(531, 600)[1] + 18.0)
+            else:
+                content_cell = Paragraph(
+                    "<font color='#B38600'>Show every step and give reasons:</font><br/>" +
+                    "<br/>".join(["<font color='#D3D9E0'>____________________________________________________________</font>"] * 7),
+                    ParagraphStyle('ProofWorkingStyle', parent=prompt_style, leading=21.0)
+                )
+                content_height = 185.0
+
+            block_h = 20.0 + content_height + 8.0
             if cur_page_h + block_h > MAX_PAGE_HEIGHT and pages_blocks[-1]:
                 pages_blocks.append([])
                 cur_page_h = 0.0
 
-            lbl = item.get("label", "")
-            raw_ans = clean_answer_for_answer_sheet(item.get("answer", ""))
-            header_cell = Paragraph(f"<b>Question {lbl}</b> — <i>Mathematical Reasoning & Proof</i>", styles['Normal'])
-
-            if is_teacher and raw_ans:
-                content_cell = Paragraph(f"<b>Model Proof / Justification:</b><br/>{raw_ans}", teacher_exp_style)
-            else:
-                content_cell = Paragraph(
-                    "<font color='#B38600'>[ Working & Reasoning Space — state theorems, steps, and reasons ]</font><br/><br/>"
-                    "____________________________________________________________________________________________<br/><br/>"
-                    "____________________________________________________________________________________________",
-                    prompt_style
-                )
-
-            t = Table([[header_cell], [content_cell]], colWidths=[547], rowHeights=[20.0, 52.0])
+            t = Table([[header_cell], [content_cell]], colWidths=[547], rowHeights=[20.0, content_height])
             t.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#F5F1EB")),
                 ('VALIGN', (0, 0), (-1, -1), 'TOP'),
@@ -9755,6 +9788,19 @@ def extract_worksheet_answer_sheet_data(
         q_label = str(q.get("item_label") or idx).strip()
         q_text = str(q.get("text") or q.get("question") or "").strip()
         q_ans = str(q.get("correct_answer") or q.get("final_answer") or raw_key.get(q_label, "")).strip()
+        worked = str(q.get("solution_steps") or q.get("worked_solution") or "").strip()
+        _, worked_subparts = split_question_subparts(worked)
+        worked_by_label = {label: text for label, text in worked_subparts}
+
+        def reasoning_answer(answer: str, part_label: Optional[str] = None) -> str:
+            if not re.search(r"\b(?:proof as shown|see (?:the )?(?:proof|solution)|proof omitted)\b", answer, re.IGNORECASE):
+                return answer
+            proof = worked_by_label.get(part_label, "") if part_label else worked
+            if not proof and len(worked_subparts) == 1:
+                proof = worked_subparts[0][1]
+            if not proof or re.search(r"\bproof as shown\b", proof, re.IGNORECASE):
+                return "Model proof missing; regenerate this worksheet."
+            return proof
 
         _, subparts_q = split_question_subparts(q_text)
         _, subparts_a = split_question_subparts(q_ans)
@@ -9771,6 +9817,8 @@ def extract_worksheet_answer_sheet_data(
                     sub_ans = q_ans if len(subparts_q) == 1 else ""
 
                 item_type = detect_question_response_type(sub_txt or q_text, sub_ans)
+                if item_type == "reasoning":
+                    sub_ans = reasoning_answer(sub_ans, sub_lbl)
                 labels.append(full_lbl)
                 answers.append(sub_ans)
                 expanded_key[full_lbl] = sub_ans
@@ -9784,6 +9832,8 @@ def extract_worksheet_answer_sheet_data(
             for sub_lbl, sub_ans in subparts_a:
                 full_lbl = f"{q_label}({sub_lbl})"
                 item_type = detect_question_response_type(q_text, sub_ans)
+                if item_type == "reasoning":
+                    sub_ans = reasoning_answer(sub_ans, sub_lbl)
                 labels.append(full_lbl)
                 answers.append(sub_ans)
                 expanded_key[full_lbl] = sub_ans
@@ -9795,6 +9845,8 @@ def extract_worksheet_answer_sheet_data(
                 })
         else:
             item_type = detect_question_response_type(q_text, q_ans)
+            if item_type == "reasoning":
+                q_ans = reasoning_answer(q_ans)
             labels.append(q_label)
             answers.append(q_ans)
             expanded_key[q_label] = q_ans

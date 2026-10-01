@@ -1109,6 +1109,45 @@ class TestAiEngine(unittest.TestCase):
         self.assertIn("Requested Questions: 2", call_prompt)
         self.assertIn("TOTAL QUESTIONS TO GENERATE: EXACTLY 5", call_prompt)
 
+    @patch("ai_engine.get_client")
+    def test_homework_difficulty_allocation_is_exact(self, mock_get_client):
+        concepts = ["Factorial notation", "Arrangements in a circle"]
+        questions = [
+            {"item_label": "1", "concept_name": "Concept 1: Factorial notation", "difficulty": "Easy", "text": "Q1"},
+            {"item_label": "2", "concept_name": concepts[0], "difficulty": "Medium", "text": "Q2"},
+            {"item_label": "3", "concept_name": concepts[1], "difficulty": "Hard", "text": "Q3"},
+            {"item_label": "4", "concept_name": concepts[1], "difficulty": "Extremely Hard", "text": "Q4"},
+        ]
+        response = MagicMock()
+        response.text = json.dumps({"questions": questions, "marking_key": {}})
+        client = MagicMock()
+        client.models.generate_content.return_value = response
+        mock_get_client.return_value = client
+        theory = {
+            "year_level": "Year 11 (Extension)", "topic": "Combinatorics",
+            "concepts": [{"name": name} for name in concepts],
+        }
+        allocation = {
+            concepts[0]: {"Easy": 1, "Medium": 1, "Hard": 0, "Extremely Hard": 0},
+            concepts[1]: {"Easy": 0, "Medium": 0, "Hard": 1, "Extremely Hard": 1},
+        }
+        result = ai_engine.generate_aligned_companion_worksheet(
+            theory, sheet_type="Homework", difficulty_counts=allocation, api_key="fake-key"
+        )
+        self.assertEqual(result["total_items"], 4)
+        self.assertEqual([q["difficulty"] for q in result["questions"]],
+                         ["Easy", "Medium", "Hard", "Extremely Hard"])
+        prompt = client.models.generate_content.call_args.kwargs["contents"]
+        self.assertIn("Exact Difficulty Counts: Easy: 1, Medium: 1, Hard: 0, Extremely Hard: 0", prompt)
+        self.assertIn("TOTAL QUESTIONS TO GENERATE: EXACTLY 4", prompt)
+
+        questions[0]["difficulty"] = "Hard"
+        response.text = json.dumps({"questions": questions, "marking_key": {}})
+        with self.assertRaisesRegex(RuntimeError, "difficulty counts"):
+            ai_engine.generate_aligned_companion_worksheet(
+                theory, sheet_type="Homework", difficulty_counts=allocation, api_key="fake-key"
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
