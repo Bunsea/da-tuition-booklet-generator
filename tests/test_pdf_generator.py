@@ -7,6 +7,50 @@ import pypdf
 import io
 
 class TestPdfGenerator(unittest.TestCase):
+    def test_companion_booklets_keep_editions_and_page_order(self):
+        from reportlab.pdfgen import canvas
+
+        def page(label):
+            output = io.BytesIO()
+            pdf = canvas.Canvas(output)
+            pdf.drawString(72, 720, label)
+            pdf.save()
+            return output.getvalue()
+
+        theory = {
+            "student_class": page("CLASS THEORY"),
+            "student_private": page("PRIVATE THEORY"),
+            "teacher": page("TEACHER THEORY"),
+        }
+        in_class = {"student": page("STUDENT CLASS WORKSHEET"), "teacher": page("TEACHER CLASS SOLUTIONS")}
+        homework = {"student": page("STUDENT HOMEWORK"), "teacher": page("TEACHER HOMEWORK SOLUTIONS")}
+
+        for edition, expected_theory, expected_class, expected_homework in (
+            ("student_class", "CLASS THEORY", "STUDENT CLASS WORKSHEET", "STUDENT HOMEWORK"),
+            ("student_private", "PRIVATE THEORY", "STUDENT CLASS WORKSHEET", "STUDENT HOMEWORK"),
+            ("teacher", "TEACHER THEORY", "TEACHER CLASS SOLUTIONS", "TEACHER HOMEWORK SOLUTIONS"),
+        ):
+            two_part = pypdf.PdfReader(io.BytesIO(pdf_generator.combine_companion_booklets(
+                theory, in_class, edition
+            )))
+            self.assertEqual(len(two_part.pages), 2)
+            self.assertEqual([page.extract_text().strip() for page in two_part.pages],
+                             [expected_theory, expected_class])
+
+            all_parts = pypdf.PdfReader(io.BytesIO(pdf_generator.combine_companion_booklets(
+                theory, in_class, edition, homework, "Homework Set 2"
+            )))
+            self.assertEqual(len(all_parts.pages), 3)
+            self.assertEqual([page.extract_text().strip() for page in all_parts.pages],
+                             [expected_theory, expected_class, expected_homework])
+            self.assertEqual([item.title for item in all_parts.outline],
+                             ["Theory", "In-Class Practice", "Homework Set 2"])
+
+        with self.assertRaisesRegex(ValueError, "Unknown booklet edition"):
+            pdf_generator.combine_companion_booklets(theory, in_class, "student")
+        with self.assertRaisesRegex(ValueError, "unavailable"):
+            pdf_generator.combine_companion_booklets(theory, {"student": b"broken"}, "student_class")
+
     def test_proof_answer_sheet_uses_worked_proof_and_student_space(self):
         questions = [
             {"item_label": str(i), "text": f"Evaluate {i}+1.", "correct_answer": str(i+1)}

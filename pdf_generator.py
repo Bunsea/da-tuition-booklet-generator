@@ -23,6 +23,38 @@ from reportlab.pdfgen import canvas
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
+def combine_companion_booklets(
+    theory_pdfs: Dict[str, bytes],
+    in_class_pdfs: Dict[str, bytes],
+    edition: str,
+    homework_pdfs: Optional[Dict[str, bytes]] = None,
+    homework_label: str = "Homework",
+) -> bytes:
+    """Join linked booklets in teaching order without mixing student and teacher editions."""
+    if edition not in ("student_class", "student_private", "teacher"):
+        raise ValueError(f"Unknown booklet edition: {edition}")
+
+    worksheet_edition = "teacher" if edition == "teacher" else "student"
+    parts = [
+        ("Theory", theory_pdfs.get(edition)),
+        ("In-Class Practice", in_class_pdfs.get(worksheet_edition)),
+    ]
+    if homework_pdfs is not None:
+        parts.append((homework_label, homework_pdfs.get(worksheet_edition)))
+
+    writer = PdfWriter()
+    for label, pdf_bytes in parts:
+        if not isinstance(pdf_bytes, bytes) or not pdf_bytes.startswith(b"%PDF"):
+            raise ValueError(f"The {label} {edition} PDF is unavailable. Regenerate that booklet and retry.")
+        reader = PdfReader(BytesIO(pdf_bytes))
+        if not reader.pages:
+            raise ValueError(f"The {label} PDF has no pages.")
+        writer.append(reader, outline_item=label, import_outline=False)
+
+    output = BytesIO()
+    writer.write(output)
+    return output.getvalue()
+
 def safe_print(*args, **kwargs):
     """Safely prints messages, suppressing broken pipe or Errno 5 EIO in detached Streamlit environments."""
     try:

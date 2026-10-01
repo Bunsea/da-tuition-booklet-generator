@@ -110,6 +110,15 @@ def get_theory_booklet_download_filename(booklet: dict, mode: str = "student", e
     filename = re.sub(r'\s+', ' ', filename).strip()
     return filename
 
+def get_combined_booklet_filename(booklet: dict, edition: str, homework_set: Optional[int] = None) -> str:
+    """Name a joined PDF by its contents and matching audience edition."""
+    theory_name = get_theory_booklet_download_filename(booklet, mode=edition)
+    topic, _, edition_and_series = theory_name.rpartition(" Theory ")
+    sections = "Theory + In-Class"
+    if homework_set is not None:
+        sections += f" + Homework Set {homework_set}"
+    return f"{topic} {sections} {edition_and_series}"
+
 def get_review_booklet_download_filename(booklet: dict, mode: str = "student", prefix: Optional[str] = None, extension: str = "pdf") -> str:
     """
     Formats the review booklet download filename:
@@ -1383,7 +1392,10 @@ if main_section == "📖 1. Theory & Practice Materials":
                 if linked_in_class:
                     st.success(f"📋 **{len(linked_in_class)} In-Class Booklet(s)** linked to this Theory Booklet.")
                     for lic in linked_in_class:
-                        with st.expander(f"📝 In-Class Booklet #{lic['id']}: {lic['title']} ({lic['total_questions']} Questions)", expanded=False):
+                        with st.expander(
+                            f"📝 In-Class Booklet #{lic['id']}: {lic['title']} ({lic['total_questions']} Questions)",
+                            expanded=(lic["id"] == st.session_state.get("latest_generated_ic_id")),
+                        ):
                             lic_qs = lic.get("questions", [])
                             lic_title = lic["title"]
                             lic_year = lic["year_level"]
@@ -1412,6 +1424,37 @@ if main_section == "📖 1. Theory & Practice Materials":
                                 st.download_button("📥 Student Answer Sheet", data=sans_pdf, file_name=name_sans, mime="application/pdf", key=f"dl_c_ans_ic_{lic['id']}", use_container_width=True)
                             with col_ic4:
                                 st.download_button("🔑 Teacher Answer Key", data=tans_pdf, file_name=name_tans, mime="application/pdf", key=f"dl_c_tea_ans_ic_{lic['id']}", use_container_width=True)
+
+                            compiled_ic_key = f"compiled_theory_ic_{tb_id}_{lic['id']}"
+                            if st.button("📚 Compile Theory + In-Class Booklets", key=f"btn_compile_ic_{lic['id']}", use_container_width=True):
+                                st.session_state.pop(compiled_ic_key, None)
+                                with st.spinner("Joining matching teacher and student booklets..."):
+                                    try:
+                                        theory_pdfs = {"teacher": teacher_pdf_bytes, "student_class": student_class_pdf_bytes, "student_private": student_private_pdf_bytes}
+                                        in_class_pdfs = {"teacher": tea_pdf, "student": stu_pdf}
+                                        st.session_state[compiled_ic_key] = {
+                                            edition: pdf_generator.combine_companion_booklets(theory_pdfs, in_class_pdfs, edition)
+                                            for edition in ("student_class", "student_private", "teacher")
+                                        }
+                                    except Exception as exc:
+                                        st.error(f"Could not compile these booklets: {exc}")
+                            if compiled_ic_key in st.session_state:
+                                st.caption("Combined in order: Theory → In-Class Practice")
+                                bundle_cols = st.columns(3)
+                                for bundle_col, edition, label in zip(
+                                    bundle_cols,
+                                    ("student_class", "student_private", "teacher"),
+                                    ("Student Class", "Student Private", "Teacher Solutions")
+                                ):
+                                    with bundle_col:
+                                        st.download_button(
+                                            f"📥 Combined {label}",
+                                            data=st.session_state[compiled_ic_key][edition],
+                                            file_name=get_combined_booklet_filename(tb, edition),
+                                            mime="application/pdf",
+                                            key=f"dl_compiled_ic_{lic['id']}_{edition}",
+                                            use_container_width=True,
+                                        )
 
                             # 1-Click ZIP bundle & 1-Click Marking Navigation & Delete
                             col_ic_z, col_ic_m, col_ic_d = st.columns([1.4, 1.0, 0.8])
@@ -1530,6 +1573,7 @@ if main_section == "📖 1. Theory & Practice Materials":
                                     assessment_type="in_class"
                                 )
                                 st.session_state["latest_worksheet"] = {**ic_data, "id": new_ic_id}
+                                st.session_state["latest_generated_ic_id"] = new_ic_id
                                 ic_cost = ic_data.get('meta_cost', 0.0)
                                 ic_tokens = ic_data.get('meta_tokens', 0)
                                 st.success(f"🎉 Successfully generated In-Class Practice Booklet #{new_ic_id}! (💰 Cost: ${ic_cost:.4f} AUD • {ic_tokens:,} tokens)")
@@ -1547,7 +1591,10 @@ if main_section == "📖 1. Theory & Practice Materials":
                     for lhw in linked_hw:
                         set_label = f"Set {lhw.get('set_number', 1)}"
                         hw_cost_str = f" • 💰 ${lhw.get('cost', 0.0):.4f} AUD" if lhw.get('cost') else ""
-                        with st.expander(f"🏠 Homework Booklet #{lhw['id']} ({set_label}): {lhw['title']} ({lhw['total_questions']} Questions{hw_cost_str})", expanded=False):
+                        with st.expander(
+                            f"🏠 Homework Booklet #{lhw['id']} ({set_label}): {lhw['title']} ({lhw['total_questions']} Questions{hw_cost_str})",
+                            expanded=(lhw["id"] == st.session_state.get("latest_generated_hw_id")),
+                        ):
                             lhw_qs = lhw.get("questions", [])
                             lhw_title = lhw["title"]
                             lhw_year = lhw["year_level"]
@@ -1577,6 +1624,62 @@ if main_section == "📖 1. Theory & Practice Materials":
                                 st.download_button("📥 Student Answer Sheet", data=hw_sans_pdf, file_name=hw_sans_name, mime="application/pdf", key=f"dl_c_ans_hw_{lhw['id']}", use_container_width=True)
                             with col_hw4:
                                 st.download_button("🔑 Teacher Answer Key", data=hw_tans_pdf, file_name=hw_tea_ans_name, mime="application/pdf", key=f"dl_c_tea_ans_hw_{lhw['id']}", use_container_width=True)
+
+                            if linked_in_class:
+                                in_class_options = {item["id"]: item for item in linked_in_class}
+                                selected_ic_id = st.selectbox(
+                                    "In-Class booklet to include with this homework set",
+                                    options=list(in_class_options),
+                                    format_func=lambda item_id: f"#{item_id} — {in_class_options[item_id]['title']}",
+                                    key=f"compile_ic_choice_hw_{lhw['id']}",
+                                )
+                                compiled_all_key = f"compiled_theory_ic_hw_{tb_id}_{selected_ic_id}_{lhw['id']}"
+                                if st.button("📚 Compile Theory + In-Class + Homework Booklets", key=f"btn_compile_all_{lhw['id']}", use_container_width=True):
+                                    st.session_state.pop(compiled_all_key, None)
+                                    with st.spinner("Joining matching teacher and student booklets..."):
+                                        try:
+                                            chosen_ic = in_class_options[selected_ic_id]
+                                            chosen_q_json = json.dumps(chosen_ic.get("questions", []))
+                                            chosen_key_json = json.dumps(chosen_ic.get("marking_key") or {})
+                                            chosen_pdf_args = (
+                                                chosen_ic["id"], chosen_ic["title"], chosen_ic["year_level"], chosen_ic["topic"],
+                                                chosen_q_json, chosen_key_json, chosen_ic.get("term"), chosen_ic.get("week"),
+                                                "in_class",
+                                            )
+                                            in_class_pdfs = {
+                                                "student": get_cached_worksheet_pdf(*chosen_pdf_args, "student"),
+                                                "teacher": get_cached_worksheet_pdf(*chosen_pdf_args, "teacher"),
+                                            }
+                                            theory_pdfs = {"teacher": teacher_pdf_bytes, "student_class": student_class_pdf_bytes, "student_private": student_private_pdf_bytes}
+                                            homework_pdfs = {"student": hw_stu_pdf, "teacher": hw_tea_pdf}
+                                            st.session_state[compiled_all_key] = {
+                                                edition: pdf_generator.combine_companion_booklets(
+                                                    theory_pdfs, in_class_pdfs, edition, homework_pdfs,
+                                                    homework_label=f"Homework Set {lhw_set_num}",
+                                                )
+                                                for edition in ("student_class", "student_private", "teacher")
+                                            }
+                                        except Exception as exc:
+                                            st.error(f"Could not compile these booklets: {exc}")
+                                if compiled_all_key in st.session_state:
+                                    st.caption(f"Combined in order: Theory → In-Class Practice → Homework Set {lhw_set_num}")
+                                    bundle_cols = st.columns(3)
+                                    for bundle_col, edition, label in zip(
+                                        bundle_cols,
+                                        ("student_class", "student_private", "teacher"),
+                                        ("Student Class", "Student Private", "Teacher Solutions")
+                                    ):
+                                        with bundle_col:
+                                            st.download_button(
+                                                f"📥 Combined {label}",
+                                                data=st.session_state[compiled_all_key][edition],
+                                                file_name=get_combined_booklet_filename(tb, edition, homework_set=lhw_set_num),
+                                                mime="application/pdf",
+                                                key=f"dl_compiled_all_{selected_ic_id}_{lhw['id']}_{edition}",
+                                                use_container_width=True,
+                                            )
+                            else:
+                                st.caption("Generate an In-Class booklet linked to this theory booklet to compile all three.")
 
                             # 1-Click ZIP bundle & 1-Click Marking Navigation & Delete
                             col_hw_z, col_hw_m, col_hw_d = st.columns([1.4, 1.0, 0.8])
@@ -1732,6 +1835,7 @@ if main_section == "📖 1. Theory & Practice Materials":
                                     assessment_type="homework"
                                 )
                                 st.session_state["latest_worksheet"] = {**hw_data, "id": new_hw_id}
+                                st.session_state["latest_generated_hw_id"] = new_hw_id
                                 hw_cost = hw_data.get('meta_cost', 0.0)
                                 hw_tokens = hw_data.get('meta_tokens', 0)
                                 st.success(f"🎉 Successfully generated Homework Booklet #{new_hw_id} (Set {hw_set_sel})! (💰 Cost: ${hw_cost:.4f} AUD • {hw_tokens:,} tokens)")
