@@ -1198,6 +1198,32 @@ class TestPdfGenerator(unittest.TestCase):
         self.assertNotIn("THE BIG IDEA", class_page_text)
         self.assertNotIn("720", class_page_text)
 
+    def test_teacher_and_private_editions_share_the_same_theory_card_source(self):
+        booklet_data = {
+            "title": "Combinatorics (Ext 1)",
+            "year_level": "Year 11 (Extension)",
+            "topic": "Combinatorics (Ext 1)",
+            "concepts": [{
+                "concept_name": "Factorial notation",
+                "theory_content": "- **The Big Idea**: A factorial is a countdown multiplication.",
+                "key_formulas": [r"n! = n(n-1)!"],
+                "teacher_examples": [{
+                    "example_num": 1,
+                    "problem_text": "Evaluate 5!.",
+                    "worked_solution": "5! = 120",
+                }],
+            }],
+        }
+        teacher = pdf_generator.build_latex_theory_booklet_source(booklet_data, mode="teacher")
+        private = pdf_generator.build_latex_theory_booklet_source(booklet_data, mode="student_private")
+
+        def theory_card(source):
+            start = source.index(r"\begin{theorybox}")
+            end = source.index(r"\end{theorybox}", start) + len(r"\end{theorybox}")
+            return source[start:end]
+
+        self.assertEqual(theory_card(teacher), theory_card(private))
+
     def test_student_class_reportlab_fallback_has_only_questions(self):
         booklet_data = {
             "title": "Factorial notation",
