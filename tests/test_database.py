@@ -1,8 +1,88 @@
 import unittest
 import os
+import json
+from unittest.mock import patch
 import database
+import booklet_store
 
 class TestDatabase(unittest.TestCase):
+    def test_cloud_booklet_migration_restores_linked_worksheets(self):
+        theory_id = database.save_theory_booklet(
+            "Factorials Theory", 2, 3, "Year 11 (Extension)", "Factorials",
+            {"concepts": [{"name": "Factorial notation"}]},
+        )
+        database.save_worksheet(
+            "Factorials In-Class", 2, 3, "Year 11 (Extension)", "Factorials", "Easy",
+            [{"item_label": "1", "text": "Evaluate 5!"}], {"1": "120"},
+            source_theory_id=theory_id, assessment_type="in_class",
+        )
+
+        stored = {"theory": {}, "worksheets": {}}
+
+        def put(kind, uid, record):
+            stored[kind][uid] = json.loads(json.dumps(record))
+
+        def get(kind, uid):
+            return stored[kind][uid]
+
+        def list_uids(kind):
+            return sorted(stored[kind])
+
+        def remove(kind, uid):
+            stored[kind].pop(uid, None)
+
+        with patch.object(database, "_DEFAULT_DB_FILE", database.DB_FILE), \
+             patch.object(booklet_store, "is_configured", return_value=True), \
+             patch.object(booklet_store, "put", side_effect=put), \
+             patch.object(booklet_store, "get", side_effect=get), \
+             patch.object(booklet_store, "list_uids", side_effect=list_uids), \
+             patch.object(booklet_store, "remove", side_effect=remove):
+            migrated = database.sync_booklets_from_cloud(force=True)
+            self.assertEqual(migrated["uploaded"], 2)
+            self.assertEqual(len(stored["theory"]), 1)
+            self.assertEqual(len(stored["worksheets"]), 1)
+
+            conn = database.get_connection()
+            conn.execute("DELETE FROM worksheets")
+            conn.execute("DELETE FROM theory_booklets")
+            conn.commit()
+            conn.close()
+
+            restored = database.sync_booklets_from_cloud(force=True)
+            self.assertEqual(restored["restored"], 2)
+            loaded_theory = database.get_theory_booklets()
+            self.assertEqual(len(loaded_theory), 1)
+            linked = database.get_theory_linked_worksheets(loaded_theory[0]["id"], "in_class")
+            self.assertEqual(len(linked), 1)
+            self.assertEqual(linked[0]["marking_key"], {"1": "120"})
+
+            database.delete_worksheet(linked[0]["id"])
+            self.assertNotIn(linked[0]["cloud_uid"], stored["worksheets"])
+            self.assertEqual(database.get_theory_linked_worksheets(loaded_theory[0]["id"]), [])
+
+            new_theory_id = database.save_theory_booklet(
+                "Permutations Theory", 2, 4, "Year 11 (Extension)", "Permutations", {"concepts": []}
+            )
+            new_theory = database.get_theory_booklet_by_id(new_theory_id)
+            self.assertIn(new_theory["cloud_uid"], stored["theory"])
+            new_worksheet_id = database.save_worksheet(
+                "Permutations Homework", 2, 4, "Year 11 (Extension)", "Permutations", "Mixed",
+                [{"text": "How many?"}], {"1": "24"}, source_theory_id=new_theory_id,
+            )
+            new_worksheet = database.get_worksheet_by_id(new_worksheet_id)
+            self.assertEqual(stored["worksheets"][new_worksheet["cloud_uid"]]["source_theory_uid"],
+                             new_theory["cloud_uid"])
+            database.update_theory_booklet_instructions(new_theory_id, "Focus on circular arrangements")
+            database.update_worksheet_instructions(new_worksheet_id, "Use full working")
+            self.assertEqual(stored["theory"][new_theory["cloud_uid"]]["content"]["custom_instructions"],
+                             "Focus on circular arrangements")
+            self.assertEqual(stored["worksheets"][new_worksheet["cloud_uid"]]["custom_instructions"],
+                             "Use full working")
+            database.delete_worksheet(new_worksheet_id)
+            database.delete_theory_booklet(new_theory_id)
+            self.assertNotIn(new_worksheet["cloud_uid"], stored["worksheets"])
+            self.assertNotIn(new_theory["cloud_uid"], stored["theory"])
+
     def setUp(self):
         self.original_db = database.DB_FILE
         database.DB_FILE = os.path.join(os.path.dirname(__file__), "test_da_tuition.db")

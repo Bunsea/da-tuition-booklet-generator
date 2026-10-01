@@ -5,12 +5,19 @@ import re
 import hashlib
 import secrets
 import threading
+import time
+import uuid
 from datetime import datetime
 from typing import List, Dict, Any, Optional, Tuple
 
+import booklet_store
+
 DB_FILE = os.path.join(os.path.dirname(__file__), "da_tuition.db")
+_DEFAULT_DB_FILE = DB_FILE
 _db_init_lock = threading.Lock()
 _initialized_dbs = set()
+_booklet_sync_lock = threading.Lock()
+_last_booklet_sync = 0.0
 
 def get_connection():
     conn = sqlite3.connect(DB_FILE, timeout=30.0)
@@ -320,9 +327,147 @@ def init_db(force: bool = False):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_review_booklets_created ON review_booklets(created_at);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_exam_packages_created ON exam_packages(created_at);")
 
+    for table in ("theory_booklets", "worksheets"):
+        try:
+            cursor.execute(f"ALTER TABLE {table} ADD COLUMN cloud_uid TEXT")
+        except sqlite3.OperationalError:
+            pass
+        cursor.execute(f"CREATE UNIQUE INDEX IF NOT EXISTS idx_{table}_cloud_uid ON {table}(cloud_uid)")
+
     conn.commit()
     conn.close()
     _initialized_dbs.add(abs_path)
+
+
+def booklet_cloud_enabled() -> bool:
+    """Unit-test databases remain isolated from the configured cloud project."""
+    return os.path.abspath(DB_FILE) == os.path.abspath(_DEFAULT_DB_FILE) and booklet_store.is_configured()
+
+
+def _theory_cloud_record(row: Dict[str, Any], uid: str) -> Dict[str, Any]:
+    return {
+        "version": 1, "cloud_uid": uid,
+        "title": row["title"], "term": row.get("term"), "week": row.get("week"),
+        "year_level": row.get("year_level"), "topic": row.get("topic"),
+        "content": json.loads(row["content_json"]) if row.get("content_json") else {},
+        "created_at": row.get("created_at"),
+    }
+
+
+def _worksheet_cloud_record(row: Dict[str, Any], uid: str, parent_uid: Optional[str]) -> Dict[str, Any]:
+    return {
+        "version": 1, "cloud_uid": uid, "source_theory_uid": parent_uid,
+        "title": row["title"], "term": row.get("term"), "week": row.get("week"),
+        "year_level": row.get("year_level"), "topic": row.get("topic"),
+        "difficulty": row.get("difficulty"), "total_questions": row.get("total_questions"),
+        "questions": json.loads(row["questions_json"]) if row.get("questions_json") else [],
+        "marking_key": json.loads(row["marking_key_json"]) if row.get("marking_key_json") else {},
+        "set_number": row.get("set_number"), "custom_instructions": row.get("custom_instructions"),
+        "cost": row.get("cost"), "model": row.get("model"), "tokens": row.get("tokens"),
+        "assessment_type": row.get("assessment_type"), "created_at": row.get("created_at"),
+    }
+
+
+def _upload_unsynced_booklets() -> int:
+    """Move existing local source records to the private bucket before restoring cloud records."""
+    uploaded = 0
+    conn = get_connection()
+    try:
+        for row in conn.execute("SELECT * FROM theory_booklets WHERE cloud_uid IS NULL ORDER BY id").fetchall():
+            uid = uuid.uuid4().hex
+            booklet_store.put("theory", uid, _theory_cloud_record(dict(row), uid))
+            conn.execute("UPDATE theory_booklets SET cloud_uid = ? WHERE id = ?", (uid, row["id"]))
+            conn.commit()
+            uploaded += 1
+
+        for row in conn.execute("SELECT * FROM worksheets WHERE cloud_uid IS NULL ORDER BY id").fetchall():
+            parent_uid = None
+            if row["source_theory_id"]:
+                parent = conn.execute("SELECT cloud_uid FROM theory_booklets WHERE id = ?", (row["source_theory_id"],)).fetchone()
+                parent_uid = parent["cloud_uid"] if parent else None
+            uid = uuid.uuid4().hex
+            booklet_store.put("worksheets", uid, _worksheet_cloud_record(dict(row), uid, parent_uid))
+            conn.execute("UPDATE worksheets SET cloud_uid = ? WHERE id = ?", (uid, row["id"]))
+            conn.commit()
+            uploaded += 1
+    finally:
+        conn.close()
+    return uploaded
+
+
+def sync_booklets_from_cloud(force: bool = False) -> Dict[str, Any]:
+    """Restore saved source data after a hosted app restart; migrate older local rows once."""
+    global _last_booklet_sync
+    if not booklet_cloud_enabled():
+        return {"enabled": False, "uploaded": 0, "restored": 0}
+    if not force and time.monotonic() - _last_booklet_sync < 600:
+        return {"enabled": True, "uploaded": 0, "restored": 0}
+
+    with _booklet_sync_lock:
+        if not force and time.monotonic() - _last_booklet_sync < 600:
+            return {"enabled": True, "uploaded": 0, "restored": 0}
+        uploaded = _upload_unsynced_booklets()
+        theory_records = [booklet_store.get("theory", uid) for uid in booklet_store.list_uids("theory")]
+        worksheet_records = [booklet_store.get("worksheets", uid) for uid in booklet_store.list_uids("worksheets")]
+        theory_uids = {record["cloud_uid"] for record in theory_records}
+        restored = 0
+        conn = get_connection()
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            for record in theory_records:
+                uid = record["cloud_uid"]
+                values = (
+                    record.get("title") or "Untitled Theory Booklet", record.get("term"), record.get("week"),
+                    record.get("year_level"), record.get("topic"), json.dumps(record.get("content") or {}),
+                    record.get("created_at"), uid,
+                )
+                existing = conn.execute("SELECT id FROM theory_booklets WHERE cloud_uid = ?", (uid,)).fetchone()
+                if existing:
+                    conn.execute("""UPDATE theory_booklets SET title=?, term=?, week=?, year_level=?, topic=?,
+                        content_json=?, created_at=? WHERE cloud_uid=?""", values)
+                else:
+                    conn.execute("""INSERT INTO theory_booklets
+                        (title,term,week,year_level,topic,content_json,created_at,cloud_uid)
+                        VALUES (?,?,?,?,?,?,?,?)""", values)
+                    restored += 1
+
+            parent_ids = {row["cloud_uid"]: row["id"] for row in conn.execute(
+                "SELECT id,cloud_uid FROM theory_booklets WHERE cloud_uid IS NOT NULL"
+            ).fetchall() if row["cloud_uid"] in theory_uids}
+            for record in worksheet_records:
+                uid = record["cloud_uid"]
+                parent_uid = record.get("source_theory_uid")
+                if parent_uid and parent_uid not in parent_ids:
+                    raise ValueError(f"The saved worksheet {uid} references a missing theory booklet.")
+                values = (
+                    record.get("title") or "Untitled Worksheet", record.get("term"), record.get("week"),
+                    record.get("year_level"), record.get("topic"), record.get("difficulty"),
+                    len(record.get("questions") or []), json.dumps(record.get("questions") or []),
+                    json.dumps(record.get("marking_key") or {}), record.get("set_number"),
+                    record.get("custom_instructions"), record.get("cost"), record.get("model"),
+                    record.get("tokens"), parent_ids.get(parent_uid), record.get("assessment_type"),
+                    record.get("created_at"), uid,
+                )
+                existing = conn.execute("SELECT id FROM worksheets WHERE cloud_uid = ?", (uid,)).fetchone()
+                if existing:
+                    conn.execute("""UPDATE worksheets SET title=?,term=?,week=?,year_level=?,topic=?,difficulty=?,
+                        total_questions=?,questions_json=?,marking_key_json=?,set_number=?,custom_instructions=?,
+                        cost=?,model=?,tokens=?,source_theory_id=?,assessment_type=?,created_at=? WHERE cloud_uid=?""", values)
+                else:
+                    conn.execute("""INSERT INTO worksheets
+                        (title,term,week,year_level,topic,difficulty,total_questions,questions_json,marking_key_json,
+                        set_number,custom_instructions,cost,model,tokens,source_theory_id,assessment_type,created_at,cloud_uid)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", values)
+                    restored += 1
+
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+        _last_booklet_sync = time.monotonic()
+        return {"enabled": True, "uploaded": uploaded, "restored": restored}
 
 # --- User & Authentication Operations ---
 def authenticate_user(username: str, password: str) -> Optional[Dict[str, Any]]:
@@ -534,14 +679,38 @@ def save_worksheet(title: str, term: Optional[int], week: Optional[int], year_le
                    source_theory_id: Optional[int] = None, assessment_type: str = "homework") -> int:
     conn = get_connection()
     cursor = conn.cursor()
+    cloud_uid = None
+    created_at = datetime.utcnow().isoformat(sep=" ")
+    if booklet_cloud_enabled():
+        parent_uid = None
+        if source_theory_id is not None:
+            parent = cursor.execute("SELECT cloud_uid FROM theory_booklets WHERE id = ?", (source_theory_id,)).fetchone()
+            if not parent or not parent["cloud_uid"]:
+                conn.close()
+                raise ValueError("The linked theory booklet must be saved to the cloud before this worksheet.")
+            parent_uid = parent["cloud_uid"]
+        cloud_uid = uuid.uuid4().hex
+        record = _worksheet_cloud_record({
+            "title": title, "term": term, "week": week, "year_level": year_level, "topic": topic,
+            "difficulty": difficulty, "total_questions": len(questions),
+            "questions_json": json.dumps(questions), "marking_key_json": json.dumps(marking_key),
+            "set_number": set_number, "custom_instructions": custom_instructions or "",
+            "cost": cost, "model": model, "tokens": tokens,
+            "assessment_type": assessment_type or "homework", "created_at": created_at,
+        }, cloud_uid, parent_uid)
+        try:
+            booklet_store.put("worksheets", cloud_uid, record)
+        except Exception:
+            conn.close()
+            raise
     cursor.execute("""
-        INSERT INTO worksheets (title, term, week, year_level, topic, difficulty, total_questions, questions_json, marking_key_json, set_number, custom_instructions, cost, model, tokens, source_theory_id, assessment_type)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO worksheets (title, term, week, year_level, topic, difficulty, total_questions, questions_json, marking_key_json, set_number, custom_instructions, cost, model, tokens, source_theory_id, assessment_type, created_at, cloud_uid)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         title, term, week, year_level, topic, difficulty, len(questions),
         json.dumps(questions), json.dumps(marking_key), set_number,
         custom_instructions or "", cost, model, tokens,
-        source_theory_id, assessment_type or "homework"
+        source_theory_id, assessment_type or "homework", created_at, cloud_uid
     ))
     worksheet_id = cursor.lastrowid
     conn.commit()
@@ -591,6 +760,18 @@ def update_worksheet_instructions(worksheet_id: int, instructions_text: str) -> 
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("UPDATE worksheets SET custom_instructions = ? WHERE id = ?", (instructions_text.strip(), worksheet_id))
+    row = cursor.execute("SELECT * FROM worksheets WHERE id = ?", (worksheet_id,)).fetchone()
+    if row and row["cloud_uid"] and booklet_cloud_enabled():
+        parent_uid = None
+        if row["source_theory_id"]:
+            parent = cursor.execute("SELECT cloud_uid FROM theory_booklets WHERE id = ?", (row["source_theory_id"],)).fetchone()
+            parent_uid = parent["cloud_uid"] if parent else None
+        try:
+            booklet_store.put("worksheets", row["cloud_uid"], _worksheet_cloud_record(dict(row), row["cloud_uid"], parent_uid))
+        except Exception:
+            conn.rollback()
+            conn.close()
+            raise
     conn.commit()
     conn.close()
     return True
@@ -630,7 +811,7 @@ def delete_worksheet(worksheet_id: int, force: bool = False) -> bool:
     conn = get_connection()
     try:
         conn.execute("BEGIN IMMEDIATE")
-        exists = conn.execute("SELECT 1 FROM worksheets WHERE id = ?", (worksheet_id,)).fetchone()
+        exists = conn.execute("SELECT cloud_uid FROM worksheets WHERE id = ?", (worksheet_id,)).fetchone()
         if not exists:
             conn.rollback()
             return False
@@ -642,6 +823,8 @@ def delete_worksheet(worksheet_id: int, force: bool = False) -> bool:
                 f"This worksheet has {submission_count} marked submission(s). "
                 "Confirm deletion with force=True to delete the worksheet and its submissions."
             )
+        if exists["cloud_uid"] and booklet_cloud_enabled():
+            booklet_store.remove("worksheets", exists["cloud_uid"])
         conn.execute("DELETE FROM mistakes WHERE worksheet_id = ?", (worksheet_id,))
         if force:
             conn.execute("DELETE FROM submissions WHERE worksheet_id = ?", (worksheet_id,))
@@ -656,13 +839,21 @@ def delete_worksheet(worksheet_id: int, force: bool = False) -> bool:
 
 # --- Theory Booklet Operations ---
 def save_theory_booklet(title: str, term: Optional[int], week: Optional[int], year_level: str, topic: str, content: Dict[str, Any]) -> int:
+    cloud_uid = None
+    created_at = datetime.utcnow().isoformat(sep=" ")
+    if booklet_cloud_enabled():
+        cloud_uid = uuid.uuid4().hex
+        booklet_store.put("theory", cloud_uid, _theory_cloud_record({
+            "title": title, "term": term, "week": week, "year_level": year_level,
+            "topic": topic, "content_json": json.dumps(content), "created_at": created_at,
+        }, cloud_uid))
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        INSERT INTO theory_booklets (title, term, week, year_level, topic, content_json)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO theory_booklets (title, term, week, year_level, topic, content_json, created_at, cloud_uid)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """, (
-        title, term, week, year_level, topic, json.dumps(content)
+        title, term, week, year_level, topic, json.dumps(content), created_at, cloud_uid
     ))
     booklet_id = cursor.lastrowid
     conn.commit()
@@ -698,6 +889,18 @@ def delete_theory_booklet(booklet_id: int, delete_linked_worksheets: bool = Fals
     conn = get_connection()
     try:
         conn.execute("BEGIN IMMEDIATE")
+        theory = conn.execute("SELECT cloud_uid FROM theory_booklets WHERE id = ?", (booklet_id,)).fetchone()
+        children = conn.execute("SELECT * FROM worksheets WHERE source_theory_id = ?", (booklet_id,)).fetchall()
+        if theory and theory["cloud_uid"] and booklet_cloud_enabled():
+            if delete_linked_worksheets:
+                for child in children:
+                    if child["cloud_uid"]:
+                        booklet_store.remove("worksheets", child["cloud_uid"])
+            else:
+                for child in children:
+                    if child["cloud_uid"]:
+                        booklet_store.put("worksheets", child["cloud_uid"], _worksheet_cloud_record(dict(child), child["cloud_uid"], None))
+            booklet_store.remove("theory", theory["cloud_uid"])
         if delete_linked_worksheets:
             ws_ids = [row[0] for row in conn.execute("SELECT id FROM worksheets WHERE source_theory_id = ?", (booklet_id,)).fetchall()]
             for wid in ws_ids:
@@ -727,6 +930,14 @@ def update_theory_booklet_instructions(booklet_id: int, instructions_text: str) 
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("UPDATE theory_booklets SET content_json = ? WHERE id = ?", (json.dumps(content), booklet_id))
+    row = cursor.execute("SELECT * FROM theory_booklets WHERE id = ?", (booklet_id,)).fetchone()
+    if row and row["cloud_uid"] and booklet_cloud_enabled():
+        try:
+            booklet_store.put("theory", row["cloud_uid"], _theory_cloud_record(dict(row), row["cloud_uid"]))
+        except Exception:
+            conn.rollback()
+            conn.close()
+            raise
     conn.commit()
     conn.close()
     return True
@@ -820,6 +1031,13 @@ def register_theory_practice_worksheet(theory_id: int, booklet_data: Dict[str, A
         ))
         conn.commit()
         conn.close()
+        if booklet_cloud_enabled():
+            worksheet = get_worksheet_by_id(ws_id)
+            parent = get_theory_booklet_by_id(theory_id)
+            if worksheet and worksheet.get("cloud_uid"):
+                booklet_store.put("worksheets", worksheet["cloud_uid"], _worksheet_cloud_record(
+                    worksheet, worksheet["cloud_uid"], parent.get("cloud_uid") if parent else None
+                ))
         return ws_id
     else:
         conn.close()

@@ -161,6 +161,12 @@ def get_worksheet_download_filename(worksheet: dict, sheet_type: str = "homework
 
 # Initialize Database
 database.init_db()
+booklet_sync_status = None
+booklet_sync_error = None
+try:
+    booklet_sync_status = database.sync_booklets_from_cloud()
+except Exception as exc:
+    booklet_sync_error = str(exc)
 
 @st.cache_data(show_spinner=False)
 def get_cached_worksheet_pdf(
@@ -844,11 +850,25 @@ if main_section == "📖 1. Theory & Practice Materials":
     with sub_tab_theory:
         st.markdown("### 📖 Generate Theory Booklet (Teacher & Student Editions)")
         st.caption("Aligned with NSW Syllabus textbooks (CambridgeMATHS & Maths in Focus). Generates complete concept explanations, key formula callout boxes, tutor tips, TikZ geometry diagrams, teacher demonstration examples (with full step-by-step whiteboard solutions), and tiered student practice questions (Easy, Medium, Hard).")
+        if booklet_sync_error:
+            st.error(f"Permanent booklet storage could not sync: {booklet_sync_error}. Check the Supabase connection before generating more booklets.")
+        elif not database.booklet_cloud_enabled():
+            st.warning("Permanent booklet storage is not configured. Saved theory and worksheets will only remain on this app instance.")
+        elif booklet_sync_status and (booklet_sync_status["uploaded"] or booklet_sync_status["restored"]):
+            st.success(f"Cloud booklet library synced: {booklet_sync_status['uploaded']} existing records backed up, {booklet_sync_status['restored']} restored.")
+
+        if database.booklet_cloud_enabled() and st.button("🔄 Refresh Saved Booklets from Cloud", key="refresh_cloud_booklet_library"):
+            try:
+                database.sync_booklets_from_cloud(force=True)
+                st.rerun()
+            except Exception as exc:
+                st.error(f"Could not refresh saved booklets: {exc}")
 
         # Saved Theory Booklets Library
         saved_tbs = database.get_theory_booklets()
         if saved_tbs:
-            with st.expander("📚 Saved Theory Booklets Library (Load Existing Booklet)", expanded=False):
+            library_label = "☁️ Saved Theory Booklets Library (Load Existing Booklet)" if database.booklet_cloud_enabled() else "📚 Saved Theory Booklets Library (Load Existing Booklet)"
+            with st.expander(library_label, expanded=False):
                 tb_lib_opts = {
                     f"#{b['id']} — {b['title']} ({b.get('year_level', '')} • {b.get('topic', '')})": b['id']
                     for b in saved_tbs
@@ -1315,7 +1335,8 @@ if main_section == "📖 1. Theory & Practice Materials":
                 st.info(f"💰 **Generation Cost:** **${tb.get('meta_cost', 0.0):.4f} AUD** • **{tb.get('meta_tokens', 0):,} tokens** ({tb.get('model_used', 'Gemini 3.8 Flash')})")
 
             if cloud_sync.is_cloud_connected():
-                if st.button("☁️ Save Theory Booklet to DA Cloud Library", key=f"btn_cloud_save_tb_{tb.get('id', 0)}", use_container_width=True):
+                st.caption("The editable theory booklet is saved automatically. Publish an export here if you want it in the shared PDF library.")
+                if st.button("☁️ Publish Teacher PDF to Shared DA Cloud Library", key=f"btn_cloud_save_tb_{tb.get('id', 0)}", use_container_width=True):
                     with st.spinner("Saving to DA Cloud Library (Supabase)..."):
                         ok, msg = cloud_sync.save_exam_to_cloud(
                             subject=f"{tb.get('year_level', '')} Maths",
