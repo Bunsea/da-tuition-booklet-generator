@@ -65,7 +65,7 @@ class TestPrivateTheoryPageFillers(unittest.TestCase):
     def test_sparse_pages_get_distinct_brain_breaks(self):
         output = io.BytesIO()
         page = canvas.Canvas(output, pagesize=A4)
-        for _ in range(2):
+        for _ in range(8):
             page.drawString(54, 430, "Concept A: Factorial notation")
             page.showPage()
         page.save()
@@ -75,7 +75,14 @@ class TestPrivateTheoryPageFillers(unittest.TestCase):
         })
         texts = [p.extract_text() for p in PdfReader(io.BytesIO(result)).pages]
         challenges = [re.search(r"CHALLENGE\s+(.*?)\s+Self-check", t, re.S).group(1) for t in texts]
-        self.assertEqual(len(set(challenges)), 2)
+        self.assertEqual(len(set(challenges)), 8)
+
+    def test_filling_is_idempotent(self):
+        booklet = {"topic": "Combinatorics", "concepts": [{"name": "Factorial notation"}]}
+        first_pass = fill_sparse_private_theory_pages(_sample_pdf(430), booklet)
+        second_pass = fill_sparse_private_theory_pages(first_pass, booklet)
+        text = PdfReader(io.BytesIO(second_pass)).pages[0].extract_text()
+        self.assertEqual(text.count("MATHS BRAIN BREAK"), 1)
 
 
 if __name__ == "__main__":
