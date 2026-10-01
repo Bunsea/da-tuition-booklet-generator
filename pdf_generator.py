@@ -9,6 +9,7 @@ from io import BytesIO
 from typing import List, Dict, Any, Optional, Tuple
 from PIL import Image
 from pypdf import PdfReader, PdfWriter
+from page_fillers import fill_sparse_private_theory_pages
 
 from graph_generator import inject_python_graphs
 import docx_generator
@@ -8785,14 +8786,20 @@ def generate_theory_booklet_pdf(
     topic_str = str(booklet_data.get("topic", ""))
     yl_str = str(booklet_data.get("year_level", ""))
     if latex_bytes:
-        return prune_trailing_blank_pages(latex_bytes, topic=topic_str, year_level=yl_str)
+        result = prune_trailing_blank_pages(latex_bytes, topic=topic_str, year_level=yl_str)
+        if str(mode).strip().lower() in ("student_private", "private", "student private"):
+            result = fill_sparse_private_theory_pages(result, booklet_data)
+        return result
     rl_bytes = generate_reportlab_theory_booklet_pdf(
         booklet_data=booklet_data,
         mode=mode,
         term=term,
         week=week
     )
-    return prune_trailing_blank_pages(rl_bytes, topic=topic_str, year_level=yl_str)
+    result = prune_trailing_blank_pages(rl_bytes, topic=topic_str, year_level=yl_str)
+    if str(mode).strip().lower() in ("student_private", "private", "student private"):
+        result = fill_sparse_private_theory_pages(result, booklet_data)
+    return result
 
 
 # ==============================================================================
