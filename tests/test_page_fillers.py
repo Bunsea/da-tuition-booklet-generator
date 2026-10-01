@@ -40,8 +40,8 @@ class TestPrivateTheoryPageFillers(unittest.TestCase):
         reader = PdfReader(io.BytesIO(result))
         self.assertEqual(len(reader.pages), 1)
         text = reader.pages[0].extract_text()
-        self.assertIn("QUICK MATHS PUZZLE", text)
-        self.assertIn("BRAIN TEASER", text)
+        self.assertTrue(any(heading in text for heading in
+                            ("QUICK MATHS PUZZLE", "QUICK MATHS FACT", "MATHS PUN", "VISUAL MATHS")))
 
     def test_leaves_well_used_page_unchanged(self):
         original = _sample_pdf(180)
@@ -60,7 +60,8 @@ class TestPrivateTheoryPageFillers(unittest.TestCase):
         self.assertEqual(len(document), 1)
         self.assertGreater(document[0].get_size()[1], 800)
         text = document[0].get_textpage().get_text_range()
-        self.assertIn("Answer: 4", text)
+        self.assertTrue(any(heading in text for heading in
+                            ("QUICK MATHS PUZZLE", "QUICK MATHS FACT", "MATHS PUN", "VISUAL MATHS")))
 
     def test_sparse_pages_get_distinct_brain_breaks(self):
         output = io.BytesIO()
@@ -87,6 +88,18 @@ class TestPrivateTheoryPageFillers(unittest.TestCase):
         self.assertTrue(any("DID YOU KNOW" in t for t in texts))
         self.assertTrue(any("MATHS PUN" in t for t in texts))
         self.assertTrue(any("A LITTLE MATHS PICTURE" in t for t in texts))
+
+    def test_activity_type_is_randomized_but_sized_to_available_space(self):
+        # About 30% of the usable page remains. A compact option should fit,
+        # while the larger puzzle layout should be held for a roomier page.
+        result = fill_sparse_private_theory_pages(_sample_pdf(280), {
+            "topic": "Combinatorics",
+            "concepts": [{"name": "Factorial notation"}],
+        })
+        text = PdfReader(io.BytesIO(result)).pages[0].extract_text()
+        self.assertTrue(any(heading in text for heading in
+                            ("QUICK MATHS FACT", "MATHS PUN", "VISUAL MATHS")))
+        self.assertNotIn("QUICK MATHS PUZZLE", text)
 
     def test_activity_bank_returns_four_distinct_activity_types(self):
         samples = [_activity_for("Factorial notation", "Combinatorics", variant=i) for i in range(4)]

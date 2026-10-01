@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import re
 import math
+import hashlib
+import random
 from io import BytesIO
 from typing import Any, Dict, Optional, Tuple
 
@@ -19,6 +21,7 @@ PAGE_MARGIN = 54.0
 MAX_PANEL_RATIO = 0.72
 CONTENT_TO_PANEL_GAP = 30.0
 ACTIVITY_HEADINGS = ("QUICK MATHS PUZZLE", "QUICK MATHS FACT", "MATHS PUN", "VISUAL MATHS")
+ACTIVITY_MIN_HEIGHT = {"puzzle": 225.0, "fact": 160.0, "pun": 145.0, "visual": 170.0}
 
 
 def _has_activity_panel(text: str) -> bool:
@@ -347,12 +350,16 @@ def _draw_activity_panel(
     )
 
     if kind == "puzzle":
+        quick_fact = Paragraph(f"<b>Quick fact:</b> {fact}", detail_style)
+        _, fact_height = quick_fact.wrap(inner_width, 42)
+        quick_fact.drawOn(page_canvas, x + 14, body_top - fact_height)
         page_canvas.setFillColor(muted)
         page_canvas.setFont("Helvetica-Bold", 9)
-        page_canvas.drawString(x + 14, body_top, "BRAIN TEASER")
+        challenge_label_y = body_top - fact_height - 12
+        page_canvas.drawString(x + 14, challenge_label_y, "BRAIN TEASER")
         puzzle = Paragraph(challenge, main_style)
-        _, puzzle_height = puzzle.wrap(inner_width, max(30, body_top - body_bottom - 60))
-        puzzle_top = body_top - 9
+        puzzle_top = challenge_label_y - 9
+        _, puzzle_height = puzzle.wrap(inner_width, max(30, puzzle_top - body_bottom - 60))
         puzzle.drawOn(page_canvas, x + 14, puzzle_top - puzzle_height)
         answer_y = body_bottom + 25
         page_canvas.setFillColor(colors.HexColor("#374151"))
@@ -363,7 +370,10 @@ def _draw_activity_panel(
         answer_detail.drawOn(page_canvas, x + 14, answer_y - detail_height - 4)
         visual_top = puzzle_top - puzzle_height - 12
         visual_bottom = answer_y + detail_height + 15
-        _draw_mini_visual(page_canvas, x, width, visual_top, visual_bottom, concept, topic, serial, mode="steps")
+        _draw_mini_visual(
+            page_canvas, x, width, visual_top, visual_bottom, concept, topic, serial,
+            mode="steps", activity_text=challenge,
+        )
     elif kind == "fact":
         page_canvas.setFillColor(muted)
         page_canvas.setFont("Helvetica-Bold", 9)
@@ -375,17 +385,25 @@ def _draw_activity_panel(
     elif kind == "pun":
         page_canvas.setFillColor(muted)
         page_canvas.setFont("Helvetica-Bold", 9)
-        page_canvas.drawString(x + 14, body_top, "MATHS PUN")
+        page_canvas.drawString(x + 14, body_top, "WORDPLAY")
         pun = Paragraph(challenge, ParagraphStyle(
             "BrainBreakPun", parent=main_style, fontSize=15, leading=20, alignment=1,
         ))
         _, pun_height = pun.wrap(inner_width, max(40, body_top - body_bottom - 55))
-        pun_y = body_bottom + (body_top - body_bottom - pun_height) / 2
+        pun_y = body_top - 30 - pun_height
         pun.drawOn(page_canvas, x + 14, pun_y)
         detail = Paragraph(explanation, detail_style)
         _, detail_height = detail.wrap(inner_width, 32)
-        detail.drawOn(page_canvas, x + 14, max(body_bottom + 4, pun_y - detail_height - 10))
-        _draw_math_doodle(page_canvas, x + width - 60, body_top - 28, serial)
+        detail_y = pun_y - detail_height - 10
+        detail.drawOn(page_canvas, x + 14, max(body_bottom + 4, detail_y))
+        visual_top = detail_y - 12
+        visual_bottom = body_bottom + 8
+        visual_height = max(0, visual_top - visual_bottom)
+        if visual_height >= 38:
+            _draw_math_doodle(
+                page_canvas, x + width / 2, (visual_top + visual_bottom) / 2,
+                serial, radius=min(48, visual_height * 0.34),
+            )
     else:
         page_canvas.setFillColor(muted)
         page_canvas.setFont("Helvetica-Bold", 9)
@@ -396,7 +414,7 @@ def _draw_activity_panel(
         _draw_mini_visual(page_canvas, x, width, body_top - 12, body_bottom + caption_height + 14, concept, topic, serial)
 
 
-def _draw_mini_visual(page_canvas, x, width, top, bottom, concept, topic, serial, mode="steps"):
+def _draw_mini_visual(page_canvas, x, width, top, bottom, concept, topic, serial, mode="steps", activity_text=""):
     """Draw a small, topic-specific vector illustration inside the card."""
     available = top - bottom
     if available < 38:
@@ -408,10 +426,51 @@ def _draw_mini_visual(page_canvas, x, width, top, bottom, concept, topic, serial
     fills = [colors.HexColor(v) for v in ("#E4E9FF", "#E4F5EF", "#FFF0DA", "#FCE5EA", "#E8F3FA")]
     page_canvas.setStrokeColor(stroke)
     page_canvas.setLineWidth(1)
+    prompt = str(activity_text or "").lower()
+    if mode == "steps" and "trailing zero" in prompt:
+        limit_match = re.search(r"(\d+)\s*!", prompt)
+        limit = int(limit_match.group(1)) if limit_match else 20
+        labels = [str(value) for value in range(5, limit + 1, 5)][:8]
+        if not labels:
+            labels = ["5", "10"]
+        gap = min(58, (width - 96) / max(1, len(labels) - 1))
+        start_x = center_x - gap * (len(labels) - 1) / 2
+        row_y = bottom + available * 0.60
+        for i, label in enumerate(labels):
+            cx = start_x + i * gap
+            page_canvas.setFillColor(fills[3] if int(label) % 25 == 0 else fills[i % len(fills)])
+            page_canvas.circle(cx, row_y, 17, stroke=1, fill=1)
+            page_canvas.setFillColor(colors.HexColor("#25345B"))
+            page_canvas.setFont("Helvetica-Bold", 9)
+            page_canvas.drawCentredString(cx, row_y - 3, label)
+        page_canvas.setFillColor(colors.HexColor("#596B9D"))
+        page_canvas.setFont("Helvetica-Oblique", 8.5)
+        caption = "Multiples of 5 contribute factors to trailing zeroes."
+        if limit >= 25:
+            caption += " Each multiple of 25 contributes one extra factor of 5."
+        page_canvas.drawCentredString(center_x, row_y - 31, caption)
+        return
+
+    if mode == "steps" and "circular" in text:
+        radius = min(52, max(28, available * 0.30))
+        center_y = bottom + available * 0.54
+        page_canvas.setStrokeColor(stroke)
+        page_canvas.circle(center_x, center_y, radius, stroke=1, fill=0)
+        for i in range(6):
+            angle = math.radians(90 - i * 60)
+            cx = center_x + radius * math.cos(angle)
+            cy = center_y + radius * math.sin(angle)
+            page_canvas.setFillColor(fills[i % len(fills)])
+            page_canvas.circle(cx, cy, 10, stroke=1, fill=1)
+            page_canvas.setFillColor(colors.HexColor("#25345B"))
+            page_canvas.setFont("Helvetica-Bold", 7.5)
+            page_canvas.drawCentredString(cx, cy - 2.5, str(i + 1))
+        return
+
     if any(word in text for word in ("factorial", "permutation", "arrangement", "combinatoric", "combination")):
         if mode == "growth":
-            base_y = bottom + 26
-            chart_height = max(45, available - 72)
+            base_y = bottom + 20
+            chart_height = max(10, min(available - 28, 125))
             values = [(5, 120), (6, 720), (7, 5040), (8, 40320)]
             bar_width = min(62, (width - 100) / len(values) * 0.58)
             gap = (width - 100) / len(values)
@@ -426,14 +485,11 @@ def _draw_mini_visual(page_canvas, x, width, top, bottom, concept, topic, serial
                 page_canvas.drawCentredString(bx, base_y - 14, f"{n}!")
                 page_canvas.setFont("Helvetica", 8)
                 page_canvas.drawCentredString(bx, base_y + bar_h + 5, f"{value:,}")
-            page_canvas.setFillColor(colors.HexColor("#596B9D"))
-            page_canvas.setFont("Helvetica-Oblique", 8.5)
-            page_canvas.drawCentredString(center_x, bottom + 7, "The bars show how quickly the values grow.")
         else:
             n = 4 + serial
             labels = [f"{n}!", f"{n} × {n - 1}!", f"{n} × {n - 1} × {n - 2}!"]
-            rows = len(labels) if available >= 105 else 1
-            row_gap = min(54, available / (rows + 1))
+            rows = 3 if available >= 140 else 2 if available >= 88 else 1
+            row_gap = min(90, available / (rows + 1))
             for i, label in enumerate(labels[:rows]):
                 y = top - row_gap * (i + 1)
                 box_width = min(width - 48, max(170, len(label) * 9 + 48))
@@ -495,13 +551,13 @@ def _draw_mini_visual(page_canvas, x, width, top, bottom, concept, topic, serial
             page_canvas.drawCentredString(bx, mid_y - 3, label)
 
 
-def _draw_math_doodle(page_canvas, center_x, center_y, serial):
+def _draw_math_doodle(page_canvas, center_x, center_y, serial, radius=None):
     page_canvas.saveState()
     page_canvas.setStrokeColor(colors.HexColor("#A6B3DA"))
     page_canvas.setFillColor(colors.HexColor("#E7ECFA"))
     page_canvas.setLineWidth(1.2)
-    page_canvas.circle(center_x, center_y, 18 + serial % 3 * 2, stroke=1, fill=1)
-    radius = 18 + serial % 3 * 2
+    radius = radius or 18 + serial % 3 * 2
+    page_canvas.circle(center_x, center_y, radius, stroke=1, fill=1)
     page_canvas.setStrokeColor(colors.HexColor("#596B9D"))
     for angle in range(0, 360, 60):
         radians = math.radians(angle)
@@ -537,6 +593,12 @@ def fill_sparse_private_theory_pages(pdf_bytes: bytes, booklet_data: Dict[str, A
         changed = False
         used_challenges = set()
         activity_index = 0
+        # Seed from the source booklet so activity types and prompts are
+        # shuffled per booklet, while regenerating the same source stays stable.
+        seed_bytes = hashlib.sha256(pdf_bytes + topic.encode("utf-8")).digest()
+        activity_rng = random.Random(int.from_bytes(seed_bytes[:8], "big"))
+        type_order = list(range(4))
+        activity_rng.shuffle(type_order)
 
         for index, original_page in enumerate(source.pages):
             text = page_texts[index]
@@ -569,25 +631,39 @@ def fill_sparse_private_theory_pages(pdf_bytes: bytes, booklet_data: Dict[str, A
 
             available_height = lowest_y - PAGE_MARGIN - CONTENT_TO_PANEL_GAP
             panel_height = min(available_height, body_height * MAX_PANEL_RATIO)
-            if panel_height < body_height * MIN_UNUSED_RATIO - 14:
+            minimum_filler_height = max(120.0, body_height * MIN_UNUSED_RATIO - CONTENT_TO_PANEL_GAP)
+            if panel_height < minimum_filler_height:
                 output.add_page(original_page)
                 continue
 
-            # Pick a different checked activity for each inserted page. If a
-            # booklet has more sparse pages than available activities in that
-            # concept family, leave the remaining page clean instead of repeat.
+            # Shuffle prompts within a randomized type order. Type-specific
+            # minimums keep larger activities out of cramped spaces, while the
+            # shuffled round guarantees a mix when all four types fit.
             selected = None
-            for variant_offset in range(32):
-                candidate = _activity_for(active_concept, topic, text, activity_index + variant_offset)
-                if candidate is None:
-                    continue
-                if candidate[1] not in used_challenges:
-                    selected = (variant_offset, candidate)
-                    break
+            eligible_types = {
+                type_index for type_index in type_order
+                if panel_height >= ACTIVITY_MIN_HEIGHT[_activity_kind(type_index)]
+            }
+            if eligible_types:
+                start_at = activity_index % len(type_order)
+                randomized_order = type_order[start_at:] + type_order[:start_at]
+                for type_index in randomized_order:
+                    if type_index not in eligible_types:
+                        continue
+                    serials = list(range(8))
+                    activity_rng.shuffle(serials)
+                    for serial in serials:
+                        variant = serial * 4 + type_index
+                        candidate = _activity_for(active_concept, topic, text, variant)
+                        if candidate is not None and candidate[1] not in used_challenges:
+                            selected = (variant, candidate)
+                            break
+                    if selected:
+                        break
             if selected is None:
                 output.add_page(original_page)
                 continue
-            variant_offset, candidate = selected
+            variant, candidate = selected
             used_challenges.add(candidate[1])
             activity_index += 1
 
@@ -595,7 +671,7 @@ def fill_sparse_private_theory_pages(pdf_bytes: bytes, booklet_data: Dict[str, A
             overlay_canvas = canvas.Canvas(overlay_buffer, pagesize=(page_width, page_height))
             _draw_activity_panel(
                 overlay_canvas, page_width, PAGE_MARGIN, panel_height, active_concept, topic, text,
-                activity_index - 1 + variant_offset,
+                variant,
             )
             overlay_canvas.save()
             overlay_buffer.seek(0)
