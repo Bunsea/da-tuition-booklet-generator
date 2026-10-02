@@ -5,6 +5,7 @@ import ai_engine
 import database
 import pypdf
 import io
+import math
 
 class TestPdfGenerator(unittest.TestCase):
     def test_companion_booklets_keep_editions_and_page_order(self):
@@ -1324,6 +1325,37 @@ class TestPdfGenerator(unittest.TestCase):
         self.assertIn("circle (0.18)", source)
         self.assertIn("Seat 5", source)
         self.assertNotIn("circle (1.15cm)", source)
+        seat_points = re.findall(
+            r"\\filldraw\[fill=white,draw=blue!65!black,thick\] \((-?[\d.]+),(-?[\d.]+)\) circle \(0\.14\)",
+            source,
+        )
+        self.assertEqual(len(seat_points), 4)
+        for x, y in seat_points:
+            self.assertAlmostEqual(math.hypot(float(x), float(y)), 1.15, delta=0.01)
+
+    def test_practice_solution_boxes_expand_to_match_the_page_column(self):
+        booklet_data = {
+            "title": "Solution box alignment check",
+            "year_level": "Year 11 (Extension)",
+            "topic": "Combinatorics",
+            "concepts": [{
+                "concept_name": "Arrangements",
+                "theory_content": "A short definition.",
+                "practice_questions": [{
+                    "question_num": 1,
+                    "question_text": "How many orders are possible for three objects?",
+                    "final_answer": "6",
+                    "solution": "3! = 6",
+                }],
+            }],
+        }
+        source = pdf_generator.build_latex_theory_booklet_source(booklet_data, mode="teacher")
+        box_start = source.index(r"\newtcolorbox{practicesolutionbox}")
+        box_end = source.index(r"\newtcolorbox{workingbox}", box_start)
+        practice_box_style = source[box_start:box_end]
+        self.assertIn(r"width=\dimexpr\linewidth+\leftmargin\relax", practice_box_style)
+        self.assertIn(r"enlarge left by=-\leftmargin", practice_box_style)
+        self.assertIn(r"\begin{practicesolutionbox}", source)
 
     def test_separator_method_gap_sketch_is_compact(self):
         solution = (

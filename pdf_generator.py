@@ -3295,14 +3295,15 @@ def _replace_crowded_combinatorics_diagram(diag: str) -> Optional[str]:
 \node[font=\small] at (0,0) {$(n-1)!$};
 \filldraw[fill=yellow!30,draw=red!75!black,thick] (0,1.15) circle (0.18);
 \node[font=\scriptsize\bfseries,text=red!75!black,anchor=south] at (0,1.38) {Anchor};
-\filldraw[fill=white,draw=blue!65!black,thick] (0.82,0.36) circle (0.14);
-\filldraw[fill=white,draw=blue!65!black,thick] (0.51,-0.93) circle (0.14);
-\filldraw[fill=white,draw=blue!65!black,thick] (-0.51,-0.93) circle (0.14);
-\filldraw[fill=white,draw=blue!65!black,thick] (-0.82,0.36) circle (0.14);
-\node[font=\scriptsize,anchor=west] at (1.02,0.36) {Seat 2};
-\node[font=\scriptsize,anchor=north] at (0.51,-1.12) {Seat 3};
-\node[font=\scriptsize,anchor=north] at (-0.51,-1.12) {Seat 4};
-\node[font=\scriptsize,anchor=east] at (-1.02,0.36) {Seat 5};
+% Seat markers are centred on the circumference at 72-degree intervals.
+\filldraw[fill=white,draw=blue!65!black,thick] (1.09,0.36) circle (0.14);
+\filldraw[fill=white,draw=blue!65!black,thick] (0.93,-0.68) circle (0.14);
+\filldraw[fill=white,draw=blue!65!black,thick] (-0.93,-0.68) circle (0.14);
+\filldraw[fill=white,draw=blue!65!black,thick] (-1.09,0.36) circle (0.14);
+\node[font=\scriptsize,anchor=west] at (1.30,0.36) {Seat 2};
+\node[font=\scriptsize,anchor=north] at (0.93,-0.87) {Seat 3};
+\node[font=\scriptsize,anchor=north] at (-0.93,-0.87) {Seat 4};
+\node[font=\scriptsize,anchor=east] at (-1.30,0.36) {Seat 5};
 \end{tikzpicture}"""
 
     if (re.search(r"\(\s*n\s*\+\s*3\s*\)\s*!", diag)
@@ -7954,6 +7955,8 @@ def build_latex_theory_booklet_source(
         r"    colbacktitle=white,",
         r"    attach boxed title to top left={yshift=-1.8mm, xshift=3mm},",
         r"    boxed title style={boxrule=0.4pt, colframe=dagreen!35, arc=2pt},",
+        r"    width=\dimexpr\linewidth+\leftmargin\relax,",
+        r"    enlarge left by=-\leftmargin,",
         r"    varwidth boxed title=0.92\linewidth",
         r"}",
         "",
