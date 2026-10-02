@@ -353,6 +353,30 @@ def _page_text_and_lowest_body_y(page) -> Tuple[str, Optional[float]]:
         left, bottom, right, top = text_page.get_charbox(index)
         if PAGE_MARGIN < bottom < height - PAGE_MARGIN and right > PAGE_MARGIN and left < width - PAGE_MARGIN:
             body_bottom.append(bottom)
+
+    # Question and solution boxes often include a large blank writing area.
+    # Character bounds alone miss that rectangle, so a filler can land on top
+    # of it even when the text appears to leave enough room. Include substantial
+    # vector objects in the occupied-area check; ignore small rules and the
+    # full-page watermark image.
+    try:
+        for page_object in page.get_objects():
+            if getattr(page_object, "type", None) != 2:  # PDF path / vector object
+                continue
+            bounds = page_object.get_bounds()
+            if not bounds or len(bounds) != 4:
+                continue
+            left, bottom, right, top = map(float, bounds)
+            object_width = max(0.0, right - left)
+            object_height = max(0.0, top - bottom)
+            if (PAGE_MARGIN - 4 <= bottom < height - PAGE_MARGIN
+                    and right > PAGE_MARGIN and left < width - PAGE_MARGIN
+                    and (object_height >= 20 or object_width * object_height >= 1600)):
+                body_bottom.append(bottom)
+    except Exception:
+        # Text-based detection remains available for malformed or unsupported
+        # vector objects.
+        pass
     return text, min(body_bottom) if body_bottom else None
 
 

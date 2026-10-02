@@ -51,6 +51,19 @@ class TestPrivateTheoryPageFillers(unittest.TestCase):
         })
         self.assertEqual(result, original)
 
+    def test_does_not_overlap_large_blank_question_or_working_boxes(self):
+        output = io.BytesIO()
+        page = canvas.Canvas(output, pagesize=A4)
+        page.drawString(54, 430, "Concept A: Factorial notation")
+        page.roundRect(54, 54, A4[0] - 108, 230, 6, stroke=1, fill=0)
+        page.save()
+        original = output.getvalue()
+        result = fill_sparse_private_theory_pages(original, {
+            "topic": "Combinatorics",
+            "concepts": [{"name": "Factorial notation"}],
+        })
+        self.assertEqual(result, original)
+
     def test_panel_stays_inside_page_bounds(self):
         result = fill_sparse_private_theory_pages(_sample_pdf(430), {
             "topic": "Combinatorics",
