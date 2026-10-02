@@ -142,7 +142,7 @@ class TestPrivateTheoryPageFillers(unittest.TestCase):
         self.assertEqual(len(set(facts)), 8)
         self.assertEqual(len(set(puns)), 8)
         self.assertIn("consecutive factorial values", visuals[1])
-        self.assertIn("available choices shrink", visuals[2])
+        self.assertIn("one possible order", visuals[2])
 
     def test_pun_panel_uses_a_distinct_label_and_no_generic_starburst(self):
         from page_fillers import _draw_activity_panel
@@ -161,13 +161,64 @@ class TestPrivateTheoryPageFillers(unittest.TestCase):
 
         output = io.BytesIO()
         page = canvas.Canvas(output, pagesize=A4)
-        _draw_activity_panel(page, A4[0], 54, 330, "Arrangements together", "Combinatorics", "", variant=4)
+        _draw_activity_panel(page, A4[0], 54, 165, "Arrangements together", "Combinatorics", "", variant=4)
         page.save()
         text = PdfReader(io.BytesIO(output.getvalue())).pages[0].extract_text()
         self.assertIn("Six people all shake hands", text)
-        self.assertIn("Draw one line for each pair", text)
         self.assertNotIn("Answer:", text)
         self.assertNotIn("Each handshake is a pair", text)
+        self.assertNotIn("6!", text)
+
+    def test_pair_count_puzzle_does_not_get_an_unrelated_factorial_diagram(self):
+        from page_fillers import _draw_activity_panel
+
+        output = io.BytesIO()
+        page = canvas.Canvas(output, pagesize=A4)
+        _draw_activity_panel(page, A4[0], 54, 330, "Arrangements together", "Combinatorics", "", variant=8)
+        page.save()
+        text = PdfReader(io.BytesIO(output.getvalue())).pages[0].extract_text()
+        self.assertIn("At a table of eight people", text)
+        self.assertNotIn("6!", text)
+        self.assertNotIn("Peel off one factor", text)
+
+    def test_fact_card_does_not_show_an_unrelated_factorial_growth_chart(self):
+        from page_fillers import _draw_activity_panel
+
+        output = io.BytesIO()
+        page = canvas.Canvas(output, pagesize=A4)
+        _draw_activity_panel(page, A4[0], 54, 330, "Factorial notation", "Combinatorics", "", variant=5)
+        page.save()
+        text = PdfReader(io.BytesIO(output.getvalue())).pages[0].extract_text()
+        self.assertIn("0! equals 1", text)
+        self.assertNotIn("40,320", text)
+        self.assertNotIn("8!", text)
+
+    def test_factorial_matching_picture_does_not_show_the_matches(self):
+        from page_fillers import _draw_activity_panel
+
+        output = io.BytesIO()
+        page = canvas.Canvas(output, pagesize=A4)
+        _draw_activity_panel(page, A4[0], 54, 330, "Factorial notation", "Combinatorics", "", variant=15)
+        page.save()
+        text = PdfReader(io.BytesIO(output.getvalue())).pages[0].extract_text()
+        for label in ("3!", "4!", "5!", "6!", "6", "24", "120", "720"):
+            self.assertIn(label, text)
+        self.assertNotIn("3! =", text)
+        self.assertNotIn("4! =", text)
+        self.assertNotIn("5! =", text)
+        self.assertNotIn("6! =", text)
+
+    def test_circle_reflection_visual_shows_both_seating_orders(self):
+        from page_fillers import _draw_activity_panel
+
+        output = io.BytesIO()
+        page = canvas.Canvas(output, pagesize=A4)
+        _draw_activity_panel(page, A4[0], 54, 330, "Arrangements in a circle", "Combinatorics", "", variant=11)
+        page.save()
+        text = PdfReader(io.BytesIO(output.getvalue())).pages[0].extract_text()
+        self.assertIn("CLOCKWISE", text)
+        self.assertIn("MIRROR IMAGE", text)
+        self.assertIn("mirror keeps the people", text)
 
     def test_puzzle_card_does_not_print_the_answer_or_an_unrelated_visual(self):
         from page_fillers import _draw_activity_panel

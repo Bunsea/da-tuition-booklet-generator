@@ -21,8 +21,8 @@ PAGE_MARGIN = 54.0
 MAX_PANEL_RATIO = 0.72
 CONTENT_TO_PANEL_GAP = 30.0
 ACTIVITY_HEADINGS = ("QUICK MATHS PUZZLE", "QUICK MATHS FACT", "MATHS PUN", "VISUAL MATHS")
-ACTIVITY_MIN_HEIGHT = {"puzzle": 225.0, "fact": 160.0, "pun": 145.0, "visual": 170.0}
-ACTIVITY_CARD_HEIGHT = {"puzzle": 190.0, "fact": 130.0, "pun": 155.0, "visual": 165.0}
+ACTIVITY_MIN_HEIGHT = {"puzzle": 210.0, "fact": 140.0, "pun": 145.0, "visual": 195.0}
+ACTIVITY_CARD_HEIGHT = {"puzzle": 150.0, "fact": 120.0, "pun": 155.0, "visual": 185.0}
 ACTIVITY_STACK_GAP = 12.0
 MAX_ACTIVITY_CARDS_PER_PAGE = 3
 
@@ -313,10 +313,10 @@ def _activity_for(concept: str, topic: str, page_context: str = "", variant: int
         circle_captions = [
             "Anchor one seat to see why rotations are duplicates.",
             "Follow each neighbour clockwise around a circular table.",
-            "A mirror image reverses the order; a rotation does not.",
+            "The mirror keeps the people but reverses their order.",
             "Six seats, one fixed person, and five positions left to fill.",
             "Trace the same seating from a different starting chair.",
-            "Compare clockwise order with its reflected arrangement.",
+            "Compare the clockwise order with its mirror image.",
             "A circular arrangement has no special first seat.",
             "Rotate the table: the relative seating stays unchanged.",
         ]
@@ -325,12 +325,12 @@ def _activity_for(concept: str, topic: str, page_context: str = "", variant: int
         visual_captions = [
             "Unroll a factorial one factor at a time.",
             "Compare how quickly consecutive factorial values grow.",
-            "Watch the available choices shrink across five positions.",
-            "Match each factorial to its evaluated value.",
+            "Follow one possible order as choices run out.",
+            "Match each factorial with a value from the mixed list.",
             "Build an arrangement count from the choices at each position.",
             "See how adding one object multiplies the previous total.",
             "Split a factorial into a short product and a smaller factorial.",
-            "Count the choices at each position: 4 × 3 × 2 × 1.",
+            "After each pick, one fewer object remains to choose.",
         ]
         caption = visual_captions[serial % len(visual_captions)]
     elif any(word in text for word in ("probability", "chance", "random")):
@@ -439,12 +439,6 @@ def _draw_activity_panel(
         puzzle_top = challenge_label_y - 9
         _, puzzle_height = puzzle.wrap(inner_width, max(30, puzzle_top - body_bottom - 60))
         puzzle.drawOn(page_canvas, x + 14, puzzle_top - puzzle_height)
-        visual_top = puzzle_top - puzzle_height - 12
-        visual_bottom = body_bottom + 18
-        _draw_mini_visual(
-            page_canvas, x, width, visual_top, visual_bottom, concept, topic, serial,
-            mode="steps", activity_text=challenge,
-        )
     elif kind == "fact":
         page_canvas.setFillColor(muted)
         page_canvas.setFont("Helvetica-Bold", 9)
@@ -452,7 +446,6 @@ def _draw_activity_panel(
         main = Paragraph(fact, main_style)
         _, main_height = main.wrap(inner_width, 55)
         main.drawOn(page_canvas, x + 14, body_top - 10 - main_height)
-        _draw_mini_visual(page_canvas, x, width, body_top - 24 - main_height, body_bottom, concept, topic, serial, mode="growth")
     elif kind == "pun":
         page_canvas.setFillColor(muted)
         page_canvas.setFont("Helvetica-Bold", 9)
@@ -543,6 +536,32 @@ def _draw_mini_visual(page_canvas, x, width, top, bottom, concept, topic, serial
         page_canvas.drawCentredString(center_x, row_y - 31, caption)
         return
 
+    if mode == "picture" and serial in (2, 5) and ("circular" in text or "circle" in text):
+        # Show the same seating order and its reflection side by side.
+        radius = min(25, max(16, available * 0.27))
+        center_y = bottom + available * 0.52
+        offset = min(74, width * 0.19)
+        examples = (
+            (center_x - offset, (1, 2, 3, 4, 5, 6), "CLOCKWISE"),
+            (center_x + offset, (1, 6, 5, 4, 3, 2), "MIRROR IMAGE"),
+        )
+        for circle_x, order, label in examples:
+            page_canvas.setStrokeColor(stroke)
+            page_canvas.circle(circle_x, center_y, radius, stroke=1, fill=0)
+            page_canvas.setFillColor(colors.HexColor("#596B9D"))
+            page_canvas.setFont("Helvetica-Bold", 7)
+            page_canvas.drawCentredString(circle_x, center_y + radius + 7, label)
+            for i, number in enumerate(order):
+                angle = math.radians(90 - i * 60)
+                px = circle_x + radius * math.cos(angle)
+                py = center_y + radius * math.sin(angle)
+                page_canvas.setFillColor(fills[i % len(fills)])
+                page_canvas.circle(px, py, 4, stroke=1, fill=1)
+                page_canvas.setFillColor(colors.HexColor("#25345B"))
+                page_canvas.setFont("Helvetica-Bold", 5.5)
+                page_canvas.drawCentredString(px, py - 1.8, str(number))
+        return
+
     show_circle_diagram = mode == "picture" or (
         mode == "steps" and any(phrase in prompt for phrase in (
             "change seats", "clockwise", "turned halfway", "fix one person",
@@ -582,26 +601,30 @@ def _draw_mini_visual(page_canvas, x, width, top, bottom, concept, topic, serial
             _draw_factorial_picture(page_canvas, center_x, mid_y, width, available, serial, fills, stroke)
         elif mode == "growth" or (mode == "picture" and serial == 0):
             if mode == "picture":
-                # The first visual variant is the clear vertical countdown.
-                labels = ["5!", "5 × 4!", "5 × 4 × 3!"]
-                rows = 3 if available >= 140 else 2 if available >= 88 else 1
-                row_gap = min(90, available / (rows + 1))
-                for i, label in enumerate(labels[:rows]):
-                    y = top - row_gap * (i + 1)
-                    box_width = min(width - 48, max(170, len(label) * 9 + 48))
+                # A horizontal sequence gives the arrows room between each step.
+                labels = ("5!", "5 × 4!", "5 × 4 × 3!")
+                box_widths = (72, 96, 122)
+                gap = min(16, max(8, (width - sum(box_widths)) / 2))
+                layout_width = sum(box_widths) + gap * (len(box_widths) - 1)
+                cursor = center_x - layout_width / 2
+                centers = []
+                for box_width in box_widths:
+                    centers.append(cursor + box_width / 2)
+                    cursor += box_width + gap
+                for i, (label, box_width, cx) in enumerate(zip(labels, box_widths, centers)):
                     page_canvas.setFillColor(fills[i % len(fills)])
-                    page_canvas.roundRect(center_x - box_width / 2, y - 15, box_width, 30, 7, stroke=1, fill=1)
+                    page_canvas.roundRect(cx - box_width / 2, mid_y - 15, box_width, 30, 7, stroke=1, fill=1)
                     page_canvas.setFillColor(colors.HexColor("#25345B"))
-                    page_canvas.setFont("Helvetica-Bold", 11)
-                    page_canvas.drawCentredString(center_x, y - 4, label)
-                    if i < rows - 1:
+                    page_canvas.setFont("Helvetica-Bold", 10)
+                    page_canvas.drawCentredString(cx, mid_y - 4, label)
+                    if i < len(labels) - 1:
+                        next_cx = centers[i + 1]
+                        arrow_start = cx + box_width / 2 + 4
+                        arrow_tip = next_cx - box_widths[i + 1] / 2 - 5
                         page_canvas.setStrokeColor(stroke)
-                        page_canvas.line(center_x, y - 18, center_x, y - row_gap + 20)
-                        page_canvas.line(center_x, y - row_gap + 20, center_x - 3, y - row_gap + 25)
-                        page_canvas.line(center_x, y - row_gap + 20, center_x + 3, y - row_gap + 25)
-                page_canvas.setFillColor(colors.HexColor("#596B9D"))
-                page_canvas.setFont("Helvetica-Oblique", 8.5)
-                page_canvas.drawCentredString(center_x, bottom + 2, "Unroll one factor at a time.")
+                        page_canvas.line(arrow_start, mid_y, arrow_tip, mid_y)
+                        page_canvas.line(arrow_tip - 4, mid_y + 3, arrow_tip, mid_y)
+                        page_canvas.line(arrow_tip - 4, mid_y - 3, arrow_tip, mid_y)
                 return
             base_y = bottom + 20
             chart_height = max(6, min(available - 36, 125))
@@ -710,33 +733,56 @@ def _draw_factorial_picture(page_canvas, center_x, center_y, width, height, seri
             page_canvas.setFont("Helvetica", 7.5)
             page_canvas.drawCentredString(cx, base + bar_h + 4, f"{value:,}")
     elif serial == 2:
-        # Choice slots shrink from left to right.
-        count = 5
-        gap = min(80, (width - 100) / (count - 1))
-        start_x = center_x - gap * (count - 1) / 2
-        for i, number in enumerate(range(count, 0, -1)):
-            cx = start_x + i * gap
-            page_canvas.setFillColor(fills[i % len(fills)])
-            page_canvas.roundRect(cx - 28, center_y - 22, 56, 44, 6, stroke=1, fill=1)
+        # Show one concrete path: each pick removes an object from the next list.
+        stage_gap = min(118, (width - 100) / 3)
+        remaining = ("ABCD", "BCD", "CD", "D")
+        for i, options in enumerate(remaining):
+            cx = center_x + (i - 1.5) * stage_gap
             page_canvas.setFillColor(ink)
-            page_canvas.setFont("Helvetica-Bold", 10)
-            page_canvas.drawCentredString(cx, center_y + 2, f"{number} choices")
+            page_canvas.setFont("Helvetica-Bold", 7.5)
+            page_canvas.drawCentredString(cx, center_y + 27, f"PICK {i + 1}")
+            tile_width, tile_gap, tile_height = 14, 3, 19
+            group_width = len(options) * tile_width + (len(options) - 1) * tile_gap
+            left = cx - group_width / 2
+            for j, option in enumerate(options):
+                tile_x = left + j * (tile_width + tile_gap)
+                page_canvas.setFillColor(fills[i % len(fills)])
+                page_canvas.roundRect(tile_x, center_y - tile_height / 2 + 3,
+                                      tile_width, tile_height, 3, stroke=1, fill=1)
+                page_canvas.setFillColor(ink)
+                page_canvas.setFont("Helvetica-Bold", 8)
+                page_canvas.drawCentredString(tile_x + tile_width / 2, center_y - 1, option)
             page_canvas.setFont("Helvetica", 8)
-            page_canvas.drawCentredString(cx, center_y - 12, f"slot {i + 1}")
+            page_canvas.drawCentredString(cx, center_y - 18, f"{len(options)} choices")
+            if i < len(remaining) - 1:
+                start = cx + group_width / 2 + 4
+                end = cx + stage_gap - (len(remaining[i + 1]) * tile_width
+                                        + (len(remaining[i + 1]) - 1) * tile_gap) / 2 - 4
+                arrow_y = center_y + 2
+                page_canvas.setStrokeColor(stroke)
+                page_canvas.line(start, arrow_y, end, arrow_y)
+                page_canvas.line(end - 4, arrow_y + 3, end, arrow_y)
+                page_canvas.line(end - 4, arrow_y - 3, end, arrow_y)
     elif serial == 3:
-        # Four matching cards pair factorials with their values.
-        pairs = [(3, 6), (4, 24), (5, 120), (6, 720)]
-        card_height = 28
-        row_offset = min(38, max(0, height / 2 - card_height / 2 - 3))
-        for i, (n, value) in enumerate(pairs):
-            row, col = divmod(i, 2)
-            cx = center_x + (col - .5) * min(150, width * .34)
-            cy = center_y + (.5 - row) * row_offset
-            page_canvas.setFillColor(fills[i % len(fills)])
-            page_canvas.roundRect(cx - 62, cy - card_height / 2, 124, card_height, 6, stroke=1, fill=1)
-            page_canvas.setFillColor(ink)
-            page_canvas.setFont("Helvetica-Bold", 10)
-            page_canvas.drawCentredString(cx, cy - 3, f"{n}! = {value}")
+        # Keep the prompt open: factorials and shuffled values are in separate columns.
+        left_x, right_x = center_x - min(90, width * .22), center_x + min(90, width * .22)
+        top_y = center_y + height / 2
+        page_canvas.setFillColor(ink)
+        page_canvas.setFont("Helvetica-Bold", 8)
+        page_canvas.drawCentredString(left_x, top_y - 8, "FACTORIALS")
+        page_canvas.drawCentredString(right_x, top_y - 8, "VALUES (MIXED)")
+        row_gap = min(14, max(11, (height - 27) / 3))
+        factorials = ("3!", "4!", "5!", "6!")
+        values = ("120", "6", "720", "24")
+        for i, (factorial, value) in enumerate(zip(factorials, values)):
+            y = top_y - 23 - i * row_gap
+            for cx, label, fill in ((left_x, factorial, fills[i % len(fills)]),
+                                    (right_x, value, fills[(i + 2) % len(fills)])):
+                page_canvas.setFillColor(fill)
+                page_canvas.roundRect(cx - 32, y - 5, 64, 11, 3, stroke=1, fill=1)
+                page_canvas.setFillColor(ink)
+                page_canvas.setFont("Helvetica-Bold", 7.5)
+                page_canvas.drawCentredString(cx, y - 2.5, label)
     elif serial == 4:
         # Product tiles show the factors individually.
         gap = min(66, (width - 100) / 4)
