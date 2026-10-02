@@ -6,6 +6,7 @@ import database
 import pypdf
 import io
 import math
+from unittest.mock import patch
 
 class TestPdfGenerator(unittest.TestCase):
     def test_companion_booklets_keep_editions_and_page_order(self):
@@ -1006,6 +1007,31 @@ class TestPdfGenerator(unittest.TestCase):
         self.assertIn(r"\begin{tikzpicture}[x=1pt, y=1pt]", overlay_tex)
         self.assertIn("max width=105pt", overlay_tex)
         self.assertIn("max height=24pt", overlay_tex)
+
+    def test_answer_sheet_reportlab_fallback_typesets_powers_and_fractions(self):
+        for answer in ("n^2 + 5n + 6", r"\frac{4}{33}", r"\frac{5}{11}", "18472/54145"):
+            png = pdf_generator._render_answer_math_png(answer)
+            self.assertIsNotNone(png, answer)
+            image = pdf_generator.Image.open(io.BytesIO(png)).convert("RGBA")
+            self.assertGreater(image.width, 0)
+            self.assertEqual(image.getextrema()[3][0], 0, "math image should have a transparent background")
+
+        with patch.object(pdf_generator, "find_pdflatex", return_value=None):
+            answer_pdf = pdf_generator.generate_teacher_answer_sheet_pdf(
+                question_labels=["2", "16(a)", "16(b)", "17"],
+                answers=["n^2 + 5n + 6", r"\frac{4}{33}", r"\frac{5}{11}", "18472/54145"],
+                num_questions=4,
+            )
+        page = pypdf.PdfReader(io.BytesIO(answer_pdf)).pages[0]
+        text = page.extract_text()
+        for label in ("2", "16(a)", "16(b)", "17"):
+            self.assertIn(label, text)
+        self.assertNotIn("n^2 + 5n + 6", text)
+        self.assertNotIn("18472/54145", text)
+        xobjects = page["/Resources"].get_object().get("/XObject").get_object()
+        image_count = sum(1 for ref in xobjects.values()
+                          if ref.get_object().get("/Subtype") == "/Image")
+        self.assertGreaterEqual(image_count, 4)
 
     def test_review_booklet_bulleted_summary_formatting(self):
         """Verify that review booklet parses markdown bullet points in revision_summary into LaTeX itemize."""

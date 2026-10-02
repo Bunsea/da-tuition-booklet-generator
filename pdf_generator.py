@@ -8,6 +8,7 @@ from xml.sax.saxutils import escape
 from io import BytesIO
 from typing import List, Dict, Any, Optional, Tuple
 from PIL import Image
+from functools import lru_cache
 from pypdf import PdfReader, PdfWriter
 from page_fillers import fill_sparse_private_theory_pages
 
@@ -18,8 +19,9 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, HRFlowable, Image as RLImage, KeepTogether
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, HRFlowable, Image as RLImage, KeepTogether, Flowable
 )
+from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
@@ -6219,6 +6221,105 @@ def clean_answer_for_answer_sheet(ans: str) -> str:
     s = s.replace("\\", "")
     return s.strip()
 
+
+@lru_cache(maxsize=256)
+def _render_answer_math_png(raw_answer: str, font_size: float = 9.5, dpi: int = 300) -> Optional[bytes]:
+    """Render a compact LaTeX-style answer with transparent background for ReportLab fallbacks."""
+    source = str(raw_answer or "").strip().replace("$$", "$")
+    if not source:
+        return None
+
+    # Turn ordinary answer-key fractions into real stacked fractions too.
+    source = re.sub(
+        r"(?<![\\\w.])([+-]?\d+)\s*/\s*(\d+)(?![\w.])",
+        r"\\frac{\1}{\2}",
+        source,
+    )
+    has_math = bool(re.search(r"\\(?:d?frac|sqrt|binom|times|cdot|pi|pm|le|ge|neq)|[\^_]", source))
+    if not has_math:
+        return None
+
+    # Preserve existing math delimiters while avoiding text-mode answer cleanup,
+    # which intentionally turns LaTeX into plain ASCII for legacy answer sheets.
+    expression = source.replace("$", "")
+    expression = expression.replace(r"\dfrac", r"\frac")
+    expression = re.sub(r"\\text\{([^{}]*)\}", r"\\mathrm{\1}", expression)
+    expression = f"${expression}$"
+
+    try:
+        from matplotlib import mathtext
+        from matplotlib.font_manager import FontProperties
+        import numpy as np
+
+        raw_png = BytesIO()
+        mathtext.math_to_image(
+            expression,
+            raw_png,
+            prop=FontProperties(family="DejaVu Sans", size=font_size, weight="bold"),
+            dpi=dpi,
+            format="png",
+            color="#0F2240",
+        )
+        raw_png.seek(0)
+        rgba = np.asarray(Image.open(raw_png).convert("RGBA")).copy()
+        # math_to_image uses a white canvas; turn the white paper into alpha so
+        # the formula sits cleanly on the answer-sheet cell's original background.
+        rgb = rgba[:, :, :3].astype(float)
+        luminance = rgb[:, :, 0] * 0.2126 + rgb[:, :, 1] * 0.7152 + rgb[:, :, 2] * 0.0722
+        foreground_luminance = 0.2126 * 15 + 0.7152 * 34 + 0.0722 * 64
+        alpha = np.clip((255.0 - luminance) * 255.0 / (255.0 - foreground_luminance), 0, 255)
+        rgba[:, :, 0] = 15
+        rgba[:, :, 1] = 34
+        rgba[:, :, 2] = 64
+        rgba[:, :, 3] = alpha.astype("uint8")
+        output = BytesIO()
+        Image.fromarray(rgba).save(output, format="PNG", optimize=True)
+        return output.getvalue()
+    except Exception:
+        # Keep malformed or unsupported expressions on the existing safe text path.
+        return None
+
+
+class _MathAnswerImage(Flowable):
+    """A small, transparent math image that fits inside a fixed answer-sheet cell."""
+
+    def __init__(self, png_bytes: bytes, max_width: float, max_height: float):
+        super().__init__()
+        self.reader = ImageReader(BytesIO(png_bytes))
+        pixel_width, pixel_height = self.reader.getSize()
+        self.source_width = pixel_width * 72.0 / 300.0
+        self.source_height = pixel_height * 72.0 / 300.0
+        self.max_width = max_width
+        self.max_height = max_height
+
+    def wrap(self, avail_width: float, avail_height: float) -> Tuple[float, float]:
+        scale = min(
+            1.0,
+            self.max_width / max(1.0, self.source_width),
+            self.max_height / max(1.0, self.source_height),
+            avail_width / max(1.0, self.source_width),
+            avail_height / max(1.0, self.source_height),
+        )
+        self.width = self.source_width * scale
+        self.height = self.source_height * scale
+        return self.width, self.height
+
+    def draw(self) -> None:
+        self.canv.drawImage(
+            self.reader, 0, 0, width=self.width, height=self.height,
+            preserveAspectRatio=True, mask="auto",
+        )
+
+
+def _answer_cell_content(raw_answer: str, style: ParagraphStyle, max_width: float = 135.0,
+                         max_height: float = 22.0) -> Any:
+    """Use typeset math where possible, and retain ordinary text for verbal answers."""
+    png = _render_answer_math_png(str(raw_answer or ""))
+    if png:
+        return _MathAnswerImage(png, max_width=max_width, max_height=max_height)
+    cleaned = clean_answer_for_answer_sheet(raw_answer)
+    return Paragraph(escape(cleaned), style) if cleaned else ""
+
 def generate_answer_sheet_pdf(
     question_labels: Optional[List[str]] = None,
     answers: Optional[List[str]] = None,
@@ -6372,8 +6473,15 @@ def generate_answer_sheet_pdf(
 
                     # Prefilled Answer if teacher copy
                     if is_teacher and page_answers and idx < len(page_answers) and page_answers[idx]:
-                        clean_ans = clean_answer_for_answer_sheet(page_answers[idx])
-                        if clean_ans:
+                        math_png = _render_answer_math_png(str(page_answers[idx]))
+                        if math_png:
+                            math_image = _MathAnswerImage(math_png, max_width=col_info["max_w"], max_height=22.0)
+                            image_width, image_height = math_image.wrap(col_info["max_w"], 22.0)
+                            math_image.drawOn(can, col_info["ans_x"] - image_width / 2, y_base - image_height / 2)
+                        else:
+                            clean_ans = clean_answer_for_answer_sheet(page_answers[idx])
+                            if not clean_ans:
+                                continue
                             font_sz = 9.5
                             while can.stringWidth(clean_ans, "Helvetica-Bold", font_sz) > col_info["max_w"] and font_sz > 6.0:
                                 font_sz -= 0.5
@@ -6461,16 +6569,13 @@ def generate_answer_sheet_pdf(
 
         for r in range(rows_per_col):
             q1 = p_labels[r] if r < len(p_labels) else ""
-            raw_a1 = clean_answer_for_answer_sheet(p_answers[r]) if (is_teacher and r < len(p_answers)) else ""
-            a1 = Paragraph(raw_a1, ans_style) if raw_a1 else ""
+            a1 = _answer_cell_content(p_answers[r], ans_style) if (is_teacher and r < len(p_answers)) else ""
 
             q2 = p_labels[r + rows_per_col] if (r + rows_per_col) < len(p_labels) else ""
-            raw_a2 = clean_answer_for_answer_sheet(p_answers[r + rows_per_col]) if (is_teacher and (r + rows_per_col) < len(p_answers)) else ""
-            a2 = Paragraph(raw_a2, ans_style) if raw_a2 else ""
+            a2 = _answer_cell_content(p_answers[r + rows_per_col], ans_style) if (is_teacher and (r + rows_per_col) < len(p_answers)) else ""
 
             q3 = p_labels[r + 2 * rows_per_col] if (r + 2 * rows_per_col) < len(p_labels) else ""
-            raw_a3 = clean_answer_for_answer_sheet(p_answers[r + 2 * rows_per_col]) if (is_teacher and (r + 2 * rows_per_col) < len(p_answers)) else ""
-            a3 = Paragraph(raw_a3, ans_style) if raw_a3 else ""
+            a3 = _answer_cell_content(p_answers[r + 2 * rows_per_col], ans_style) if (is_teacher and (r + 2 * rows_per_col) < len(p_answers)) else ""
 
             grid_data.append([q1, a1, q2, a2, q3, a3])
 
@@ -6579,8 +6684,7 @@ def _build_adaptive_answer_sheet_pdf(
                 for c in range(3):
                     cell_it = padded[r * 3 + c]
                     c_lbl = cell_it.get("label", "")
-                    raw_ans = clean_answer_for_answer_sheet(cell_it.get("answer", "")) if is_teacher else ""
-                    c_ans = Paragraph(raw_ans, ans_style) if raw_ans else ""
+                    c_ans = _answer_cell_content(cell_it.get("answer", ""), ans_style) if is_teacher else ""
                     row.extend([c_lbl, c_ans])
                 grid_data.append(row)
 
