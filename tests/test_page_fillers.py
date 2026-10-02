@@ -105,7 +105,7 @@ class TestPrivateTheoryPageFillers(unittest.TestCase):
         samples = [_activity_for("Factorial notation", "Combinatorics", variant=i) for i in range(4)]
         self.assertIn("Find the error", samples[0][1])
         self.assertIn("10! is 3,628,800", samples[1][1])
-        self.assertIn("Permutations are so orderly", samples[2][1])
+        self.assertIn("improve division", samples[2][1])
         self.assertIn("Unroll a factorial", samples[3][1])
 
     def test_factorial_visuals_and_puns_are_substantively_distinct(self):
@@ -132,6 +132,23 @@ class TestPrivateTheoryPageFillers(unittest.TestCase):
         self.assertIn("MATHS PUN", text)
         self.assertIn("WORDPLAY", text)
         self.assertNotIn("MATHS PUN\nMATHS PUN", text)
+
+    def test_student_puzzle_card_does_not_reveal_its_answer(self):
+        from page_fillers import _draw_activity_panel
+
+        output = io.BytesIO()
+        page = canvas.Canvas(output, pagesize=A4)
+        _draw_activity_panel(page, A4[0], 54, 330, "Arrangements together", "Combinatorics", "", variant=4)
+        page.save()
+        text = PdfReader(io.BytesIO(output.getvalue())).pages[0].extract_text()
+        self.assertIn("Six people all shake hands", text)
+        self.assertIn("Draw one line for each pair", text)
+        self.assertNotIn("Answer:", text)
+        self.assertNotIn("Each handshake is a pair", text)
+
+    def test_pun_is_plainly_understandable_for_students(self):
+        pun = _activity_for("Factorial notation", "Combinatorics", variant=30)[1]
+        self.assertEqual(pun, "Why was the maths book sad? It had too many problems.")
 
     def test_filling_is_idempotent(self):
         booklet = {"topic": "Combinatorics", "concepts": [{"name": "Factorial notation"}]}

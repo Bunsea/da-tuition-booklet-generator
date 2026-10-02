@@ -1982,6 +1982,30 @@ def format_latex_solution_steps(raw_sol: str) -> str:
     text_clean = re.sub(r"(?<!\\)\\\\\s*(?!\s*(?:\[|begin|end))", "\n", text_clean)
 
     lines = _join_bulleted_label_value_lines(text_clean.split("\n"))
+    # A common separator-method sketch is emitted as one boy per line
+    # (``B\\B\\B\\B\\.``). Keep it as a compact horizontal gap model so
+    # the illustration does not consume a large vertical block in the solution.
+    compact_gap_lines = []
+    line_index = 0
+    while line_index < len(lines):
+        gap_heading = re.search(r"\b(\d+)\s+gaps?\s*:?\s*$", lines[line_index], re.IGNORECASE)
+        if gap_heading:
+            cursor = line_index + 1
+            boys = 0
+            while cursor < len(lines) and re.fullmatch(r"\s*\$?B\$?\s*", lines[cursor], re.IGNORECASE):
+                boys += 1
+                cursor += 1
+            if boys >= 3 and cursor < len(lines) and re.fullmatch(r"\s*(?:\.|\\cdot|\$\\cdot\$)\s*", lines[cursor]):
+                gap_count = int(gap_heading.group(1))
+                if gap_count == boys + 1:
+                    slots = r"\,B\,".join([r"\circ"] * (boys + 1))
+                    compact_gap_lines.append(lines[line_index])
+                    compact_gap_lines.append("$\\underbrace{%s}_{%d\\text{ gaps}}$" % (slots, gap_count))
+                    line_index = cursor + 1
+                    continue
+        compact_gap_lines.append(lines[line_index])
+        line_index += 1
+    lines = compact_gap_lines
     # Compact the vertical letter-frequency tally often emitted by the model
     # (for example ``S:\n3\nT:\n3``) into one readable line.
     compacted_lines = []
@@ -3243,6 +3267,44 @@ def _replace_crowded_combinatorics_diagram(diag: str) -> Optional[str]:
     """Use measured layouts for recurring generated diagrams with colliding labels."""
     # These compact topic diagrams are common sources of label collisions in
     # generated combinatorics content. Replace them with spaced, measured layouts.
+    if (re.search(r"\bn\s*!", diag, re.IGNORECASE)
+            and re.search(r"arrangements?\s*\(\s*all\s+distinct\s*\)", diag, re.IGNORECASE)):
+        return r"""\begin{tikzpicture}[>=Stealth]
+\node[draw=blue!65!black,fill=blue!8,rounded corners=4pt,minimum width=1.55cm,minimum height=0.9cm,font=\large] (count) at (0,0) {$n!$};
+\node[draw=blue!55!black,fill=blue!5,rounded corners=4pt,text width=4.9cm,minimum height=1.05cm,align=center,inner sep=7pt,font=\small] (meaning) at (4.15,0) {Arrangements when all $n$ objects are distinct};
+\draw[->,thick,blue!65!black] (count.east) -- (meaning.west);
+\end{tikzpicture}"""
+
+    if (re.search(r"\bUnroll\b", diag, re.IGNORECASE)
+            and re.search(r"5\s*!", diag)
+            and re.search(r"4\s*!", diag)):
+        return r"""\begin{tikzpicture}[>=Stealth]
+\node[draw=blue!65!black,fill=blue!8,rounded corners=4pt,minimum width=2.0cm,minimum height=0.82cm,font=\large] (start) at (0,0) {$5!$};
+\node[draw=green!55!black,fill=green!8,rounded corners=4pt,minimum width=2.8cm,minimum height=0.82cm,font=\large] (step) at (3.3,0) {$5\times4!$};
+\node[draw=orange!65!black,fill=orange!10,rounded corners=4pt,minimum width=3.3cm,minimum height=0.82cm,font=\large] (expanded) at (7.5,0) {$5\times4\times3!$};
+\draw[->,thick,blue!70!black] (start.east) -- (step.west);
+\draw[->,thick,green!55!black] (step.east) -- (expanded.west);
+\node[font=\small\itshape,text=blue!70!black,anchor=north] at (3.75,-0.62) {Unroll one factor at a time};
+\end{tikzpicture}"""
+
+    if (re.search(r"\bAnchor\b", diag, re.IGNORECASE)
+            and re.search(r"\bSeat\s*[2-5]\b", diag, re.IGNORECASE)):
+        return r"""\begin{tikzpicture}[x=1cm,y=1cm]
+\draw[thick] (0,0) circle (1.15);
+\fill[blue!12] (0,0) circle (0.30);
+\node[font=\small] at (0,0) {$(n-1)!$};
+\filldraw[fill=yellow!30,draw=red!75!black,thick] (0,1.15) circle (0.18);
+\node[font=\scriptsize\bfseries,text=red!75!black,anchor=south] at (0,1.38) {Anchor};
+\filldraw[fill=white,draw=blue!65!black,thick] (0.82,0.36) circle (0.14);
+\filldraw[fill=white,draw=blue!65!black,thick] (0.51,-0.93) circle (0.14);
+\filldraw[fill=white,draw=blue!65!black,thick] (-0.51,-0.93) circle (0.14);
+\filldraw[fill=white,draw=blue!65!black,thick] (-0.82,0.36) circle (0.14);
+\node[font=\scriptsize,anchor=west] at (1.02,0.36) {Seat 2};
+\node[font=\scriptsize,anchor=north] at (0.51,-1.12) {Seat 3};
+\node[font=\scriptsize,anchor=north] at (-0.51,-1.12) {Seat 4};
+\node[font=\scriptsize,anchor=east] at (-1.02,0.36) {Seat 5};
+\end{tikzpicture}"""
+
     if (re.search(r"\(\s*n\s*\+\s*3\s*\)\s*!", diag)
             and re.search(r"\(\s*n\s*\+\s*1\s*\)\s*!", diag)):
         return r"""\begin{tikzpicture}[>=Stealth]

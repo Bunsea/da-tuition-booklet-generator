@@ -290,14 +290,14 @@ def _activity_for(concept: str, topic: str, page_context: str = "", variant: int
 
     if kind == "pun":
         puns = [
-            ("Permutations are so orderly: they always know how to take a different position.", "A permutation counts outcomes where changing the order changes the result."),
+            ("Why did the student wear glasses in maths class? To improve division!", "Division is a maths operation; vision is what you see."),
             ("Combinations make great party guests: they never care who arrives first.", "A combination is an unordered selection."),
             ("Factorials are dramatic. Put an exclamation mark after anything and they multiply everything!", "The symbol ! tells us to multiply every whole number down to 1."),
             ("I tried to make a maths pun about infinity, but it went on forever.", "Infinity describes something without an end."),
             ("Parallel lines have so much in common. It is a shame they will never meet.", "Parallel lines stay the same distance apart."),
-            ("The number 7 ate 9. It was told to keep its hands off the other integers.", "A tiny number joke, with a nod to integer sequences."),
-            ("I asked the calculator for a joke. It said the answer was 0, and I got no reaction.", "Zero is the additive identity: adding it changes no number."),
-            ("A circle told a joke, but the punchline went around in circles.", "A circle returns to its starting point after one complete turn."),
+            ("Why was 6 afraid of 7? Because 7 ate 9!", "It is a number joke: the words “ate” and “eight” sound alike."),
+            ("Why did the calculator break up with the pencil? It felt like it was being used.", "We use pencils to work and calculators to calculate; “being used” can also mean being taken advantage of."),
+            ("Why was the maths book sad? It had too many problems.", "A maths problem is a question to solve; a personal problem is a difficulty."),
         ]
         if serial >= len(puns):
             return None
@@ -327,7 +327,7 @@ def _activity_for(concept: str, topic: str, page_context: str = "", variant: int
             "Build an arrangement count from the choices at each position.",
             "See how adding one object multiplies the previous total.",
             "Split a factorial into a short product and a smaller factorial.",
-            "Follow the branching choices for ordering four objects.",
+            "Count the choices at each position: 4 × 3 × 2 × 1.",
         ]
         caption = visual_captions[serial % len(visual_captions)]
     elif any(word in text for word in ("probability", "chance", "random")):
@@ -412,15 +412,8 @@ def _draw_activity_panel(
         puzzle_top = challenge_label_y - 9
         _, puzzle_height = puzzle.wrap(inner_width, max(30, puzzle_top - body_bottom - 60))
         puzzle.drawOn(page_canvas, x + 14, puzzle_top - puzzle_height)
-        answer_y = body_bottom + 25
-        page_canvas.setFillColor(colors.HexColor("#374151"))
-        page_canvas.setFont("Helvetica-Bold", 8.5)
-        page_canvas.drawString(x + 14, answer_y, f"Answer: {answer}")
-        answer_detail = Paragraph(explanation, detail_style)
-        _, detail_height = answer_detail.wrap(inner_width, 30)
-        answer_detail.drawOn(page_canvas, x + 14, answer_y - detail_height - 4)
         visual_top = puzzle_top - puzzle_height - 12
-        visual_bottom = answer_y + detail_height + 15
+        visual_bottom = body_bottom + 18
         _draw_mini_visual(
             page_canvas, x, width, visual_top, visual_bottom, concept, topic, serial,
             mode="steps", activity_text=challenge,
@@ -481,6 +474,24 @@ def _draw_mini_visual(page_canvas, x, width, top, bottom, concept, topic, serial
     page_canvas.setStrokeColor(stroke)
     page_canvas.setLineWidth(1)
     prompt = str(activity_text or "").lower()
+    if mode == "steps" and any(phrase in prompt for phrase in ("handshake", "shake hands", "high-five", "high five")):
+        radius = min(20, max(14, available * 0.11))
+        orbit = min(60, max(44, available * 0.30))
+        diagram_center_y = bottom + available * 0.62
+        people = ("A", "B", "C", "D", "E", "F")
+        for i, person in enumerate(people):
+            angle = math.radians(90 - i * 60)
+            cx = center_x + orbit * math.cos(angle)
+            cy = diagram_center_y + orbit * math.sin(angle)
+            page_canvas.setFillColor(fills[i % len(fills)])
+            page_canvas.circle(cx, cy, radius, stroke=1, fill=1)
+            page_canvas.setFillColor(colors.HexColor("#25345B"))
+            page_canvas.setFont("Helvetica-Bold", 10)
+            page_canvas.drawCentredString(cx, cy - 3, person)
+        page_canvas.setFillColor(colors.HexColor("#596B9D"))
+        page_canvas.setFont("Helvetica-Oblique", 8.5)
+        page_canvas.drawCentredString(center_x, bottom + 3, "Draw one line for each pair.")
+        return
     if mode == "steps" and "trailing zero" in prompt:
         limit_match = re.search(r"(\d+)\s*!", prompt)
         limit = int(limit_match.group(1)) if limit_match else 20
@@ -677,12 +688,14 @@ def _draw_factorial_picture(page_canvas, center_x, center_y, width, height, seri
     elif serial == 3:
         # Four matching cards pair factorials with their values.
         pairs = [(3, 6), (4, 24), (5, 120), (6, 720)]
+        card_height = 28
+        row_offset = min(38, max(0, height / 2 - card_height / 2 - 3))
         for i, (n, value) in enumerate(pairs):
             row, col = divmod(i, 2)
             cx = center_x + (col - .5) * min(150, width * .34)
-            cy = center_y + (.5 - row) * min(42, height * .23)
+            cy = center_y + (.5 - row) * row_offset
             page_canvas.setFillColor(fills[i % len(fills)])
-            page_canvas.roundRect(cx - 62, cy - 14, 124, 28, 6, stroke=1, fill=1)
+            page_canvas.roundRect(cx - 62, cy - card_height / 2, 124, card_height, 6, stroke=1, fill=1)
             page_canvas.setFillColor(ink)
             page_canvas.setFont("Helvetica-Bold", 10)
             page_canvas.drawCentredString(cx, cy - 3, f"{n}! = {value}")
@@ -733,23 +746,29 @@ def _draw_factorial_picture(page_canvas, center_x, center_y, width, height, seri
             page_canvas.setFont("Helvetica-Bold", 8)
             page_canvas.drawCentredString(cx, y - 25, label)
     else:
-        # A branching arrangement tree shows the shrinking choice count.
-        top_y = center_y + min(48, height * .25)
-        levels = [[(center_x, top_y, "5")],
-                  [(center_x - 84, center_y + 5, "4"), (center_x + 84, center_y + 5, "4")],
-                  [(center_x - 130, center_y - 42, "3"), (center_x - 43, center_y - 42, "3"),
-                   (center_x + 43, center_y - 42, "3"), (center_x + 130, center_y - 42, "3")]]
-        previous = levels[0][0]
-        for node in levels[1]:
-            page_canvas.setStrokeColor(stroke)
-            page_canvas.line(previous[0], previous[1] - 8, node[0], node[1] + 8)
-        for row, level in enumerate(levels):
-            for cx, cy, label in level:
-                page_canvas.setFillColor(fills[row % len(fills)])
-                page_canvas.circle(cx, cy, 11, stroke=1, fill=1)
-                page_canvas.setFillColor(ink)
-                page_canvas.setFont("Helvetica-Bold", 8)
-                page_canvas.drawCentredString(cx, cy - 3, label)
+        # Four clear stages show the shrinking number of choices in 4!.
+        gap = min(116, (width - 100) / 3)
+        card_width, card_height = min(88, gap - 12), 38
+        y = center_y + 5
+        for i, number in enumerate((4, 3, 2, 1)):
+            cx = center_x + (i - 1.5) * gap
+            page_canvas.setFillColor(fills[i % len(fills)])
+            page_canvas.roundRect(cx - card_width / 2, y - card_height / 2, card_width, card_height, 6, stroke=1, fill=1)
+            page_canvas.setFillColor(ink)
+            page_canvas.setFont("Helvetica-Bold", 9)
+            page_canvas.drawCentredString(cx, y - 3, f"{number} choice" if number == 1 else f"{number} choices")
+            page_canvas.setFont("Helvetica", 7.5)
+            page_canvas.drawCentredString(cx, y - card_height / 2 - 10, f"position {i + 1}")
+            if i < 3:
+                end_x = cx + card_width / 2 + 5
+                next_x = cx + gap - card_width / 2 - 5
+                page_canvas.setStrokeColor(stroke)
+                page_canvas.line(end_x, y, next_x, y)
+                page_canvas.line(next_x - 4, y + 3, next_x, y)
+                page_canvas.line(next_x - 4, y - 3, next_x, y)
+        page_canvas.setFillColor(ink)
+        page_canvas.setFont("Helvetica-Bold", 9)
+        page_canvas.drawCentredString(center_x, center_y - 35, "4 × 3 × 2 × 1 = 24 arrangements")
     page_canvas.restoreState()
 
 
@@ -763,13 +782,15 @@ def _draw_pun_visual(page_canvas, center_x, center_y, serial, width=180, height=
     page_canvas.setFillColor(pale)
     page_canvas.setLineWidth(2)
     if serial == 0:
-        for y, text in ((center_y + 14, "A B C"), (center_y - 16, "B A C")):
-            page_canvas.setFillColor(ink)
-            page_canvas.setFont("Helvetica-Bold", 14)
-            page_canvas.drawCentredString(center_x, y, text)
+        page_canvas.circle(center_x - 28, center_y, 20, stroke=1, fill=0)
+        page_canvas.circle(center_x + 28, center_y, 20, stroke=1, fill=0)
+        page_canvas.line(center_x - 8, center_y + 3, center_x + 8, center_y + 3)
+        page_canvas.line(center_x - 48, center_y + 5, center_x - 67, center_y + 13)
+        page_canvas.line(center_x + 48, center_y + 5, center_x + 67, center_y + 13)
         page_canvas.setFillColor(ink)
-        page_canvas.setFont("Helvetica-Bold", 12)
-        page_canvas.drawCentredString(center_x + 70, center_y, "not =")
+        page_canvas.setFont("Helvetica-Bold", 14)
+        page_canvas.drawCentredString(center_x - 28, center_y - 5, "÷")
+        page_canvas.drawCentredString(center_x + 28, center_y - 5, "÷")
     elif serial == 1:
         page_canvas.roundRect(center_x - 74, center_y - 22, 62, 44, 9, stroke=1, fill=1)
         page_canvas.roundRect(center_x + 12, center_y - 22, 62, 44, 9, stroke=1, fill=1)
@@ -826,14 +847,17 @@ def _draw_pun_visual(page_canvas, center_x, center_y, serial, width=180, height=
                 page_canvas.setFillColor(accent)
                 page_canvas.circle(center_x - 22 + col * 22, center_y - 9 - row * 17, 4, stroke=0, fill=1)
     else:
-        page_canvas.circle(center_x, center_y, 34, stroke=1, fill=0)
+        page_canvas.roundRect(center_x - 45, center_y - 34, 90, 68, 6, stroke=1, fill=1)
         page_canvas.setFillColor(ink)
-        page_canvas.setFont("Helvetica-Bold", 11)
-        page_canvas.drawCentredString(center_x, center_y - 4, "PUNCHLINE")
-        page_canvas.setStrokeColor(accent)
-        page_canvas.line(center_x + 22, center_y + 26, center_x + 40, center_y + 40)
-        page_canvas.line(center_x + 40, center_y + 40, center_x + 37, center_y + 31)
-        page_canvas.line(center_x + 40, center_y + 40, center_x + 30, center_y + 39)
+        page_canvas.setFont("Helvetica-Bold", 10)
+        page_canvas.drawCentredString(center_x, center_y + 12, "x + y = ?")
+        page_canvas.setLineWidth(1.5)
+        page_canvas.line(center_x - 8, center_y - 17, center_x, center_y - 21)
+        page_canvas.line(center_x, center_y - 21, center_x + 8, center_y - 17)
+        page_canvas.circle(center_x - 10, center_y - 4, 1.5, stroke=0, fill=1)
+        page_canvas.circle(center_x + 10, center_y - 4, 1.5, stroke=0, fill=1)
+        page_canvas.setFont("Helvetica", 7.5)
+        page_canvas.drawCentredString(center_x, center_y - 29, "MATHS BOOK")
     page_canvas.restoreState()
 
 

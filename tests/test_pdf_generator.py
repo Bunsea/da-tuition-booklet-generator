@@ -1257,6 +1257,9 @@ class TestPdfGenerator(unittest.TestCase):
             ("Factorial countdown", "Peel off leading Remaining countdown", ("Unroll", "Remaining countdown")),
             ("Factorial unrolling", "Peel n! n(n-2)!", ("Unroll", "(n−2)!")),
             ("Factorial examples", "5! 120 n! (n-2)!", ("5!", "120")),
+            ("Factorial annotation", "5! 4! Unroll: $5!=5\\times4!$", ("5!", "Unroll one factor at a time")),
+            ("Distinct arrangements", "n! arrangements (all distinct)", ("n!", "Arrangements when all", "objects are distinct")),
+            ("Circular seat anchor", "Anchor Seat 2 Seat 3 Seat 4 Seat 5", ("Anchor", "Seat 5", "(n−1)!")),
             ("Circular seating", "Anchor (1 way) Chair 5", ("Anchor (1 way)", "Chair 5")),
             ("Sample space", "Sample Space Event", ("Sample Space", "Event")),
             ("Podium arrangements", "Gold (1st) Silver (2nd) Bronze (3rd)", ("Gold (1st)", "Silver (2nd)", "Bronze (3rd)")),
@@ -1298,6 +1301,38 @@ class TestPdfGenerator(unittest.TestCase):
         circle_source = pdf_generator.sanitize_tikz_diagram(concepts[4]["tikz_diagram"])
         self.assertNotIn("fill=white", circle_source)
         self.assertNotIn("fill opacity", circle_source)
+
+    def test_factorial_unroll_annotation_is_separated_from_boxes(self):
+        source = pdf_generator.sanitize_tikz_diagram(
+            r"\begin{tikzpicture}\node {5! 4! Unroll: $5!=5\times4!$};\end{tikzpicture}"
+        )
+        self.assertIn("Unroll one factor at a time", source)
+        self.assertIn("(expanded) at (7.5,0)", source)
+        self.assertNotIn("text=red", source)
+
+    def test_all_distinct_arrangements_diagram_has_room_for_its_label(self):
+        source = pdf_generator.sanitize_tikz_diagram(
+            r"\begin{tikzpicture}\node {$n!$};\node {arrangements (all distinct)};\end{tikzpicture}"
+        )
+        self.assertIn("text width=4.9cm", source)
+        self.assertIn("Arrangements when all $n$ objects are distinct", source)
+
+    def test_circular_anchor_is_a_small_seat_marker(self):
+        source = pdf_generator.sanitize_tikz_diagram(
+            r"\begin{tikzpicture}\node {Anchor Seat 2 Seat 3 Seat 4 Seat 5};\end{tikzpicture}"
+        )
+        self.assertIn("circle (0.18)", source)
+        self.assertIn("Seat 5", source)
+        self.assertNotIn("circle (1.15cm)", source)
+
+    def test_separator_method_gap_sketch_is_compact(self):
+        solution = (
+            "This creates 4 + 1 = 5 gaps:\nB\nB\nB\nB\n.\n"
+            "Place the 4 girls into 4 of these 5 gaps."
+        )
+        formatted = pdf_generator.format_latex_solution_steps(solution)
+        self.assertIn(r"\underbrace{\circ\,B\,\circ\,B\,\circ\,B\,\circ\,B\,\circ}_{5\text{ gaps}}", formatted)
+        self.assertNotRegex(formatted, r"B.*\\par.*B.*\\par.*B.*\\par.*B")
 
     def test_teacher_exam_practice_heading_stays_with_first_question(self):
         if not pdf_generator.find_pdflatex():
