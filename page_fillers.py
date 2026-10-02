@@ -22,6 +22,9 @@ MAX_PANEL_RATIO = 0.72
 CONTENT_TO_PANEL_GAP = 30.0
 ACTIVITY_HEADINGS = ("QUICK MATHS PUZZLE", "QUICK MATHS FACT", "MATHS PUN", "VISUAL MATHS")
 ACTIVITY_MIN_HEIGHT = {"puzzle": 225.0, "fact": 160.0, "pun": 145.0, "visual": 170.0}
+ACTIVITY_CARD_HEIGHT = {"puzzle": 190.0, "fact": 130.0, "pun": 155.0, "visual": 165.0}
+ACTIVITY_STACK_GAP = 12.0
+MAX_ACTIVITY_CARDS_PER_PAGE = 3
 
 
 def _has_activity_panel(text: str) -> bool:
@@ -100,7 +103,7 @@ def _question_activity(concept: str, topic: str, page_context: str = "", variant
                     ("If a seating is turned halfway around the table, has the arrangement changed?", "No", "A whole-table rotation keeps the same circular order."),
                 ]
                 fact, answer, explanation = circle_puzzles[(variant - len(activities)) % len(circle_puzzles)]
-                return fact, answer, answer, explanation
+                return "At a round table, rotations keep the clockwise order unchanged.", fact, answer, explanation
             return choose(activities)
         if any(word in text for word in ("combination", "unordered", "selection")):
             activities = [
@@ -122,7 +125,7 @@ def _question_activity(concept: str, topic: str, page_context: str = "", variant
                     ("Which cares about order: choosing a team, or assigning first and second place?", "Assigning places", "A team is unordered; first and second are distinct roles."),
                 ]
                 fact, answer, explanation = group_puzzles[(variant - len(activities)) % len(group_puzzles)]
-                return fact, answer, answer, explanation
+                return "A combination records which items are chosen, not the order of selection.", fact, answer, explanation
             return choose(activities)
         if "factorial" in text:
             activities = [
@@ -165,7 +168,7 @@ def _question_activity(concept: str, topic: str, page_context: str = "", variant
                 ("A seating chart is read from left to right. Would reversing the row usually create a new arrangement?", "Yes", "The objects occupy different ordered positions."),
             ]
             fact, answer, explanation = ordered_puzzles[(variant - len(activities)) % len(ordered_puzzles)]
-            return "In an arrangement, position or role changes the outcome.", fact, answer, explanation
+            return "For an ordered selection, changing a position changes the outcome.", fact, answer, explanation
         return choose(activities)
     if any(word in text for word in ("probability", "chance", "random")):
         activities = [
@@ -295,7 +298,7 @@ def _activity_for(concept: str, topic: str, page_context: str = "", variant: int
             ("Factorials are dramatic. Put an exclamation mark after anything and they multiply everything!", "The symbol ! tells us to multiply every whole number down to 1."),
             ("I tried to make a maths pun about infinity, but it went on forever.", "Infinity describes something without an end."),
             ("Parallel lines have so much in common. It is a shame they will never meet.", "Parallel lines stay the same distance apart."),
-            ("Why was 6 afraid of 7? Because 7 ate 9!", "It is a number joke: the words “ate” and “eight” sound alike."),
+            ("Why did the equal sign feel relaxed? It knew it was neither greater nor less than anyone else.", "The equal sign means both sides have the same value."),
             ("Why did the calculator break up with the pencil? It felt like it was being used.", "We use pencils to work and calculators to calculate; “being used” can also mean being taken advantage of."),
             ("Why was the maths book sad? It had too many problems.", "A maths problem is a question to solve; a personal problem is a difficulty."),
         ]
@@ -540,9 +543,15 @@ def _draw_mini_visual(page_canvas, x, width, top, bottom, concept, topic, serial
         page_canvas.drawCentredString(center_x, row_y - 31, caption)
         return
 
-    if mode in ("steps", "picture") and ("circular" in text or "circle" in text):
-        radius = min(52, max(28, available * 0.30))
-        center_y = bottom + available * 0.54
+    show_circle_diagram = mode == "picture" or (
+        mode == "steps" and any(phrase in prompt for phrase in (
+            "change seats", "clockwise", "turned halfway", "fix one person",
+        ))
+    )
+    if show_circle_diagram and ("circular" in text or "circle" in text):
+        radius = min(40, max(14, available * 0.20))
+        seat_radius = min(7, max(4, radius * 0.24))
+        center_y = bottom + available * 0.58
         page_canvas.setStrokeColor(stroke)
         page_canvas.circle(center_x, center_y, radius, stroke=1, fill=0)
         for i in range(6):
@@ -550,17 +559,22 @@ def _draw_mini_visual(page_canvas, x, width, top, bottom, concept, topic, serial
             cx = center_x + radius * math.cos(angle)
             cy = center_y + radius * math.sin(angle)
             page_canvas.setFillColor(fills[i % len(fills)])
-            page_canvas.circle(cx, cy, 10, stroke=1, fill=1)
+            page_canvas.circle(cx, cy, seat_radius, stroke=1, fill=1)
             page_canvas.setFillColor(colors.HexColor("#25345B"))
-            page_canvas.setFont("Helvetica-Bold", 7.5)
-            page_canvas.drawCentredString(cx, cy - 2.5, str(i + 1))
-        if mode == "picture":
+            page_canvas.setFont("Helvetica-Bold", 6.5)
+            page_canvas.drawCentredString(cx, cy - 2, str(i + 1))
+        if mode == "picture" and available >= 70:
             page_canvas.setFillColor(colors.HexColor("#596B9D"))
             page_canvas.setFont("Helvetica-Oblique", 8.5)
             labels = ["Anchor one seat.", "Track neighbour order.", "Rotation keeps the order.",
                       "A reflection reverses it.", "There is no first seat.", "Same neighbours, new view.",
                       "Fix a chair, then count.", "Turn the table, not the seating."]
             page_canvas.drawCentredString(center_x, center_y - radius - 18, labels[serial % len(labels)])
+        return
+
+    # Only draw puzzle visuals when the prompt has a matching diagram above.
+    # A generic factorial picture can look like an answer or contradict the puzzle.
+    if mode == "steps":
         return
 
     if any(word in text for word in ("factorial", "permutation", "arrangement", "combinatoric", "combination")):
@@ -590,21 +604,21 @@ def _draw_mini_visual(page_canvas, x, width, top, bottom, concept, topic, serial
                 page_canvas.drawCentredString(center_x, bottom + 2, "Unroll one factor at a time.")
                 return
             base_y = bottom + 20
-            chart_height = max(10, min(available - 28, 125))
+            chart_height = max(6, min(available - 36, 125))
             values = [(5, 120), (6, 720), (7, 5040), (8, 40320)]
             bar_width = min(62, (width - 100) / len(values) * 0.58)
             gap = (width - 100) / len(values)
             start_x = center_x - gap * 1.5
             for i, (n, value) in enumerate(values):
                 bx = start_x + i * gap
-                bar_h = max(12, chart_height * value / values[-1][1])
+                bar_h = max(5, chart_height * value / values[-1][1])
                 page_canvas.setFillColor(fills[i % len(fills)])
                 page_canvas.roundRect(bx - bar_width / 2, base_y, bar_width, bar_h, 5, stroke=1, fill=1)
                 page_canvas.setFillColor(colors.HexColor("#25345B"))
                 page_canvas.setFont("Helvetica-Bold", 9)
-                page_canvas.drawCentredString(bx, base_y - 14, f"{n}!")
+                page_canvas.drawCentredString(bx, base_y - 12, f"{n}!")
                 page_canvas.setFont("Helvetica", 8)
-                page_canvas.drawCentredString(bx, base_y + bar_h + 5, f"{value:,}")
+                page_canvas.drawCentredString(bx, base_y + bar_h + 3, f"{value:,}")
         else:
             n = 4 + serial
             labels = [f"{n}!", f"{n} × {n - 1}!", f"{n} × {n - 1} × {n - 2}!"]
@@ -946,49 +960,76 @@ def fill_sparse_private_theory_pages(pdf_bytes: bytes, booklet_data: Dict[str, A
                 continue
 
             available_height = lowest_y - PAGE_MARGIN - CONTENT_TO_PANEL_GAP
-            panel_height = min(available_height, body_height * MAX_PANEL_RATIO)
+            panel_budget = min(available_height, body_height * MAX_PANEL_RATIO)
             minimum_filler_height = max(120.0, body_height * MIN_UNUSED_RATIO - CONTENT_TO_PANEL_GAP)
-            if panel_height < minimum_filler_height:
+            if panel_budget < minimum_filler_height:
                 output.add_page(original_page)
                 continue
 
             # Shuffle prompts within a randomized type order. Type-specific
             # minimums keep larger activities out of cramped spaces, while the
             # shuffled round guarantees a mix when all four types fit.
-            selected = None
-            eligible_types = {
-                type_index for type_index in type_order
-                if panel_height >= ACTIVITY_MIN_HEIGHT[_activity_kind(type_index)]
-            }
-            if eligible_types:
-                start_at = activity_index % len(type_order)
+            selected_cards = []
+            selected_kinds = set()
+            remaining_height = panel_budget
+            while len(selected_cards) < MAX_ACTIVITY_CARDS_PER_PAGE:
+                selected = None
+                start_at = (activity_index + len(selected_cards)) % len(type_order)
                 randomized_order = type_order[start_at:] + type_order[:start_at]
+                eligible_types = []
                 for type_index in randomized_order:
-                    if type_index not in eligible_types:
+                    kind = _activity_kind(type_index)
+                    if kind in selected_kinds:
                         continue
+                    required_height = ACTIVITY_MIN_HEIGHT[kind] if not selected_cards else ACTIVITY_CARD_HEIGHT[kind]
+                    if remaining_height >= required_height:
+                        eligible_types.append(type_index)
+                # Use the largest card that fits the remaining space; the
+                # shuffled order breaks ties so the mix still varies per PDF.
+                randomized_rank = {type_index: rank for rank, type_index in enumerate(randomized_order)}
+                if selected_cards:
+                    eligible_types.sort(
+                        key=lambda type_index: (
+                            ACTIVITY_CARD_HEIGHT[_activity_kind(type_index)],
+                            -randomized_rank[type_index],
+                        ),
+                        reverse=True,
+                    )
+                for type_index in eligible_types:
+                    kind = _activity_kind(type_index)
                     serials = list(range(8))
                     activity_rng.shuffle(serials)
                     for serial in serials:
                         variant = serial * 4 + type_index
                         candidate = _activity_for(active_concept, topic, text, variant)
                         if candidate is not None and candidate[1] not in used_challenges:
-                            selected = (variant, candidate)
+                            selected = (variant, candidate, ACTIVITY_CARD_HEIGHT[kind])
                             break
                     if selected:
                         break
-            if selected is None:
+                if selected is None:
+                    break
+                variant, candidate, card_height = selected
+                selected_cards.append((variant, candidate, card_height))
+                selected_kinds.add(_activity_kind(variant % len(type_order)))
+                used_challenges.add(candidate[1])
+                remaining_height -= card_height + ACTIVITY_STACK_GAP
+
+            if not selected_cards:
                 output.add_page(original_page)
                 continue
-            variant, candidate = selected
-            used_challenges.add(candidate[1])
             activity_index += 1
 
             overlay_buffer = BytesIO()
             overlay_canvas = canvas.Canvas(overlay_buffer, pagesize=(page_width, page_height))
-            _draw_activity_panel(
-                overlay_canvas, page_width, PAGE_MARGIN, panel_height, active_concept, topic, text,
-                variant,
-            )
+            panel_top = lowest_y - CONTENT_TO_PANEL_GAP
+            for variant, _, card_height in selected_cards:
+                panel_bottom = panel_top - card_height
+                _draw_activity_panel(
+                    overlay_canvas, page_width, panel_bottom, card_height, active_concept, topic, text,
+                    variant,
+                )
+                panel_top = panel_bottom - ACTIVITY_STACK_GAP
             overlay_canvas.save()
             overlay_buffer.seek(0)
             overlay_page = PdfReader(overlay_buffer).pages[0]

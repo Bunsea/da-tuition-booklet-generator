@@ -114,6 +114,16 @@ class TestPrivateTheoryPageFillers(unittest.TestCase):
                             ("QUICK MATHS FACT", "MATHS PUN", "VISUAL MATHS")))
         self.assertNotIn("QUICK MATHS PUZZLE", text)
 
+    def test_uses_multiple_natural_size_cards_when_page_has_room(self):
+        result = fill_sparse_private_theory_pages(_sample_pdf(600), {
+            "topic": "Combinatorics",
+            "concepts": [{"name": "Factorial notation"}],
+        })
+        text = PdfReader(io.BytesIO(result)).pages[0].extract_text()
+        headings = ("QUICK MATHS PUZZLE", "QUICK MATHS FACT", "MATHS PUN", "VISUAL MATHS")
+        self.assertGreaterEqual(sum(text.count(heading) for heading in headings), 3)
+        self.assertEqual(sum(heading in text for heading in headings), 3)
+
     def test_activity_bank_returns_four_distinct_activity_types(self):
         samples = [_activity_for("Factorial notation", "Combinatorics", variant=i) for i in range(4)]
         self.assertIn("Find the error", samples[0][1])
@@ -159,6 +169,29 @@ class TestPrivateTheoryPageFillers(unittest.TestCase):
         self.assertNotIn("Answer:", text)
         self.assertNotIn("Each handshake is a pair", text)
 
+    def test_puzzle_card_does_not_print_the_answer_or_an_unrelated_visual(self):
+        from page_fillers import _draw_activity_panel
+
+        output = io.BytesIO()
+        page = canvas.Canvas(output, pagesize=A4)
+        _draw_activity_panel(page, A4[0], 54, 330, "Factorial notation", "Combinatorics", "", variant=16)
+        page.save()
+        text = PdfReader(io.BytesIO(output.getvalue())).pages[0].extract_text()
+        self.assertIn("What is 0! by definition?", text)
+        self.assertNotIn("8!", text)
+        self.assertNotIn("1\n", text)
+
+    def test_extended_circle_puzzle_displays_question_not_answer(self):
+        from page_fillers import _draw_activity_panel
+
+        output = io.BytesIO()
+        page = canvas.Canvas(output, pagesize=A4)
+        _draw_activity_panel(page, A4[0], 54, 330, "Arrangements in a circle", "Combinatorics", "", variant=16)
+        page.save()
+        text = PdfReader(io.BytesIO(output.getvalue())).pages[0].extract_text()
+        self.assertIn("Two circular seating sketches are mirror images", text)
+        self.assertNotIn("No", text)
+
     def test_pun_is_plainly_understandable_for_students(self):
         pun = _activity_for("Factorial notation", "Combinatorics", variant=30)[1]
         self.assertEqual(pun, "Why was the maths book sad? It had too many problems.")
@@ -167,9 +200,11 @@ class TestPrivateTheoryPageFillers(unittest.TestCase):
         booklet = {"topic": "Combinatorics", "concepts": [{"name": "Factorial notation"}]}
         first_pass = fill_sparse_private_theory_pages(_sample_pdf(430), booklet)
         second_pass = fill_sparse_private_theory_pages(first_pass, booklet)
+        first_text = PdfReader(io.BytesIO(first_pass)).pages[0].extract_text()
         text = PdfReader(io.BytesIO(second_pass)).pages[0].extract_text()
-        self.assertEqual(sum(text.count(heading) for heading in
-                             ("QUICK MATHS PUZZLE", "QUICK MATHS FACT", "MATHS PUN", "VISUAL MATHS")), 1)
+        headings = ("QUICK MATHS PUZZLE", "QUICK MATHS FACT", "MATHS PUN", "VISUAL MATHS")
+        self.assertEqual(sum(text.count(heading) for heading in headings),
+                         sum(first_text.count(heading) for heading in headings))
 
 
 if __name__ == "__main__":
