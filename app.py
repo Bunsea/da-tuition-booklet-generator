@@ -4199,22 +4199,21 @@ if main_section == "🚀 2. 1-Click AI Marking":
     # Upload Student Submissions
     st.markdown("#### Upload Student Submissions")
     uploaded_files = st.file_uploader(
-        "Drop student handwritten PDF scans here (single or multiple files)",
-        type=["pdf"],
+        "Drop student handwritten PDF or image scans here (PDF, JPEG, PNG, TIFF, WebP, or BMP)",
+        type=["pdf", "jpg", "jpeg", "png", "tif", "tiff", "webp", "bmp"],
         accept_multiple_files=True
     )
 
-    # Detect the organisation from the upload itself. A single PDF is sent to
-    # the combined grader (which can return one or many student records),
-    # while multiple PDFs are unambiguously one file per student.
+    # A single upload may contain one student's work or scans for a group;
+    # separate uploads are treated as one submission per file.
     upload_mode = None
     if uploaded_files:
         if len(uploaded_files) == 1:
-            upload_mode = "One combined PDF containing multiple students"
-            st.info("Automatically detected: one combined PDF. Gemini will identify each student in the scan.")
+            upload_mode = "combined"
+            st.info("Automatically detected: one submission file. Gemini will identify the student or students in the scan.")
         else:
-            upload_mode = "One PDF per student"
-            st.info(f"Automatically detected: {len(uploaded_files)} PDFs, one per student.")
+            upload_mode = "individual"
+            st.info(f"Automatically detected: {len(uploaded_files)} files, one submission per file.")
 
     if uploaded_files and st.button("🚀 Start Automated Batch Marking", type="primary"):
         current_api_key = st.session_state.get("gemini_api_key", "")
@@ -4234,9 +4233,9 @@ if main_section == "🚀 2. 1-Click AI Marking":
             for idx, file in enumerate(uploaded_files):
                 status_text.text(f"Grading [{idx+1}/{total_files}]: {file.name}...")
                 try:
-                    pdf_bytes = file.read()
+                    pdf_bytes = pdf_generator.prepare_homework_submission_pdf(file.read(), file.name)
                     q_meta = full_ws.get("questions", []) if (marking_mode == "Use a generated Worksheet" and full_ws) else None
-                    if upload_mode.startswith("One combined"):
+                    if upload_mode == "combined":
                         grade_records = ai_engine.grade_combined_student_submissions(
                             student_pdf_bytes=pdf_bytes, marking_key=active_key,
                             total_marks=active_total_marks, worksheet_title=worksheet_title,

@@ -58,6 +58,69 @@ def combine_companion_booklets(
     writer.write(output)
     return output.getvalue()
 
+
+def prepare_homework_submission_pdf(upload_bytes: bytes, filename: str = "submission") -> bytes:
+    """Return an uploaded PDF unchanged or place an uploaded scan image on A4 PDF pages."""
+    if not upload_bytes:
+        raise ValueError("The uploaded submission is empty.")
+    if upload_bytes.lstrip().startswith(b"%PDF"):
+        return upload_bytes
+
+    supported_images = {"JPEG", "PNG", "TIFF", "WEBP", "BMP"}
+    try:
+        from PIL import ImageOps, ImageSequence
+
+        source = Image.open(BytesIO(upload_bytes))
+        if source.format not in supported_images:
+            raise ValueError(f"Unsupported scan format: {source.format or os.path.splitext(filename)[1]}.")
+
+        output = BytesIO()
+        page_width, page_height = A4
+        margin = 18.0
+        available_width = page_width - 2 * margin
+        available_height = page_height - 2 * margin
+        pdf = canvas.Canvas(output, pagesize=A4)
+
+        for frame in ImageSequence.Iterator(source):
+            frame = ImageOps.exif_transpose(frame.copy())
+            frame.thumbnail((1654, 2339), Image.Resampling.LANCZOS)
+
+            rgba = frame.convert("RGBA")
+            white_page = Image.new("RGBA", rgba.size, (255, 255, 255, 255))
+            white_page.alpha_composite(rgba)
+            rgb_frame = white_page.convert("RGB")
+
+            image_width, image_height = rgb_frame.size
+            scale = min(available_width / image_width, available_height / image_height)
+            draw_width = image_width * scale
+            draw_height = image_height * scale
+            x = (page_width - draw_width) / 2
+            y = (page_height - draw_height) / 2
+
+            image_jpeg = BytesIO()
+            rgb_frame.save(image_jpeg, format="JPEG", quality=92, optimize=True)
+            image_jpeg.seek(0)
+            pdf.drawImage(
+                ImageReader(image_jpeg), x, y,
+                width=draw_width, height=draw_height,
+                preserveAspectRatio=True,
+            )
+            pdf.showPage()
+
+        source.close()
+        pdf.save()
+        result = output.getvalue()
+        if not result.startswith(b"%PDF"):
+            raise ValueError("The scan image could not be converted to PDF.")
+        return result
+    except ValueError:
+        raise
+    except Exception as exc:
+        raise ValueError(
+            f"Could not read {filename} as a PDF or supported image scan. "
+            "Please upload a PDF, JPEG, PNG, TIFF, WebP, or BMP file."
+        ) from exc
+
 def safe_print(*args, **kwargs):
     """Safely prints messages, suppressing broken pipe or Errno 5 EIO in detached Streamlit environments."""
     try:
