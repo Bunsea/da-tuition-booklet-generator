@@ -3300,6 +3300,18 @@ Respond with valid JSON ONLY matching this structure:
     raise RuntimeError(f"Worksheet generation failed: {last_err}")
 
 # --- 2. 1-CLICK AI HOMEWORK MARKING ---
+
+ANSWER_EQUIVALENCE_RULES = r"""
+ANSWER EQUIVALENCE AND REQUIRED-FORM RULES:
+- First check whether the question explicitly requires a form, such as "give your answer as a simplified fraction", "to 3 decimal places", "in exact form", "in standard/general/gradient-intercept form", "as a percentage", or a specified unit. If it does, award full credit only when that required form and precision are satisfied (while still allowing algebraically equivalent work within that form).
+- If no form is requested, treat mathematically equivalent answers as the same answer. Do not penalise a student for choosing a different equivalent representation.
+- Numerical equivalence: accept equivalent fractions, improper fractions, mixed numbers, terminating decimals, exact recurring decimals, percentages, and ratios. For example, 3/2 = 1 1/2 = 1.5 = 150% when the question does not require a particular form. Do not treat a rounded decimal as exact unless it meets the stated or clearly appropriate precision.
+- Algebraic equivalence: accept reordered or regrouped terms, expanded or factorised forms, and equivalent simplifications (for example 3x + 4y and 4y + 3x). Check by simplifying or expanding both expressions, while retaining domain restrictions and rejecting expressions that are only conditionally equivalent.
+- Equation equivalence: accept any equation with the same solution set unless a form is requested. This includes rearranged equations and equivalent straight-line forms, such as y = x + 1 and x - y + 1 = 0. For line equations, verify the same line rather than comparing the text literally.
+- Also accept equivalent exact forms for powers, roots, indices, logarithms, trigonometric values/identities, coordinates, vectors, set notation, and matrix notation when they represent the same mathematical object and preserve required restrictions, units, orientation, or order.
+- A different-looking answer is not automatically wrong: show the equivalence check in the grading reasoning before marking it incorrect. Mark an answer wrong only when its value, solution set, domain, units, precision, sign, orientation, or requested form is genuinely different.
+"""
+
 def grade_student_submission(
     student_pdf_bytes: bytes,
     marking_key: Dict[str, Any],
@@ -3337,11 +3349,12 @@ OFFICIAL MARKING KEY (EVERY ITEM IS STRICTLY 1 MARK):
 TOTAL MARKS: {total_marks}
 HEADER CONTEXT: Term {term} Week {week} Homework ({worksheet_title})
 {meta_prompt_section}
+{ANSWER_EQUIVALENCE_RULES}
     EVALUATION RULES:
 1. NAME EXTRACTION: Extract student First and Last Name from top of paper.
 2. ACCURATE SCORING & PARTIAL MARKS:
    - Each answer box corresponds to a question/subpart label (e.g. '1(a)', '1(b)', '2').
-   - Compare student final answer against the marking key.
+   - Compare the student's final answer against the marking key using the equivalence rules above, rather than by literal string matching.
    - Award full marks if correct.
    - If a question is worth multiple marks and the student shows correct partial working or has a minor arithmetic slip, award partial marks (e.g. 1/2 or 2/3).
    - If incorrect or left blank, mark as "Incorrect" or "Missing" and deduct the appropriate marks lost.
@@ -3495,6 +3508,8 @@ def _ensure_question_corrections(
 {key_formatted}
 
 The marker awarded {score} out of {total} marks, so {lost:g} marks were lost.
+Apply the answer-equivalence rules below before deciding that a response lost marks:
+{ANSWER_EQUIVALENCE_RULES}
 Return every question that lost any marks. This is a correction audit, so do
 not omit blank answers or questions with partial credit. The correct answer
 must be copied exactly from the marking key.
@@ -3563,6 +3578,8 @@ Identify every separate student submission and grade each one against this offic
 TOTAL MARKS PER STUDENT: {total_marks}
 HEADER CONTEXT: Term {term} Week {week} Homework ({worksheet_title})
 {meta_section}
+
+{ANSWER_EQUIVALENCE_RULES}
 
 For each student, identify their name and the page range you graded. Apply the same scoring and diagnostic rules as a single submission: compare every answer, award partial marks where justified, and list every lost mark with question number, status, correct answer, error type, and details. The score and accuracy must agree exactly.
 If a student's score is below the total, their `mistakes` list must contain one correction row for every question that lost marks. Never return an empty mistakes list for a student with a non-perfect score.
