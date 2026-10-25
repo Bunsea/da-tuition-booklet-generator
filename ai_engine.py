@@ -17,6 +17,9 @@ def _textbook_reference_roots() -> List[str]:
     # This is the teacher's local synced folder. It is intentionally optional;
     # Streamlit Cloud simply skips it unless a matching folder is configured.
     roots.append("/Users/bunsea/My Drive/Textbooks/New Syllabus")
+    local_tb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "textbooks")
+    if os.path.isdir(local_tb):
+        roots.append(local_tb)
     return [p for p in roots if os.path.isdir(p)]
 
 
@@ -28,6 +31,8 @@ def _reference_folder_terms(textbook: str, year_level: str) -> List[str]:
         return ["Yr11 Standard Cambridge"]
     if "extension" in text and "11" in text:
         return ["Yr11 Ext Cambridge"]
+    if "12" in text and ("cambridge" in text or "cms" in text or "extension" in text or "ext" in text or "advanced" in text or "adv" in text):
+        return ["Yr12 Ext Cambridge", "Yr12 Cambridge", "CMS6_Extension1_Y12"]
     if "advanced" in text and "9" in text:
         return ["Cambridge Yr9 Advanced"]
     if "10" in text:
@@ -847,76 +852,92 @@ CAMBRIDGE_CURRICULUM: Dict[str, Dict[str, List[str]]] = {
         ]
     },
     "Year 12 (Advanced)": {
-        "1. Sequences and Series": [
-            "1A Arithmetic sequences and the nth term",
-            "1B Sum of an arithmetic series",
-            "1C Geometric sequences and the nth term",
-            "1D Sum of a finite geometric series",
-            "1E Sum to infinity of a geometric series",
-            "1F Recurring decimals as geometric series"
+        "1. Sequences and series": [
+            "1A Sequences and how to specify them",
+            "1B Arithmetic sequences",
+            "1C Geometric sequences",
+            "1D Solving problems involving APs and GPs",
+            "1E Adding up the terms of a sequence",
+            "1F Summing an arithmetic series",
+            "1G Summing a geometric series",
+            "1H The limiting sum of a geometric series",
+            "1I Recurring decimals and geometric series"
         ],
-        "2. Differential Calculus & Curve Sketching": [
-            "2A The chain rule, product rule and quotient rule",
-            "2B First derivative and stationary points",
-            "2C Second derivative, concavity and points of inflexion",
-            "2D Curve sketching with tangents and asymptotes",
-            "2E Global and local maxima and minima",
-            "2F Applied optimization problems"
+        "3. Curve-sketching using the derivative": [
+            "3A Increasing, decreasing, and stationary at a point",
+            "3B Stationary points and turning points",
+            "3C Some less familiar curves",
+            "3D Second and higher derivatives",
+            "3E Concavity and points of inflection",
+            "3F Systematic curve sketching with the derivative",
+            "3G Global maximum and minimum",
+            "3H Review of continuity and differentiability",
+            "3I Applications of maximisation and minimisation",
+            "3J Maximisation and minimisation in geometry",
+            "3K Primitive functions"
         ],
-        "3. Integral Calculus": [
-            "3A Indefinite integrals and anti-differentiation",
-            "3B Integrals of x^n and polynomials",
-            "3C Integrals of (ax + b)^n",
-            "3D Definite integrals and the fundamental theorem of calculus",
-            "3E Area between a curve and the x-axis",
-            "3F Area between two curves",
-            "3G The trapezoidal rule for numerical approximation"
+        "4. Integration": [
+            "4A Areas and the definite integral",
+            "4B The fundamental theorem of calculus",
+            "4C The definite integral and its properties",
+            "4D Proving the fundamental theorem",
+            "4E The indefinite integral",
+            "4F Finding areas by integration",
+            "4G Areas of compound regions",
+            "4H The trapezoidal rule",
+            "4I The reverse chain rule"
         ],
-        "4. Exponential and Logarithmic Calculus": [
-            "4A Differentiation of e^(f(x))",
-            "4B Integration of e^(ax + b)",
-            "4C Differentiation of ln(f(x))",
-            "4D Integration resulting in ln(x): integrals of f'(x)/f(x)",
-            "4E Exponential growth and decay differential equations"
+        "5. Exponential functions": [
+            "5A Review of the exponential function base e",
+            "5B Differentiation involving exponential functions",
+            "5C Applications of differentiation",
+            "5D Integration involving exponential functions",
+            "5E Applications of integration",
+            "5F Exponential functions with other bases"
         ],
-        "5. Trigonometric Functions and Calculus": [
-            "5A Graphs and properties of trigonometric functions",
-            "5B Derivatives of sin(f(x)), cos(f(x)), tan(f(x))",
-            "5C Integrals of sin(ax + b) and cos(ax + b)",
-            "5D Integrals of sec^2(ax + b)",
-            "5E Trigonometric equations and curve sketching"
+        "6. Logarithmic functions": [
+            "6A Review of the logarithmic function base e",
+            "6B Differentiation involving logarithmic functions",
+            "6C Applications of differentiation",
+            "6D Integration involving reciprocal functions",
+            "6E Applications of integration",
+            "6F Calculus with logarithms to other bases"
         ],
-        "6. Motion and Rates of Change": [
-            "6A Displacement, velocity and acceleration as derivatives",
-            "6B Finding velocity and displacement by integration",
-            "6C Motion graphs: s-t, v-t and a-t graphs",
-            "6D Rates of change and related rates in physical contexts"
+        "7. The trigonometric functions": [
+            "7A Trigonometric graphs and modelling",
+            "7B Differentiation with trigonometric functions",
+            "7C Applications of differentiation",
+            "7D Integration with trigonometric functions",
+            "7E Applications of integration",
+            "7F Proving that the derivative of sin x is cos x"
         ],
-        "7. Financial Mathematics (Series Applications)": [
-            "7A Investments and compound interest series",
-            "7B Future value of an annuity using geometric series",
-            "7C Present value of an annuity using geometric series",
-            "7D Superannuation balances and payouts",
-            "7E Loan repayments and reducing balance mortgages"
+        "8. Motion and rates": [
+            "8A Motion review plus acceleration",
+            "8B Motion and integration",
+            "8C Rates and differentiation",
+            "8D Rates and integration",
+            "8E Exponential growth and decay"
         ],
-        "8. Discrete Random Variables": [
-            "8A Discrete random variables and probability distributions",
-            "8B Expected value and variance of discrete random variables",
-            "8C Applications of discrete probability distributions"
+        "15. Series and finance": [
+            "15A Applications of APs and GPs",
+            "15B The use of logarithms with GPs",
+            "15C Simple and compound interest",
+            "15D Investing money by regular instalments",
+            "15E Paying off a loan",
+            "15F The pension from a superannuation fund or annuity"
         ],
-        "9. Continuous Random Variables": [
-            "9A Continuous random variables and probability density functions (PDFs)",
-            "9B Properties of PDFs: total area equals 1",
-            "9C Cumulative distribution functions (CDFs)",
-            "9D Expected value (mean) and median of continuous variables",
-            "9E Variance and standard deviation of continuous variables"
+        "16. Discrete probability distributions (Discrete Random Variables)": [
+            "16A The language of probability distributions and discrete random variables",
+            "16B Mean or expected value",
+            "16C Variance and standard deviation"
         ],
-        "10. The Normal Distribution": [
-            "10A The standard normal distribution and symmetry",
-            "10B Z-scores and standardising normal distributions",
-            "10C Calculating normal probabilities and intervals",
-            "10D The empirical 68-95-99.7 rule",
-            "10E Practical applications and hypothesis testing basics"
+        "17. Continuous probability distributions (Continuous Random Variables & Normal Distribution)": [
+            "17A Cumulative frequency and grouping",
+            "17B Continuous distributions",
+            "17C Mean and variance of a distribution",
+            "17D The standard normal distribution",
+            "17E General normal distributions",
+            "17F Applications of the normal distribution"
         ]
     },
     "Year 12 (Standard)": {
@@ -975,54 +996,144 @@ CAMBRIDGE_CURRICULUM: Dict[str, Dict[str, List[str]]] = {
         ]
     },
     "Year 12 (Extension 1)": {
-        "1. Proof by Mathematical Induction": [
-            "1A The principle of mathematical induction",
-            "1B Induction proofs involving sums of series",
-            "1C Induction proofs involving divisibility",
-            "1D Induction proofs involving algebraic inequalities"
+        "1. Sequences and series": [
+            "1A Sequences and how to specify them",
+            "1B Arithmetic sequences",
+            "1C Geometric sequences",
+            "1D Solving problems involving APs and GPs",
+            "1E Adding up the terms of a sequence",
+            "1F Summing an arithmetic series",
+            "1G Summing a geometric series",
+            "1H The limiting sum of a geometric series",
+            "1I Recurring decimals and geometric series"
         ],
-        "2. Vectors in 2D and 3D": [
-            "2A Vectors as directed line segments and column vectors",
-            "2B Vector arithmetic and linear combinations",
-            "2C Magnitude, unit vectors and direction angles",
-            "2D The scalar (dot) product in 2D and 3D",
-            "2E Angle between two vectors and perpendicularity",
-            "2F Vector projections: parallel and perpendicular components",
-            "2G Geometric proofs using vector methods"
+        "2. Mathematical induction (Extension 1)": [
+            "2A Using mathematical induction for series",
+            "2B Proving divisibility by mathematical induction"
         ],
-        "3. Inverse Trigonometric Functions": [
-            "3A Definition and domain/range of y = arcsin(x), arccos(x), arctan(x)",
-            "3B Graphs of inverse trigonometric functions",
-            "3C Properties and algebraic simplifications of inverse trig functions",
-            "3D Derivatives of inverse trigonometric functions",
-            "3E Integrals leading to inverse trigonometric functions"
+        "3. Curve-sketching using the derivative": [
+            "3A Increasing, decreasing, and stationary at a point",
+            "3B Stationary points and turning points",
+            "3C Some less familiar curves",
+            "3D Second and higher derivatives",
+            "3E Concavity and points of inflection",
+            "3F Systematic curve sketching with the derivative",
+            "3G Global maximum and minimum",
+            "3H Review of continuity and differentiability",
+            "3I Applications of maximisation and minimisation",
+            "3J Maximisation and minimisation in geometry",
+            "3K Primitive functions"
         ],
-        "4. Further Trigonometric Equations": [
-            "4A Compound angle identities: sin(A ± B), cos(A ± B), tan(A ± B)",
-            "4B Double angle identities: sin(2A), cos(2A), tan(2A)",
-            "4C The t-formulae: t = tan(theta / 2)",
-            "4D Auxiliary angle method: solving a*cos(x) + b*sin(x) = c",
-            "4E Products into sums and sums into products identities"
+        "4. Integration": [
+            "4A Areas and the definite integral",
+            "4B The fundamental theorem of calculus",
+            "4C The definite integral and its properties",
+            "4D Proving the fundamental theorem",
+            "4E The indefinite integral",
+            "4F Finding areas by integration",
+            "4G Areas of compound regions",
+            "4H The trapezoidal rule",
+            "4I The reverse chain rule"
         ],
-        "5. Further Calculus & Differential Equations": [
-            "5A Integration by substitution (algebraic and trigonometric)",
-            "5B Volumes of solids of revolution about the x- and y-axes",
-            "5C First-order separable differential equations: dy/dx = f(x)g(y)",
-            "5D Differential equations modelling exponential growth and decay",
-            "5E Newton's law of cooling and logistic equation models"
+        "5. Exponential functions": [
+            "5A Review of the exponential function base e",
+            "5B Differentiation involving exponential functions",
+            "5C Applications of differentiation",
+            "5D Integration involving exponential functions",
+            "5E Applications of integration",
+            "5F Exponential functions with other bases"
         ],
-        "6. Projectile Motion": [
-            "6A Resolution of velocity and acceleration components",
-            "6B Deriving equations of motion for projectile trajectory",
-            "6C Time of flight, maximum height and horizontal range",
-            "6D Cartesian equation of the parabolic trajectory",
-            "6E Projectiles fired onto inclined planes or with air resistance models"
+        "6. Logarithmic functions": [
+            "6A Review of the logarithmic function base e",
+            "6B Differentiation involving logarithmic functions",
+            "6C Applications of differentiation",
+            "6D Integration involving reciprocal functions",
+            "6E Applications of integration",
+            "6F Calculus with logarithms to other bases"
         ],
-        "7. The Binomial Distribution": [
-            "7A Bernoulli trials and binomial random variables",
-            "7B Binomial probability formula: P(X = k) = nCk * p^k * (1-p)^(n-k)",
-            "7C Mean and variance of a binomial distribution (mu = np, sigma^2 = npq)",
-            "7D Normal approximation to the binomial distribution"
+        "7. The trigonometric functions": [
+            "7A Trigonometric graphs and modelling",
+            "7B Differentiation with trigonometric functions",
+            "7C Applications of differentiation",
+            "7D Integration with trigonometric functions",
+            "7E Applications of integration",
+            "7F Proving that the derivative of sin x is cos x"
+        ],
+        "8. Motion and rates": [
+            "8A Motion review plus acceleration",
+            "8B Motion and integration",
+            "8C Rates and differentiation",
+            "8D Rates and integration",
+            "8E Exponential growth and decay"
+        ],
+        "9. Vectors in 2D and 3D (Extension 1)": [
+            "9A Directed line segments and vectors",
+            "9B Components and column vectors",
+            "9C The dot product (or scalar product)",
+            "9D Coordinates in 3-dimensional space",
+            "9E Vectors in three dimensions",
+            "9F The dot product in 3-dimensional space",
+            "9G Projections"
+        ],
+        "10. Vectors and motion (Extension 1)": [
+            "10A Displacement and velocity with vectors",
+            "10B Calculus and acceleration with vectors",
+            "10C Resultants and relative velocity",
+            "10D Projectile motion — the time equations",
+            "10E Projectile motion — the equation of path"
+        ],
+        "11. Inverse trigonometric functions (Extension 1)": [
+            "11A Defining the inverse trigonometric functions",
+            "11B Graphs involving inverse trigonometric functions"
+        ],
+        "12. Further calculus skills (Extension 1)": [
+            "12A Parametric differentiation",
+            "12B Differentiating inverse functions",
+            "12C Differentiating inverse trigonometric functions",
+            "12D Integration using inverse trigonometric functions",
+            "12E Integration by substitution",
+            "12F Further integration by substitution",
+            "12G Further trigonometric integrals"
+        ],
+        "13. Further applications of calculus (Extension 1)": [
+            "13A Review of sketching polynomials",
+            "13B Testing polynomial zeroes for multiplicity",
+            "13C Related rates",
+            "13D Modified exponential growth and decay",
+            "13E Volumes of rotation"
+        ],
+        "14. Differential equations (Extension 1)": [
+            "14A Differential equations",
+            "14B Slope fields",
+            "14C Separable differential equations",
+            "14D y' = g(y) and logistic differential equations",
+            "14E Applications of differential equations"
+        ],
+        "15. Series and finance": [
+            "15A Applications of APs and GPs",
+            "15B The use of logarithms with GPs",
+            "15C Simple and compound interest",
+            "15D Investing money by regular instalments",
+            "15E Paying off a loan",
+            "15F The pension from a superannuation fund or annuity"
+        ],
+        "16. Discrete probability distributions (Discrete Random Variables)": [
+            "16A The language of probability distributions and discrete random variables",
+            "16B Mean or expected value",
+            "16C Variance and standard deviation"
+        ],
+        "17. Continuous probability distributions (Continuous Random Variables & Normal Distribution)": [
+            "17A Cumulative frequency and grouping",
+            "17B Continuous distributions",
+            "17C Mean and variance of a distribution",
+            "17D The standard normal distribution",
+            "17E General normal distributions",
+            "17F Applications of the normal distribution"
+        ],
+        "18. Binomial distributions and the central limit theorem (Extension 1)": [
+            "18A Binomial probability",
+            "18B Binomial distributions",
+            "18C The central limit theorem"
         ]
     },
     "Year 12 (Extension 2)": {
@@ -2011,9 +2122,15 @@ def get_curriculum_subtopics(year_level: str, topic: str, textbook: str = "Cambr
             return [sub for sub in matched_yl_dict[topic] if is_syllabus_topic_allowed(year_level, sub)]
         # Check partial/fuzzy match
         clean_topic = re.sub(r"^\d+[\.\s]+", "", topic).lower().strip()
+        bare_topic = re.sub(r"\s*\([^)]*\)", "", clean_topic).strip()
         for t_name, subs in matched_yl_dict.items():
             clean_name = re.sub(r"^\d+[\.\s]+", "", t_name).lower().strip()
-            if clean_topic in clean_name or clean_name in clean_topic:
+            bare_name = re.sub(r"\s*\([^)]*\)", "", clean_name).strip()
+            if (
+                clean_topic in clean_name
+                or clean_name in clean_topic
+                or (bare_topic and bare_name and (bare_topic in bare_name or bare_name in bare_topic))
+            ):
                 return [sub for sub in subs if is_syllabus_topic_allowed(year_level, sub)]
 
     # Do not borrow a similarly named Year 12 chapter for a Year 11 request.
@@ -2022,10 +2139,16 @@ def get_curriculum_subtopics(year_level: str, topic: str, textbook: str = "Cambr
 
     # Search across all year levels if not found
     clean_topic = re.sub(r"^\d+[\.\s]+", "", topic).lower().strip()
+    bare_topic = re.sub(r"\s*\([^)]*\)", "", clean_topic).strip()
     for yl, topics_dict in curr.items():
         for t_name, subs in topics_dict.items():
             clean_name = re.sub(r"^\d+[\.\s]+", "", t_name).lower().strip()
-            if clean_topic in clean_name or clean_name in clean_topic:
+            bare_name = re.sub(r"\s*\([^)]*\)", "", clean_name).strip()
+            if (
+                clean_topic in clean_name
+                or clean_name in clean_topic
+                or (bare_topic and bare_name and (bare_topic in bare_name or bare_name in bare_topic))
+            ):
                 return list(subs)
 
     # Fallback to Cambridge if searched in Maths in Focus and not found
@@ -3312,6 +3435,25 @@ ANSWER EQUIVALENCE AND REQUIRED-FORM RULES:
 - A different-looking answer is not automatically wrong: show the equivalence check in the grading reasoning before marking it incorrect. Mark an answer wrong only when its value, solution set, domain, units, precision, sign, orientation, or requested form is genuinely different.
 """
 
+
+def _mark_allocation(marking_key: Dict[str, Any], questions_metadata: Optional[List[Dict[str, Any]]]) -> Dict[str, float]:
+    """Give each answer-sheet entry its share of the worksheet's question marks."""
+    allocation = {}
+    for question in questions_metadata or []:
+        label = str(question.get("item_label") or question.get("num") or "").strip()
+        if not label:
+            continue
+        matching = [key for key in marking_key if str(key) == label or str(key).startswith(f"{label}(")]
+        if not matching:
+            continue
+        try:
+            marks = float(question.get("marks", 1))
+        except (TypeError, ValueError):
+            marks = 1.0
+        for key in matching:
+            allocation[str(key)] = marks / len(matching)
+    return allocation
+
 def grade_student_submission(
     student_pdf_bytes: bytes,
     marking_key: Dict[str, Any],
@@ -3328,6 +3470,12 @@ def grade_student_submission(
     """
     client = get_client(api_key)
     key_formatted = json.dumps(marking_key, indent=2)
+    mark_allocation = _mark_allocation(marking_key, questions_metadata)
+    marks_prompt_section = (
+        "MARKS PER ANSWER-SHEET ENTRY (a correct answer earns the full listed marks):\n"
+        + json.dumps(mark_allocation, indent=2)
+        if mark_allocation else ""
+    )
 
     meta_prompt_section = ""
     if questions_metadata:
@@ -3343,10 +3491,11 @@ def grade_student_submission(
 
     prompt = f"""You are a Senior Math Examiner for DA Tuition. Grade the attached handwritten student homework PDF against the Official Marking Key.
 
-OFFICIAL MARKING KEY (EVERY ITEM IS STRICTLY 1 MARK):
+OFFICIAL MARKING KEY (entries are answers, not mark values):
 {key_formatted}
 
 TOTAL MARKS: {total_marks}
+{marks_prompt_section}
 HEADER CONTEXT: Term {term} Week {week} Homework ({worksheet_title})
 {meta_prompt_section}
 {ANSWER_EQUIVALENCE_RULES}
@@ -3355,11 +3504,12 @@ HEADER CONTEXT: Term {term} Week {week} Homework ({worksheet_title})
 2. ACCURATE SCORING & PARTIAL MARKS:
    - Each answer box corresponds to a question/subpart label (e.g. '1(a)', '1(b)', '2').
    - Compare the student's final answer against the marking key using the equivalence rules above, rather than by literal string matching.
-   - Award full marks if correct.
+   - Award the full question or subpart marks if correct. The number of answer-sheet entries can be smaller than TOTAL MARKS; do not use the number of correct entries as the score.
    - If a question is worth multiple marks and the student shows correct partial working or has a minor arithmetic slip, award partial marks (e.g. 1/2 or 2/3).
    - If incorrect or left blank, mark as "Incorrect" or "Missing" and deduct the appropriate marks lost.
 3. SCORING TOTALS:
-   - Total Score = sum of marks earned across all questions (can be fractional if partial credit was given).
+   - If every answer is correct, Total Score must equal {total_marks}, even when there are fewer answer-sheet entries.
+   - Otherwise Total Score = sum of marks earned across all questions (can be fractional if partial credit was given).
    - Accuracy Percentage = round((Total Score / {total_marks}) * 100).
 4. DIAGNOSTIC TAGGING:
    - For every mistake or lost mark, tag the topic, subtopic, concept_name, cognitive_level, marks lost, and diagnostic error type.
@@ -3489,10 +3639,12 @@ def _ensure_question_corrections(
             mistake.setdefault("cognitive_level", matched_meta.get("cognitive_level") or matched_meta.get("difficulty") or "")
 
     try:
-        score = float(result.get("score", total_marks))
-        total = float(result.get("total_marks", total_marks) or total_marks)
-    except (TypeError, ValueError):
-        return result
+        score = float(result["score"])
+        total = float(total_marks)
+    except (KeyError, TypeError, ValueError):
+        raise ValueError("The marker returned an invalid score")
+    if score < 0 or score > total + 0.01:
+        raise ValueError("The marker returned a score outside the worksheet mark range")
     existing = result.get("mistakes") if isinstance(result.get("mistakes"), list) else []
     lost = max(0.0, total - score)
     recorded_loss = sum(
@@ -3500,22 +3652,28 @@ def _ensure_question_corrections(
         for m in existing
         if isinstance(m, dict)
     )
-    if lost <= 0.01 or recorded_loss >= lost - 0.01:
+    if abs(lost - recorded_loss) <= 0.01:
+        result["score"] = score
+        result["total_marks"] = total_marks
+        result["accuracy_pct"] = round((score / total_marks) * 100, 1) if total_marks else 0.0
         return result
 
     key_formatted = json.dumps(marking_key, indent=2)
-    audit_prompt = f"""Audit the attached handwritten homework against this official marking key:
+    mark_allocation = _mark_allocation(marking_key, questions_metadata)
+    audit_prompt = f"""Independently regrade every answer on this handwritten homework against the official marking key:
 {key_formatted}
 
-The marker awarded {score} out of {total} marks, so {lost:g} marks were lost.
+Marks per answer-sheet entry: {json.dumps(mark_allocation, indent=2)}
+Total worksheet marks: {total_marks}. A fully correct answer sheet earns {total_marks} marks, regardless of how many entries it contains.
 Apply the answer-equivalence rules below before deciding that a response lost marks:
 {ANSWER_EQUIVALENCE_RULES}
-Return every question that lost any marks. This is a correction audit, so do
-not omit blank answers or questions with partial credit. The correct answer
-must be copied exactly from the marking key.
+Judge each entry independently. Return every question that lost marks, including
+blank answers and partial credit. Copy correct answers from the key. If all
+entries are correct, set all_answers_correct to true and score to {total_marks}.
+The marks_lost values must add up to {total_marks} minus score.
 
 Respond with JSON only:
-{{"mistakes": [{{"question_num": "1", "status": "Incorrect", "marks_lost": 1.0,
+{{"all_answers_correct": false, "score": 1.0, "mistakes": [{{"question_num": "1", "status": "Incorrect", "marks_lost": 1.0,
 "student_answer": "", "correct_answer": "...", "error_type": "...",
 "details": "..."}}]}}
 """
@@ -3527,20 +3685,38 @@ Respond with JSON only:
             config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.0),
         )
         audit = clean_json_response(response.text)
-        recovered = audit.get("mistakes", []) if isinstance(audit, dict) else []
-        if isinstance(recovered, list) and recovered:
-            merged = {}
-            for mistake in existing + recovered:
-                if not isinstance(mistake, dict):
-                    continue
-                label = str(mistake.get("question_num", "")).strip()
-                if label:
-                    merged[label] = mistake
-            result["mistakes"] = list(merged.values())
-    except Exception:
-        # Keep the original grade if the audit request fails; the caller still
-        # receives the score and any corrections returned by the first pass.
-        pass
+        if not isinstance(audit, dict):
+            raise ValueError("The grading audit did not return a valid result")
+        recovered = audit.get("mistakes", [])
+        if audit.get("all_answers_correct") is True and recovered == []:
+            result["score"] = total_marks
+            result["total_marks"] = total_marks
+            result["accuracy_pct"] = 100.0
+            result["mistakes"] = []
+            return result
+        if not isinstance(recovered, list) or not recovered:
+            raise ValueError("The grading audit did not identify the lost marks")
+        audit_loss = sum(float(m.get("marks_lost", 0) or 0) for m in recovered if isinstance(m, dict))
+        if audit_loss <= 0 or audit_loss > total_marks:
+            raise ValueError("The grading audit returned invalid marks lost")
+        audit_score = float(audit.get("score", total_marks - audit_loss))
+        if abs((total_marks - audit_score) - audit_loss) > 0.01:
+            raise ValueError("The grading audit score does not match its corrections")
+        for mistake in recovered:
+            label = str(mistake.get("question_num", "")).strip()
+            bare_label = re.sub(r"^(?:qn|q)\s*", "", label, flags=re.IGNORECASE)
+            if not mistake.get("correct_answer") and bare_label.lower() in key_lookup:
+                mistake["correct_answer"] = str(key_lookup[bare_label.lower()])
+            matched_meta = metadata_lookup.get(bare_label) or metadata_lookup.get(label)
+            if matched_meta:
+                mistake.setdefault("concept_name", matched_meta.get("concept_name") or matched_meta.get("subtopic") or "")
+                mistake.setdefault("cognitive_level", matched_meta.get("cognitive_level") or matched_meta.get("difficulty") or "")
+        result["score"] = audit_score
+        result["total_marks"] = total_marks
+        result["accuracy_pct"] = round((audit_score / total_marks) * 100, 1) if total_marks else 0.0
+        result["mistakes"] = recovered
+    except Exception as exc:
+        raise ValueError(f"Could not reconcile the score with question-level corrections: {exc}") from exc
     return result
 
 
@@ -3562,6 +3738,7 @@ def grade_combined_student_submissions(
     """
     client = get_client(api_key)
     key_formatted = json.dumps(marking_key, indent=2)
+    mark_allocation = _mark_allocation(marking_key, questions_metadata)
     meta_lines = []
     for qm in questions_metadata or []:
         lbl = str(qm.get("item_label") or qm.get("num") or "").strip()
@@ -3576,12 +3753,13 @@ Identify every separate student submission and grade each one against this offic
 {key_formatted}
 
 TOTAL MARKS PER STUDENT: {total_marks}
+MARKS PER ANSWER-SHEET ENTRY: {json.dumps(mark_allocation, indent=2)}
 HEADER CONTEXT: Term {term} Week {week} Homework ({worksheet_title})
 {meta_section}
 
 {ANSWER_EQUIVALENCE_RULES}
 
-For each student, identify their name and the page range you graded. Apply the same scoring and diagnostic rules as a single submission: compare every answer, award partial marks where justified, and list every lost mark with question number, status, correct answer, error type, and details. The score and accuracy must agree exactly.
+For each student, identify their name and the page range you graded. Compare every answer, award the full listed question marks for correct answers, award partial marks where justified, and list every lost mark with question number, status, correct answer, error type, and details. If every answer is correct, score must equal {total_marks} even when there are fewer answer-sheet entries. The score and accuracy must agree exactly.
 If a student's score is below the total, their `mistakes` list must contain one correction row for every question that lost marks. Never return an empty mistakes list for a student with a non-perfect score.
 
 Respond with valid JSON only in this shape:
@@ -3625,6 +3803,28 @@ Respond with valid JSON only in this shape:
                         matched = qm_lookup[q_lbl]
                         mistake.setdefault("concept_name", matched.get("concept_name") or matched.get("subtopic") or "")
                         mistake.setdefault("cognitive_level", matched.get("cognitive_level") or matched.get("difficulty") or "")
+                record_pdf = student_pdf_bytes
+                if len(records) > 1:
+                    from io import BytesIO
+                    from pypdf import PdfReader, PdfWriter
+                    page_range = re.fullmatch(r"\s*(\d+)\s*(?:-\s*(\d+))?\s*", str(record.get("page_range", "")))
+                    if not page_range:
+                        raise ValueError("A combined submission is missing a valid page range")
+                    reader = PdfReader(BytesIO(student_pdf_bytes))
+                    start = int(page_range.group(1))
+                    end = int(page_range.group(2) or start)
+                    if start < 1 or end < start or end > len(reader.pages):
+                        raise ValueError("A combined submission has a page range outside its PDF")
+                    writer = PdfWriter()
+                    for page_index in range(start - 1, end):
+                        writer.add_page(reader.pages[page_index])
+                    output = BytesIO()
+                    writer.write(output)
+                    record_pdf = output.getvalue()
+                _ensure_question_corrections(
+                    record, record_pdf, marking_key, total_marks,
+                    api_key=api_key, questions_metadata=questions_metadata,
+                )
             return records
         except Exception as exc:
             last_err = exc

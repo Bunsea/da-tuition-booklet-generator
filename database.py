@@ -1444,6 +1444,14 @@ def get_submission_concept_breakdown(submission_id: int) -> List[Dict[str, Any]]
     ws_id = sub.get("worksheet_id")
     ws = get_worksheet_by_id(ws_id) if ws_id else None
     mistakes = get_submission_mistakes(submission_id)
+
+    # A missing correction list does not establish that every concept was
+    # mastered. Suppress the table until the score can be explained by the
+    # recorded question-level mark losses.
+    recorded_loss = sum(float(m.get("marks_lost", 0) or 0) for m in mistakes)
+    actual_loss = float(sub.get("total_marks", 0) or 0) - float(sub.get("score", 0) or 0)
+    if abs(actual_loss - recorded_loss) > 0.01:
+        return []
     
     questions = []
     if ws and ws.get("questions_json"):

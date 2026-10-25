@@ -3834,6 +3834,9 @@ def _save_marked_submission_result(
     score = max(0.0, min(score, float(active_total_marks)))
     accuracy_pct = round((score / float(active_total_marks)) * 100.0, 1) if active_total_marks else 0.0
     mistakes = grade_data.get("mistakes", []) or []
+    recorded_loss = sum(float(m.get("marks_lost", 0) or 0) for m in mistakes)
+    if abs((float(active_total_marks) - score) - recorded_loss) > 0.01:
+        raise ValueError("The score does not match the question-level corrections. Please regrade this submission.")
     summary_text = grade_data.get("summary_text", "")
     cls_obj = database.get_class_by_id(selected_class_id) if selected_class_id else None
     class_display_name = cls_obj["name"] if cls_obj else ""
@@ -3928,6 +3931,7 @@ if main_section == "🚀 2. 1-Click AI Marking":
     worksheet_title = "Homework"
     term_val = 1
     week_val = 1
+    full_ws = None
 
     if marking_mode == "Use a generated Worksheet":
         latest_sess_ws = st.session_state.get("latest_worksheet")
@@ -4234,7 +4238,10 @@ if main_section == "🚀 2. 1-Click AI Marking":
                 status_text.text(f"Grading [{idx+1}/{total_files}]: {file.name}...")
                 try:
                     pdf_bytes = pdf_generator.prepare_homework_submission_pdf(file.read(), file.name)
-                    q_meta = full_ws.get("questions", []) if (marking_mode == "Use a generated Worksheet" and full_ws) else None
+                    q_meta = (
+                        (full_ws or st.session_state.get("latest_worksheet") or {}).get("questions", [])
+                        if marking_mode == "Use a generated Worksheet" else None
+                    )
                     if upload_mode == "combined":
                         grade_records = ai_engine.grade_combined_student_submissions(
                             student_pdf_bytes=pdf_bytes, marking_key=active_key,
@@ -4273,8 +4280,13 @@ if main_section == "🚀 2. 1-Click AI Marking":
             st.session_state["batch_reports"] = generated_pdf_reports
             st.session_state["submitted_names"] = submitted_names
             st.session_state["last_marked_class_id"] = selected_class_id
+            st.session_state["batch_marking_version"] = 2
 
     # Display Results & Roll Reconciliation
+    if st.session_state.get("batch_results") and st.session_state.get("batch_marking_version") != 2:
+        for stale_key in ("batch_results", "batch_reports", "submitted_names", "last_marked_class_id"):
+            st.session_state.pop(stale_key, None)
+        st.info("The displayed batch used an earlier marking method. Run Start Automated Batch Marking again to get updated scores and reports.")
     if "batch_results" in st.session_state and st.session_state["batch_results"]:
         st.markdown("---")
         st.markdown("### 🏆 Batch Marking Results")

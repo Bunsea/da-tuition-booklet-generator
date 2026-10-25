@@ -6959,7 +6959,7 @@ def generate_student_report_pdf(
     Generates official DA Tuition Student Performance Breakdown Report matching the official template:
     - Top header: Crest logo on left, centered PERFORMANCE BREAKDOWN & Term/Week subtitle.
     - Horizontal divider rule.
-    - STUDENT NAME: [left] and Student Name: [right].
+    - STUDENT NAME and the student name together on the left, with class on the right.
     - CONCEPT MASTERY & DIAGNOSTIC BREAKDOWN (if concept_breakdown provided):
       Table mapping each concept area to designated homework questions, correct count, accuracy %, and Strength/Weakness status.
     - AREAS FOR CORRECTION: heading.
@@ -7008,14 +7008,14 @@ def generate_student_report_pdf(
         textColor=colors.HexColor("#111827")
     )
 
-    student_val_style = ParagraphStyle(
-        'RepStudentVal',
+    class_val_style = ParagraphStyle(
+        'RepClassVal',
         parent=styles['Normal'],
-        fontName=REPORT_FONT_BOLD,
-        fontSize=11,
+        fontName=REPORT_FONT,
+        fontSize=10.5,
         leading=14,
-        alignment=2, # Right aligned
-        textColor=colors.HexColor("#111827")
+        alignment=2,
+        textColor=colors.HexColor("#6B7280")
     )
 
     sec_head_style = ParagraphStyle(
@@ -7052,12 +7052,27 @@ def generate_student_report_pdf(
     logo_element = get_proportional_logo(target_height=56.0, max_width=75.0)
 
     clean_header = term_week_header.strip() if term_week_header else "Homework Report"
-    # Ensure title line matches "PERFORMANCE BREAKDOWN"
+    worksheet_header = re.fullmatch(
+        r"(Year\s+\d+)\s*\((Extension(?:\s*1)?)\)\s+Mathematics\s*[-–—]\s*"
+        r"(.+?)\s*\((Homework\s*[-–—]\s*Set\s*\d+)\)\s*Report",
+        clean_header, flags=re.IGNORECASE
+    )
+    if worksheet_header:
+        year, extension, topic, assignment = worksheet_header.groups()
+        topic = re.sub(r"\s*\(Ext\s*1\)\s*$", "", topic, flags=re.IGNORECASE).strip()
+        subtitle_lines = [
+            f"{year} Mathematics {extension}",
+            f"{topic} {assignment} Report",
+        ]
+    else:
+        subtitle_lines = [clean_header]
+
     title_cell = [
         Paragraph("<b>PERFORMANCE BREAKDOWN</b>", title_main_style),
         Spacer(1, 2),
-        Paragraph(format_math_for_reportlab(clean_header), title_sub_style)
     ]
+    for line in subtitle_lines:
+        title_cell.append(Paragraph(format_math_for_reportlab(escape(line)), title_sub_style))
 
     header_table = Table([[logo_element if logo_element else "", title_cell]], colWidths=[75, 420])
     header_table.setStyle(TableStyle([
@@ -7079,15 +7094,13 @@ def generate_student_report_pdf(
     # name.
     name_display = student_name.strip()
     class_display = str(class_name or "").strip()
-    left_meta = "STUDENT NAME:"
-    right_meta = f"<b>{name_display}</b>"
-    if class_display:
-        right_meta += f"  <font color='#6B7280'>Class: {class_display}</font>"
+    left_meta = f"STUDENT NAME: <b>{escape(name_display)}</b>"
+    right_meta = f"Class: {escape(class_display)}" if class_display else ""
 
     meta_table = Table([[
         Paragraph(left_meta, student_lbl_style),
-        Paragraph(right_meta, student_val_style)
-    ]], colWidths=[200, 295])
+        Paragraph(right_meta, class_val_style)
+    ]], colWidths=[300, 195])
     meta_table.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('LEFTPADDING', (0, 0), (-1, -1), 0),
@@ -7219,7 +7232,7 @@ def generate_student_report_pdf(
             ('RIGHTPADDING', (0, 0), (-1, -1), 10),
         ]))
         story.append(corrections_table)
-    elif float(accuracy_pct) < 80.0:
+    elif float(score) < float(total_marks):
         correction_required_style = ParagraphStyle(
             'RepCorrectionRequired',
             parent=styles['Normal'],
@@ -7233,7 +7246,7 @@ def generate_student_report_pdf(
         story.append(Paragraph("Correction required", correction_required_style))
         story.append(Spacer(1, 4))
         story.append(Paragraph(
-            "The overall score is below 80%, but the marker did not return question-level corrections. Review the submitted work against the teacher answer key.",
+            "The score has no question-level corrections to explain the missing marks. Review the submitted work against the teacher answer key.",
             ParagraphStyle(
                 'RepCorrectionNote',
                 parent=styles['Normal'],

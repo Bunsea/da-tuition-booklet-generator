@@ -13,6 +13,7 @@ homework_marking.db
 homework_system.db
 .DS_Store
 .cache/
+textbooks/
 *.aux
 *.log
 *.out
