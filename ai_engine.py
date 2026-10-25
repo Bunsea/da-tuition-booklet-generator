@@ -31,6 +31,8 @@ def _reference_folder_terms(textbook: str, year_level: str) -> List[str]:
         return ["Yr11 Standard Cambridge"]
     if "extension" in text and "11" in text:
         return ["Yr11 Ext Cambridge"]
+    if "12" in text and ("ext 2" in text or "extension 2" in text or "ext2" in text or "4u" in text):
+        return ["Yr12 Ext2 Cambridge", "Yr12 Cambridge Extension 2"]
     if "12" in text and ("cambridge" in text or "cms" in text or "extension" in text or "ext" in text or "advanced" in text or "adv" in text):
         return ["Yr12 Ext Cambridge", "Yr12 Cambridge", "CMS6_Extension1_Y12"]
     if "advanced" in text and "9" in text:
@@ -64,17 +66,21 @@ def get_textbook_exercise_reference(textbook: str, year_level: str, topic: str, 
     search_tokens = set(topic_tokens)
     for token in topic_tokens:
         search_tokens.update(topic_aliases.get(token, []))
+    chap_match = re.match(r"^(\d+)", str(topic).strip())
+    chap_num = chap_match.group(1) if chap_match else None
+
     candidates = []
     for root in _textbook_reference_roots():
         folder_terms = _reference_folder_terms(textbook, year_level)
         matching_dirs = []
-        for dp, dirs, _ in os.walk(root):
-            if any(all(term.lower() in os.path.basename(dp).lower() for term in folder_terms if term) for _ in [0]):
+        for dp, dirs, _ in os.walk(root, followlinks=True):
+            base = os.path.basename(dp).lower()
+            if any(term.lower() in base for term in folder_terms if term):
                 matching_dirs.append(dp)
         for folder in matching_dirs:
-            candidates.extend(os.path.join(dp, f) for dp, _, fs in os.walk(folder) for f in fs if f.lower().endswith(".pdf"))
+            candidates.extend(os.path.join(dp, f) for dp, _, fs in os.walk(folder, followlinks=True) for f in fs if f.lower().endswith(".pdf"))
         if not candidates:
-            candidates.extend(os.path.join(dp, f) for dp, _, fs in os.walk(root) for f in fs if f.lower().endswith(".pdf"))
+            candidates.extend(os.path.join(dp, f) for dp, _, fs in os.walk(root, followlinks=True) for f in fs if f.lower().endswith(".pdf"))
 
     if not candidates:
         return ""
@@ -82,6 +88,8 @@ def get_textbook_exercise_reference(textbook: str, year_level: str, topic: str, 
     for path in sorted(set(candidates)):
         name = os.path.basename(path).lower()
         score = sum(2 for token in search_tokens if token in name)
+        if chap_num and re.search(rf"\bchapter\s+{chap_num}\b", name):
+            score += 5
         if "answer" in name or "solution" in name or "skillsheet" in name:
             score -= 10
         scored.append((score, path))
@@ -1137,53 +1145,65 @@ CAMBRIDGE_CURRICULUM: Dict[str, Dict[str, List[str]]] = {
         ]
     },
     "Year 12 (Extension 2)": {
-        "1. The Nature of Proof": [
-            "1A Language of mathematical proof: implications, contrapositive, converse",
-            "1B Proof by contradiction",
-            "1C Inequalities proofs and algebraic manipulation",
-            "1D The AM-GM inequality and Cauchy-Schwarz inequality",
-            "1E Further induction proofs (inequalities, recurrence relations)"
+        "1. Complex Numbers I": [
+            "1A The Arithmetic of Complex Numbers",
+            "1B Quadratic Equations",
+            "1C The Argand Diagram",
+            "1D Modulus-Argument Form",
+            "1E Vectors and the Complex Plane",
+            "1F Curves and Regions in the Argand Diagram"
         ],
-        "2. Complex Numbers I - Cartesian & Polar Forms": [
-            "2A Complex arithmetic, conjugate and modulus in Cartesian form",
-            "2B Modulus-argument (polar) form of complex numbers",
-            "2C Multiplication and division in polar form",
-            "2D Geometrical representation on the Argand plane",
-            "2E Loci and regions in the complex plane"
+        "2. Proof": [
+            "2A Logic and The Language of Proof",
+            "2B Further Logic and Language of Proof",
+            "2C Number Proofs",
+            "2D Proof by Contraposition and by Contradiction",
+            "2E Algebraic Inequalities",
+            "2F Further Proof by Induction",
+            "2G Inequalities in Geometry and Calculus"
         ],
-        "3. Complex Numbers II - De Moivre's Theorem & Roots": [
-            "3A De Moivre's theorem for integer powers",
-            "3B Applications of de Moivre's theorem to trigonometric identities",
-            "3C Roots of complex numbers: solving z^n = c",
-            "3D The nth roots of unity and their geometric properties",
-            "3E Factorisation of polynomials over complex and real fields"
+        "3. Complex Numbers II: Polynomials & de Moivre": [
+            "3A Polynomials and Complex Numbers",
+            "3B Powers of Complex Numbers",
+            "3C Trigonometric Identities",
+            "3D Roots of Complex Numbers"
         ],
-        "4. Further Vectors in Three Dimensions": [
-            "4A Three-dimensional coordinate systems and basis vectors (i, j, k)",
-            "4B The vector (cross) product: definition and properties",
-            "4C Applications of cross product: area of triangles and parallelograms",
-            "4D Vector equations of straight lines in 3D",
-            "4E Vector and Cartesian equations of planes in 3D",
-            "4F Intersections and shortest distance problems in 3D"
+        "4. Vectors": [
+            "4A The Vector Equation of a Line",
+            "4B Parallel, Intersecting and Skew Lines",
+            "4C Perpendicular Lines",
+            "4D Vector Equations of Circles and Spheres",
+            "4E Other Parametric Curves",
+            "4F The Algebra of the Dot Product",
+            "4G Vectors and Geometry in Two Dimensions",
+            "4H Vectors and Geometry in Three Dimensions"
         ],
-        "5. Further Integration Techniques": [
-            "5A Integration by parts: indefinite and definite integrals",
-            "5B Recurrence relations (reduction formulae) for integrals",
-            "5C Integration using partial fractions",
-            "5D Integration of trigonometric functions using Weierstrass t-substitution",
-            "5E Definite integrals with symmetry and dummy variables"
+        "5. Trigonometric Identities": [
+            "5A Products to Sums",
+            "5B The t-Formulae"
         ],
-        "6. Mechanics - Simple Harmonic Motion": [
-            "6A Kinematics of simple harmonic motion: x'' = -w^2 x",
-            "6B Velocity as a function of displacement: v^2 = w^2 (a^2 - x^2)",
-            "6C Displacement-time equations: x = a*cos(wt + alpha) and x = a*sin(wt + alpha)",
-            "6D Period, amplitude and maximum speed/acceleration in SHM"
+        "6. Integration": [
+            "6A The Standard Integrals",
+            "6B Algebraic Manipulation",
+            "6C Substitution",
+            "6D Partial Fractions",
+            "6E Denominators with Quadratics",
+            "6F Integration by Parts",
+            "6G Trigonometric Integrals",
+            "6H Reduction Formulae",
+            "6I Miscellaneous Integrals"
         ],
-        "7. Mechanics - Resisted Motion": [
-            "7A Motion in a straight line under resistance proportional to velocity (-kv)",
-            "7B Motion in a straight line under resistance proportional to velocity squared (-kv^2)",
-            "7C Vertical motion under gravity with resistance (downward and upward)",
-            "7D Terminal velocity and escape velocity"
+        "7. Mechanics": [
+            "7A Resolving Forces",
+            "7B Planes and Pulleys",
+            "7C Forces and Acceleration",
+            "7D Simple Harmonic Motion and Time",
+            "7E Simple Harmonic Motion and Displacement",
+            "7F Horizontal Resisted Motion",
+            "7G Vertical Resisted Motion",
+            "7H Projectile Motion — Further Extension 1",
+            "7I Resisted Projectile Motion",
+            "7J Miscellaneous Problems"
         ]
     },
     "Year 8": {
@@ -2123,15 +2143,30 @@ def get_curriculum_subtopics(year_level: str, topic: str, textbook: str = "Cambr
         # Check partial/fuzzy match
         clean_topic = re.sub(r"^\d+[\.\s]+", "", topic).lower().strip()
         bare_topic = re.sub(r"\s*\([^)]*\)", "", clean_topic).strip()
+        primary_topic = re.split(r"[:\-\—\(]", clean_topic)[0].strip()
+        candidates = []
         for t_name, subs in matched_yl_dict.items():
             clean_name = re.sub(r"^\d+[\.\s]+", "", t_name).lower().strip()
             bare_name = re.sub(r"\s*\([^)]*\)", "", clean_name).strip()
-            if (
-                clean_topic in clean_name
-                or clean_name in clean_topic
-                or (bare_topic and bare_name and (bare_topic in bare_name or bare_name in bare_topic))
-            ):
-                return [sub for sub in subs if is_syllabus_topic_allowed(year_level, sub)]
+            primary_name = re.split(r"[:\-\—\(]", clean_name)[0].strip()
+            score = 0
+            if clean_topic == clean_name or (primary_topic and primary_topic == primary_name):
+                score = 100
+            elif (primary_name and re.search(r"\b" + re.escape(primary_name) + r"\b", clean_topic)) or (primary_topic and re.search(r"\b" + re.escape(primary_topic) + r"\b", clean_name)):
+                score = 80 + len(primary_name)
+            elif (bare_topic and bare_name) and (re.search(r"\b" + re.escape(bare_name) + r"\b", clean_topic) or re.search(r"\b" + re.escape(bare_topic) + r"\b", clean_name)):
+                score = 60 + len(bare_name)
+            elif (primary_name and primary_name in clean_topic) or (primary_topic and primary_topic in clean_name):
+                score = 40 + len(primary_name)
+            elif clean_topic in clean_name or clean_name in clean_topic:
+                score = 30 + len(clean_name)
+            elif (bare_topic and bare_name) and (bare_topic in bare_name or bare_name in bare_topic):
+                score = 20 + len(bare_name)
+            if score > 0:
+                candidates.append((score, subs))
+        if candidates:
+            best_subs = sorted(candidates, key=lambda x: -x[0])[0][1]
+            return [sub for sub in best_subs if is_syllabus_topic_allowed(year_level, sub)]
 
     # Do not borrow a similarly named Year 12 chapter for a Year 11 request.
     if re.search(r"\byear\s+1[12]\b", str(year_level), re.IGNORECASE):
