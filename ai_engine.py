@@ -396,10 +396,10 @@ CAMBRIDGE_CURRICULUM: Dict[str, Dict[str, List[str]]] = {
             "8H Household bills",
             "8I Personal budget"
         ],
-        "9. Networks, Paths and Trees": [
-            "9A Networks",
-            "9B Names for journeys through networks",
-            "9C Constructing a network diagram",
+        "9. Networking and Network Concepts": [
+            "9A Network concepts: vertices, edges, faces and degree of a vertex",
+            "9B Names for journeys through networks: walks, trails, paths, cycles and circuits",
+            "9C Constructing and interpreting network diagrams",
             "9D Eulerian circuits and Hamiltonian walks",
             "9E Solving problems involving network diagrams",
             "9F Spanning trees: Prim's algorithm and Kruskal's algorithm",
@@ -994,13 +994,18 @@ CAMBRIDGE_CURRICULUM: Dict[str, Dict[str, List[str]]] = {
             "7C Z-scores (standardised scores) and calculations",
             "7D Comparing data sets using z-scores"
         ],
-        "8. Critical Path Analysis and Networks": [
-            "8A Network terms: vertices, edges, paths and cycles",
-            "8B Minimum spanning trees and Prim's algorithm",
-            "8C Network flow: sources, sinks and cut capacity",
-            "8D Activity networks and precedence tables",
-            "8E Forward and backward scanning for EST and LST",
-            "8F Float times and identifying the critical path"
+        "8. Critical Path Analysis and Network Flow": [
+            "8A Activity networks and precedence tables",
+            "8B Forward and backward scanning for EST and LST",
+            "8C Float times and identifying the critical path",
+            "8D Network flow: sources, sinks and cut capacity",
+            "8E Maximum flow minimum cut theorem"
+        ],
+        "9. Relative Frequency and Probability": [
+            "9A Relative frequency and experimental probability",
+            "9B The law of large numbers and expected frequency",
+            "9C Multi-stage events, simulations and tree diagrams",
+            "9D Two-way tables and Venn diagrams in practical probability"
         ]
     },
     "Year 12 (Extension 1)": {
@@ -1436,9 +1441,8 @@ MATHS_IN_FOCUS_CURRICULUM: Dict[str, Dict[str, List[str]]] = {
             "11.4 Pythagorean trigonometric identities",
             "11.5 Compound angle formulas",
             "11.6 Double angle formulas",
-            "11.7 The t-formulas (Weierstrass substitution)",
-            "11.8 Auxiliary angle method (R cos(x - alpha))",
-            "11.9 Solving trigonometric equations"
+            "11.7 Auxiliary angle method (R cos(x - alpha))",
+            "11.8 Solving trigonometric equations"
         ],
         "12. Probability and Data": [
             "12.1 Sample spaces, outcomes and probability rules",
@@ -1582,13 +1586,14 @@ MATHS_IN_FOCUS_CURRICULUM: Dict[str, Dict[str, List[str]]] = {
             "7.3 Linear models and cost/revenue/break-even analysis",
             "7.4 Simultaneous linear equations graphically and algebraically"
         ],
-        "8. Networks and Paths": [
-            "8.1 Network definitions: vertices, edges and faces",
+        "8. Networking and Network Concepts": [
+            "8.1 Network definitions: vertices, edges, faces and degree",
             "8.2 Degree of a vertex and the Handshaking Lemma",
             "8.3 Connected, directed and weighted graphs",
             "8.4 Walks, trails, paths, cycles and circuits",
             "8.5 Eulerian and Hamiltonian trails and circuits",
-            "8.6 Trees and minimum spanning trees (Prim's algorithm)"
+            "8.6 Trees and minimum spanning trees (Prim's algorithm)",
+            "8.7 Shortest paths and network optimization"
         ],
         "9. World Locations and Times": [
             "9.1 Latitude and longitude coordinates",
@@ -1814,14 +1819,16 @@ MATHS_IN_FOCUS_CURRICULUM: Dict[str, Dict[str, List[str]]] = {
             "7.3 Calculating and interpreting z-scores",
             "7.4 Comparing scores across different test populations"
         ],
-        "8. Critical Path Analysis and Networks": [
-            "8.1 Network concepts: vertices, edges, paths and trees",
-            "8.2 Weighted graphs and shortest path problems",
-            "8.3 Minimum spanning trees using Prim's algorithm",
-            "8.4 Activity networks, predecessors and arrow diagrams",
-            "8.5 Earliest starting time (EST) and latest starting time (LST)",
-            "8.6 The Critical Path and float times",
-            "8.7 Network flow: source, sink, cuts and maximum flow minimum cut theorem"
+        "8. Critical Path Analysis and Network Flow": [
+            "8.1 Activity networks, predecessors and arrow diagrams",
+            "8.2 Earliest starting time (EST) and latest starting time (LST)",
+            "8.3 The Critical Path and float times",
+            "8.4 Network flow: source, sink, cuts and maximum flow minimum cut theorem"
+        ],
+        "9. Relative Frequency and Probability": [
+            "9.1 Relative frequency and experimental probability",
+            "9.2 Theoretical probability and expected frequency",
+            "9.3 Multi-stage events, simulations and tree diagrams"
         ]
     }
 }
@@ -1839,7 +1846,7 @@ NEW_SENIOR_MATHEMATICS_CURRICULUM: Dict[str, Dict[str, List[str]]] = {
             "Algebraic techniques", "Further algebraic techniques", "Functions and relations",
             "Further functions", "Trigonometry and measures of angles", "Radians",
             "Introduction to differentiation", "Exponential and logarithmic functions",
-            "Probability", "Graph transformations"
+            "Data and probability", "Graph transformations"
         ], 1)
     },
     "Year 11 (Extension)": {
@@ -1888,7 +1895,7 @@ CONCEPT_MATHEMATICS_CURRICULUM: Dict[str, Dict[str, List[str]]] = {
         f"{i}. {title}": [title] for i, title in enumerate([
             "Algebra and Sets", "Functions", "Trigonometry",
             "Trigonometric Identities and Equations", "Introduction to Differentiation",
-            "Exponential and Logarithmic Functions", "Graph Transformations", "Probability"
+            "Exponential and Logarithmic Functions", "Graph Transformations", "Data and Probability"
         ], 1)
     },
     "Year 11 (Extension)": dict(NEW_SENIOR_MATHEMATICS_CURRICULUM["Year 11 (Extension)"]),
@@ -2106,18 +2113,46 @@ def get_topics_for_year(year_level: str, textbook: str = "CambridgeMATHS NSW") -
 
 
 def is_syllabus_topic_allowed(year_level: str, topic: str) -> bool:
-    """Keep known Year 12 topics out of 2024 NSW Year 11 topic choices."""
+    """Enforce strict NSW NESA Mathematics Syllabus boundaries across year levels."""
     text = str(topic or "")
+
+    # 1. Universal: Pigeonhole principle is completely removed from all NSW syllabuses
+    if re.search(r"\bpigeonhole\b", text, re.IGNORECASE):
+        return False
+
+    # 2. Trigonometry t-method & products-to-sums: ONLY in Year 12 Extension 2
+    if re.search(r"\b(?:t-formulas?|t-formulae|t-method|t-results?|products?\s+to\s+sums?|sums?\s+to\s+products?|weierstrass(?:\s+substitution)?)\b", text, re.IGNORECASE):
+        if not is_stage6_extension2(year_level):
+            return False
+
+    # 3. Year 11 Advanced: Discrete/continuous random variables or probability distributions are strictly Year 12
     if is_year_11_advanced(year_level) and re.search(
+        r"\b(?:discrete|continuous) random variables?\b|\b(?:discrete )?probability distributions?\b",
+        text, re.IGNORECASE
+    ):
+        return False
+
+    # 4. Year 11 Extension 1: No discrete random variables or Year 12 topics
+    if is_stage6_extension1(year_level) and "11" in str(year_level) and re.search(
         r"\b(?:discrete|continuous) random variables?\b|\bdiscrete probability distributions?\b",
         text, re.IGNORECASE
     ):
         return False
-    if is_stage6_extension1(year_level) and "11" in str(year_level) and re.search(
-        r"\bpigeonhole\b|\b(?:discrete|continuous) random variables?\b|\bdiscrete probability distributions?\b",
+
+    # 5. Standard Mathematics: Relative Frequency is in Year 12 Standard (NOT Year 11 Standard)
+    if is_stage6_standard(year_level) and "11" in str(year_level) and re.search(
+        r"\brelative frequency\b", text, re.IGNORECASE
+    ):
+        return False
+
+    # 6. Standard Mathematics: Introductory Networking / Network Concepts is in Year 11 Standard (NOT Year 12 Standard)
+    # (Year 12 Standard strictly covers Critical Path Analysis and Network Flow)
+    if is_stage6_standard(year_level) and "12" in str(year_level) and re.search(
+        r"\bnetwork concepts?\b|\bintroductory networks?\b|\bnetwork terms?\b|\bdegree of a vertex\b|\bhandshaking lemma\b|\beulerian\b|\bhamiltonian\b",
         text, re.IGNORECASE
     ):
         return False
+
     return True
 
 def get_curriculum_topics(year_level: str, textbook: str = "CambridgeMATHS NSW") -> List[str]:
@@ -2673,22 +2708,39 @@ The content generated is strictly for NSW Stage 5 (Years 9-10: 5.1/5.2/5.3) Math
 
     # 3. STAGE 6 MATHEMATICS STANDARD (Years 11-12)
     if is_stage6_standard(year_level):
-        return """
-STRICT NSW NESA SYLLABUS BOUNDARY DIRECTIVE (STAGE 6 MATHEMATICS STANDARD 1 & 2) - ZERO TOLERANCE LEAKAGE:
-The content generated is strictly for NSW Stage 6 Mathematics Standard (non-calculus pathway).
-1. PERMITTED STANDARD MATHEMATICS TOPICS:
-- Financial Mathematics: earning and managing money, taxation (PAYG, Medicare levy, tax tables), budgeting, household expenses, simple and compound interest, reducing balance loans, recurrence relations, annuities (future and present value tables).
-- Measurement: applications of measurement, non-right-angled trigonometry (Sine Rule, Cosine Rule, Area of triangle), spherical geometry/angles, trapezoidal rule for estimation of irregular areas.
-- Statistical Analysis: univariate data summary, standard deviation, normal distribution (empirical rule 68-95-99.7, z-scores), bivariate data (scatter plots, Pearson's correlation coefficient $r$, line of best fit $y = mx + c$, interpolation/extrapolation).
-- Networks: network concepts (vertices, edges, weights, degrees, walk, trail, path, circuit, cycle), planar graphs and Euler's formula ($V - E + F = 2$), Eulerian and Hamiltonian paths/circuits, shortest path problems, minimum spanning trees (Prim's algorithm), critical path analysis (activity tables, forward/backward scanning, float times, critical paths), network flow (source, sink, capacity, cuts, max-flow min-cut theorem), Hungarian algorithm for assignment.
+        if "11" in yl:
+            return """
+STRICT NSW NESA SYLLABUS BOUNDARY DIRECTIVE (STAGE 6 YEAR 11 MATHEMATICS STANDARD) - ZERO TOLERANCE LEAKAGE:
+The content generated is strictly for NSW Stage 6 Year 11 Mathematics Standard (non-calculus pathway).
+1. PERMITTED YEAR 11 STANDARD TOPICS:
+- Financial Mathematics: Earning and managing money, taxation (PAYG, Medicare levy, tax tables, deductions, net pay), budgeting, household expenses.
+- Formulas & Equations: Substitution, linear equations, rearranging formulas, direct variation, stopping distance and BAC.
+- Applications of Measurement: Units, perimeter, area, volume, capacity, surface area of right prisms, cylinders and spheres, trapezoidal rule.
+- Data Analysis: Univariate data, frequency tables, cumulative frequency, mean, median, mode, IQR, standard deviation, parallel box plots, outliers.
+- Linear Relationships: Straight-line graphs, gradient, intercepts, linear modelling.
+- Time and Location: Units of time, latitude and longitude, time zones.
+- Networking & Network Concepts: Network definitions (vertices, edges, faces, degree of a vertex, Handshaking Lemma), walks, trails, paths, cycles and circuits, Eulerian and Hamiltonian paths and circuits, trees, minimum spanning trees (Prim's algorithm), shortest path analysis.
 
-2. STRICT NEGATIVE CONSTRAINTS (STRICTLY FORBIDDEN FOR STANDARD MATHEMATICS):
-- STRICTLY NO CALCULUS: Under NO circumstances should differentiation, anti-derivatives, definite integrals, or limits appear.
-- STRICTLY NO RADIANS: All angles must be in degrees.
-- STRICTLY NO LOGARITHMIC FUNCTIONS OR EXPONENTIAL BASE $e$: No $\\ln x$, $\\log_a x$, or $e^x$ calculus models.
-- STRICTLY NO CONTINUOUS PROBABILITY DISTRIBUTIONS (PDFs/CDFs): Only normal distribution z-scores and empirical rule.
-- STRICTLY NO SIGMA / SUMMATION NOTATION ($\\sum$): Use standard words ('Sum of scores', 'Sum of degrees = 2e').
-- STRICTLY NO EXTENSION 1 / 2 CONTENT: No mathematical induction, no vectors, no projectile motion, no complex numbers.
+2. STRICT NEGATIVE CONSTRAINTS (FORBIDDEN OUT-OF-SYLLABUS TOPICS - ZERO TOLERANCE):
+- STRICTLY NO RELATIVE FREQUENCY: Relative frequency and experimental probability belong strictly in Year 12 Standard.
+- STRICTLY NO CRITICAL PATH ANALYSIS OR NETWORK FLOW: Activity networks, forward/backward scanning, float times, and cut-capacity / max-flow min-cut are strictly Year 12 Standard.
+- STRICTLY NO PIGEONHOLE PRINCIPLE (completely removed from NSW syllabus).
+- STRICTLY NO CALCULUS, NO RADIANS, NO LOGARITHMS, NO EXTENSION 1 / 2 TOPICS.
+"""
+        return """
+STRICT NSW NESA SYLLABUS BOUNDARY DIRECTIVE (STAGE 6 YEAR 12 MATHEMATICS STANDARD) - ZERO TOLERANCE LEAKAGE:
+The content generated is strictly for NSW Stage 6 Year 12 Mathematics Standard (non-calculus pathway).
+1. PERMITTED YEAR 12 STANDARD TOPICS:
+- Financial Mathematics: Investments and loans, simple and compound interest, reducing balance loans, credit cards, annuities (future and present value formulas and tables), superannuation.
+- Measurement: Non-right-angled trigonometry (Sine Rule, Cosine Rule, Area $A = \\frac{1}{2}ab\\sin C$), bearings, radial survey maps.
+- Statistical Analysis: Bivariate data (scatter plots, Pearson's $r$, line of best fit $y = mx + c$, interpolation/extrapolation, residual analysis), normal distribution (68-95-99.7 rule, z-scores).
+- Relative Frequency & Probability: Relative frequency and experimental probability, simulations, expected frequency, multi-stage events, tree diagrams, two-way tables.
+- Networks - Critical Path Analysis & Network Flow: Activity networks, precedence tables, forward/backward scanning for EST and LST, float times, critical paths, network flow (sources, sinks, cut capacity, maximum-flow minimum-cut theorem).
+
+2. STRICT NEGATIVE CONSTRAINTS (FORBIDDEN OUT-OF-SYLLABUS TOPICS - ZERO TOLERANCE):
+- STRICTLY NO INTRODUCTORY NETWORK CONCEPTS: Basic network definitions (vertices, edges, faces, degrees, Eulerian/Hamiltonian circuits, basic trees) are Year 11 Standard prerequisites.
+- STRICTLY NO PIGEONHOLE PRINCIPLE (completely removed from NSW syllabus).
+- STRICTLY NO CALCULUS, NO RADIANS, NO LOGARITHMS, NO EXTENSION 1 / 2 TOPICS.
 """
 
     # 4. STAGE 6 MATHEMATICS EXTENSION 1 (Years 11-12)
@@ -2701,6 +2753,7 @@ further trigonometry (including three-dimensional trigonometry and compound
 angle identities), permutations and combinations, and the binomial theorem.
 Students also study the Year 11 Mathematics Advanced content.
 Do not include the pigeonhole principle or discrete random variables.
+Do not include t-formulas (t-method) or products-to-sums / sums-to-products formulas (these are strictly Extension 2 only).
 Do not include Year 12 Extension 1 topics: mathematical induction, vectors,
 inverse trigonometric functions, integration, differential equations,
 binomial distributions, or sampling distributions.
@@ -2711,13 +2764,15 @@ The content generated is for NSW Stage 6 Mathematics Extension 1 Year 12.
 1. PERMITTED YEAR 12 EXTENSION 1 TOPICS:
 - Proof: Mathematical Induction (sums, divisibility, inequalities).
 - Vectors: 2D and 3D vectors (components, magnitude, direction, dot product, and 2D motion).
-- Trigonometry: Inverse trigonometric functions ($\\arcsin x, \\arccos x, \\arctan x$), compound angle formulas, double angle formulas, $t$-formulas, auxiliary angle method $a\\cos x + b\\sin x = R\\cos(x-\\alpha)$.
+- Trigonometry: Inverse trigonometric functions ($\\arcsin x, \\arccos x, \\arctan x$), compound angle formulas, double angle formulas, auxiliary angle method $a\\cos x + b\\sin x = R\\cos(x-\\alpha)$. (Strictly NO $t$-formulas or products-to-sums; these are Extension 2).
 - Calculus: Derivative of inverse trig functions, exponential, logarithmic, and trigonometric functions. Integration by simple algebraic substitution. Volumes of solids of revolution about $x$- and $y$-axes. Rates of change and differential equations ($\\frac{dy}{dt} = k(y-P)$).
 - Polynomials: Polynomial division, Factor and Remainder theorems, roots of polynomials (relations between roots and coefficients for cubics and quartics).
-- Combinatorics: Year 11 permutations and combinations, Pascal's triangle and binomial theorem expansions $(a+b)^n$ as prerequisites. Do not introduce the pigeonhole principle.
+- Combinatorics: Year 11 permutations and combinations, Pascal's triangle and binomial theorem expansions $(a+b)^n$ as prerequisites.
 - Mechanics: Projectile motion (2D vectors without resistance).
 
 2. STRICT NEGATIVE CONSTRAINTS (STRICTLY FORBIDDEN FOR EXTENSION 1):
+- STRICTLY NO T-FORMULAS (T-METHOD) OR PRODUCTS-TO-SUMS / SUMS-TO-PRODUCTS: The $t$-formula (Weierstrass substitution) and products-to-sums / differences are strictly Extension 2 only.
+- STRICTLY NO PIGEONHOLE PRINCIPLE: Completely removed from the NSW syllabus.
 - STRICTLY NO COMPLEX NUMBERS: Imaginary unit $i = \\sqrt{-1}$, Argand diagrams, modulus-argument form are strictly Extension 2.
 - STRICTLY NO RESISTIVE MECHANICS: Motion with resistive forces or Simple Harmonic Motion (SHM) is strictly Extension 2.
 - STRICTLY NO INTEGRATION BY PARTS OR PARTIAL FRACTIONS: Strictly Extension 2.
@@ -2843,6 +2898,7 @@ STAGE5_FORBIDDEN_PATTERNS = [
 ]
 
 STAGE6_STANDARD_FORBIDDEN_PATTERNS = [
+    (r"\bpigeonhole(?:\s+(?:principle|theorem))?\b", "Pigeonhole principle is outside the syllabus"),
     (r"\\frac\{dy\}\{dx\}|\\int\b|f'\s*\(|\bderivative\b|\bcalculus\b|\bdifferentiate\b|\bintegrate\b|\blimit\b", "Standard Maths Calculus"),
     (r"\bradian(?:s)?\b|\\pi\s*rad", "Standard Maths Radian Measure"),
     (r"\\ln\b|\bnatural logarithm\b|e\^\{[a-z0-9]\}", "Standard Maths Natural Log/Exp"),
@@ -2853,6 +2909,7 @@ STAGE6_STANDARD_FORBIDDEN_PATTERNS = [
 
 STAGE6_EXT1_FORBIDDEN_PATTERNS = [
     (r"\bpigeonhole(?:\s+(?:principle|theorem))?\b", "Pigeonhole principle is outside the Extension 1 syllabus"),
+    (r"\bt-formula(?:e|s)?\b|\bt-method\b|\bt-results?\b|\bproducts?\s+to\s+sums?\b|\bsums?\s+to\s+products?\b|\bweierstrass\s+substitution\b", "t-formula and products-to-sums are strictly Extension 2 only"),
     (r"\bcomplex number\b|\bargand diagram\b|\bimaginary unit\b|e\^\{i\\theta\}|\\text\{cis\}", "Extension 1 Complex Numbers (Ext 2 only)"),
     (r"\bresistive motion\b|\bresistance force\b|\bsimple harmonic motion\b|\bshm\b", "Extension 1 Mechanics with Resistance (Ext 2 only)"),
     (r"\bintegration by parts\b|\bpartial fractions\b", "Extension 1 Integration by Parts/Partial Fractions (Ext 2 only)"),
@@ -2917,9 +2974,6 @@ def audit_nsw_syllabus_violations(data: Any, year_level: str) -> List[str]:
     elif is_year_11_advanced(year_level):
         patterns_to_check = YEAR_11_ADV_FORBIDDEN_PATTERNS
 
-    if not patterns_to_check:
-        return []
-
     collected_texts = []
 
     def _extract_text(obj: Any):
@@ -2938,9 +2992,29 @@ def audit_nsw_syllabus_violations(data: Any, year_level: str) -> List[str]:
     full_text = " ".join(collected_texts).lower()
 
     violations = []
+
+    # 1. Universal Prohibition: Pigeonhole principle is removed from all NSW syllabuses
+    match_ph = re.search(r"\bpigeonhole(?:\s+(?:principle|theorem))?\b", full_text, flags=re.IGNORECASE)
+    if match_ph:
+        violations.append(f"Pigeonhole principle is outside the syllabus (matched: '{match_ph.group(0)}')")
+
+    # 2. Standard Mathematics: Relative Frequency in Year 11 Standard
+    if is_stage6_standard(year_level) and "11" in str(year_level):
+        match_rf = re.search(r"\brelative frequency\b", full_text, flags=re.IGNORECASE)
+        if match_rf:
+            violations.append(f"Relative frequency belongs in Year 12 Standard (matched: '{match_rf.group(0)}')")
+
+    # 3. Standard Mathematics: Introductory Network Concepts in Year 12 Standard
+    if is_stage6_standard(year_level) and "12" in str(year_level):
+        match_nc = re.search(r"\bnetwork concepts?\b|\bintroductory networks?\b|\bdegree of a vertex\b|\bhandshaking lemma\b", full_text, flags=re.IGNORECASE)
+        if match_nc:
+            violations.append(f"Introductory network concepts belong in Year 11 Standard (matched: '{match_nc.group(0)}')")
+
     for pattern, description in patterns_to_check:
         match = re.search(pattern, full_text, flags=re.IGNORECASE)
         if match:
+            if "pigeonhole" in pattern.lower() and match_ph:
+                continue
             violations.append(f"{description} (matched: '{match.group(0)}')")
 
     return violations

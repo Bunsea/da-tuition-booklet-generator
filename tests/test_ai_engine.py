@@ -33,6 +33,69 @@ class TestAiEngine(unittest.TestCase):
                 "Year 11 (Extension)", strict=True
             )
 
+    def test_stage6_updated_syllabus_rules(self):
+        """Verify the 6 updated syllabus requirements across Stage 6 courses and textbooks."""
+        # 1. No t-method / products-to-sums in Year 11/12 Ext 1; only in Ext 2
+        for yl in ["Year 11 (Extension)", "Year 12 (Extension 1)"]:
+            for tb in ["CambridgeMATHS NSW", "Maths in Focus (Nelson Cengage)"]:
+                topics = ai_engine.get_topics_for_year(yl, tb)
+                for t in topics:
+                    subs = ai_engine.get_curriculum_subtopics(yl, t, tb)
+                    for s in subs:
+                        self.assertFalse(
+                            any(w in s.lower() for w in ["t-form", "products to sum", "weierstrass"]),
+                            f"Disallowed trig identity in {yl} ({tb}): {s}"
+                        )
+        ext2_subs = ai_engine.get_curriculum_subtopics("Year 12 (Extension 2)", "5. Trigonometric Identities", "CambridgeMATHS NSW")
+        self.assertTrue(any("Products to Sums" in s for s in ext2_subs))
+        self.assertTrue(any("t-Formula" in s for s in ext2_subs))
+
+        # 2. No pigeonhole principle in all of syllabus
+        all_years = [
+            "Year 7", "Year 8", "Year 9", "Year 10 (Standard)", "Year 10 (Advanced)",
+            "Year 11 (Standard)", "Year 11 (Advanced)", "Year 11 (Extension)",
+            "Year 12 (Standard)", "Year 12 (Advanced)", "Year 12 (Extension 1)", "Year 12 (Extension 2)"
+        ]
+        for yl in all_years:
+            for tb in ["CambridgeMATHS NSW", "Maths in Focus (Nelson Cengage)"]:
+                for t in ai_engine.get_topics_for_year(yl, tb):
+                    self.assertNotIn("pigeonhole", t.lower())
+                    for s in ai_engine.get_curriculum_subtopics(yl, t, tb):
+                        self.assertNotIn("pigeonhole", s.lower())
+        self.assertTrue(ai_engine.audit_nsw_syllabus_violations({"text": "Apply the pigeonhole principle."}, "Year 12 (Extension 2)"))
+        self.assertTrue(ai_engine.audit_nsw_syllabus_violations({"text": "Apply the pigeonhole principle."}, "Year 8"))
+
+        # 3. No discrete probability distributions in Year 11 Advanced; present in Year 12 Advanced
+        for tb in ["CambridgeMATHS NSW", "Maths in Focus (Nelson Cengage)"]:
+            y11_adv = ai_engine.get_topics_for_year("Year 11 (Advanced)", tb)
+            self.assertFalse(any("discrete" in t.lower() or "random variable" in t.lower() for t in y11_adv))
+            y12_adv = ai_engine.get_topics_for_year("Year 12 (Advanced)", tb)
+            self.assertTrue(any("discrete" in t.lower() or "random variable" in t.lower() for t in y12_adv))
+
+        # 4. Data is in Year 11 Advanced
+        for tb in ["CambridgeMATHS NSW", "Maths in Focus (Nelson Cengage)"]:
+            y11_adv = ai_engine.get_topics_for_year("Year 11 (Advanced)", tb)
+            self.assertTrue(any("data" in t.lower() for t in y11_adv))
+
+        # 5. Networking / Network Concepts in Year 11 Standard; not in Year 12 Standard
+        for tb in ["CambridgeMATHS NSW", "Maths in Focus (Nelson Cengage)"]:
+            y11_std = ai_engine.get_topics_for_year("Year 11 (Standard)", tb)
+            self.assertTrue(any("network" in t.lower() for t in y11_std))
+            y12_std = ai_engine.get_topics_for_year("Year 12 (Standard)", tb)
+            self.assertFalse(any(t.lower() == "networking and network concepts" for t in y12_std))
+            # Year 12 Standard has Critical Path Analysis
+            self.assertTrue(any("critical path" in t.lower() for t in y12_std))
+
+        # 6. Relative Frequency in Year 12 Standard; not in Year 11 Standard
+        for tb in ["CambridgeMATHS NSW", "Maths in Focus (Nelson Cengage)"]:
+            y11_std = ai_engine.get_topics_for_year("Year 11 (Standard)", tb)
+            self.assertFalse(any("relative frequency" in t.lower() for t in y11_std))
+            y12_std = ai_engine.get_topics_for_year("Year 12 (Standard)", tb)
+            self.assertTrue(any("relative frequency" in t.lower() for t in y12_std))
+
+        self.assertTrue(ai_engine.audit_nsw_syllabus_violations({"text": "Calculate the relative frequency."}, "Year 11 (Standard)"))
+        self.assertFalse(ai_engine.audit_nsw_syllabus_violations({"text": "Calculate the relative frequency."}, "Year 12 (Standard)"))
+
     def test_clean_json_response(self):
         markdown_json = "```json\n{\"title\": \"Math Worksheet\", \"total_marks\": 10}\n```"
         result = ai_engine.clean_json_response(markdown_json)
