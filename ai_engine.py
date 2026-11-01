@@ -27,7 +27,13 @@ def _reference_folder_terms(textbook: str, year_level: str) -> List[str]:
     text = f"{textbook} {year_level}".lower()
     if "new senior" in text or "fitzy" in text:
         return ["New Senior Maths", "Fitzy"]
-    if "standard" in text and "11" in text:
+    if "12" in text and "standard" in text:
+        if "focus" in text or "cengage" in text or "nelson" in text or "mif" in text:
+            return ["Yr12 Standard Focus", "Yr12 Focus Standard"]
+        return ["Yr12 Standard Cambridge", "Cambridge Yr12 Standard"]
+    if "11" in text and "standard" in text:
+        if "focus" in text or "cengage" in text or "nelson" in text or "mif" in text:
+            return ["Yr11 Standard Focus"]
         return ["Yr11 Standard Cambridge"]
     if "extension" in text and "11" in text:
         return ["Yr11 Ext Cambridge"]
@@ -949,63 +955,103 @@ CAMBRIDGE_CURRICULUM: Dict[str, Dict[str, List[str]]] = {
         ]
     },
     "Year 12 (Standard)": {
-        "1. Investments and Loans": [
-            "1A Simple and compound interest review",
-            "1B Compounding intervals and effective interest rates",
-            "1C Appreciation, inflation and shares",
-            "1D Reducing balance loans and repayment tables",
-            "1E Credit card interest and statements"
+        "1. Ratios and rates": [
+            "1A Calculations with ratios",
+            "1B The capture-recapture technique",
+            "1C Dividing a quantity in a given ratio",
+            "1D Scale drawings",
+            "1E Building plans",
+            "1F Perimeter, area and volume from plans",
+            "1G Rates and best buys",
+            "1H Distance-time graphs",
+            "1I Energy consumption rates",
+            "1J Fuel consumption rates"
         ],
-        "2. Non-linear Relationships": [
-            "2A Quadratic models and graphing parabolas",
-            "2B Exponential models and growth/decay curves",
-            "2C Hyperbolic and reciprocal models",
-            "2D Inverse variation and inverse-square models"
+        "2. Relative frequency and probability": [
+            "2A Language of probability",
+            "2B Definition of probability",
+            "2C Tables and tree diagrams",
+            "2D Range of probabilities",
+            "2E Complementary events",
+            "2F Relative frequency",
+            "2G Expected frequency",
+            "2H Venn diagrams and two-way tables"
         ],
-        "3. Annuities": [
-            "3A Future value of an annuity and formula",
-            "3B Present value of an annuity and formula",
-            "3C Using financial tables to calculate annuity values",
-            "3D Superannuation and retirement planning"
+        "3. Investments and loans": [
+            "3A Simple interest on investments",
+            "3B Compound interest on investments",
+            "3C Graphs of investments: Simple interest and compound interest",
+            "3D Appreciation and inflation",
+            "3E Shares and dividends",
+            "3F Straight-line depreciation",
+            "3G Declining-balance depreciation",
+            "3H Costs of borrowing money",
+            "3I Reducing-balance loans",
+            "3J Credit cards",
+            "3K Credit card statements",
+            "3L Fees and charges for credit card usage"
         ],
-        "4. Non-Right-Angled Trigonometry": [
-            "4A Right-angled trigonometry review and bearings",
-            "4B Angles of elevation and depression in 2D and 3D",
-            "4C The Sine Rule for finding sides and angles",
-            "4D The Cosine Rule for sides and angles",
-            "4E Area of triangles using 1/2 ab sin(C)",
-            "4F Radial survey maps and compass traverses"
+        "4. Trigonometry": [
+            "4A Trigonometry in right-angled triangles",
+            "4B Angles of elevation and depression",
+            "4C True bearings and compass bearings",
+            "4D The sine rule",
+            "4E The cosine rule",
+            "4F The area of a triangle",
+            "4G Problem solving using trigonometry",
+            "4H Compass radial surveys"
         ],
-        "5. Simultaneous Linear Equations": [
-            "5A Solving simultaneous equations graphically",
-            "5B Solving simultaneous equations algebraically",
-            "5C Break-even analysis: cost, revenue and profit"
+        "5. Simultaneous linear equations": [
+            "5A Straight lines (Consolidating)",
+            "5B Linear relationships (Consolidating)",
+            "5C Solving simultaneous equations graphically",
+            "5D Solving simultaneous equations algebraically",
+            "5E Solving practical problems using simultaneous equations",
+            "5F Break-even analysis"
         ],
-        "6. Bivariate Data Analysis": [
-            "6A Scatter plots and forms of association",
-            "6B Pearson's correlation coefficient (r)",
-            "6C Line of best fit and least-squares regression line",
-            "6D Interpolation, extrapolation and limitations",
-            "6E Residual analysis and identifying outliers"
+        "6. Bivariate data analysis": [
+            "6A Constructing a bivariate scatter plot",
+            "6B Using a bivariate scatter plot",
+            "6C Pearson's correlation coefficient",
+            "6D Line of best fit",
+            "6E Least-squares regression line",
+            "6F Interpolation and extrapolation",
+            "6G Statistical investigations"
         ],
-        "7. The Normal Distribution": [
-            "7A Features of the normal distribution curve",
-            "7B The 68-95-99.7 empirical rule",
-            "7C Z-scores (standardised scores) and calculations",
-            "7D Comparing data sets using z-scores"
+        "7. Annuities": [
+            "7A What are annuities?",
+            "7B Tracking annuities every period",
+            "7C Using tables for the future value of an annuity",
+            "7D Using tables for the present value of an annuity",
+            "7E Solving problems involving superannuation and loans"
         ],
-        "8. Critical Path Analysis and Network Flow": [
-            "8A Activity networks and precedence tables",
-            "8B Forward and backward scanning for EST and LST",
-            "8C Float times and identifying the critical path",
-            "8D Network flow: sources, sinks and cut capacity",
-            "8E Maximum flow minimum cut theorem"
+        "8. Exponential, quadratic and reciprocal relationships": [
+            "8A Graphs of exponential relationships",
+            "8B Exponential models in practical contexts",
+            "8C Graphs of quadratic relationships",
+            "8D Quadratic models in practical contexts",
+            "8E Graphs of reciprocal relationships",
+            "8F Reciprocal models in practical contexts",
+            "8G Inverse variation",
+            "8H Problems involving exponential, quadratic and reciprocal relationships"
         ],
-        "9. Relative Frequency and Probability": [
-            "9A Relative frequency and experimental probability",
-            "9B The law of large numbers and expected frequency",
-            "9C Multi-stage events, simulations and tree diagrams",
-            "9D Two-way tables and Venn diagrams in practical probability"
+        "9. The normal distribution": [
+            "9A Normally distributed datasets",
+            "9B The empirical rule",
+            "9C z-scores",
+            "9D Converting z-scores into actual scores",
+            "9E Using z-scores to compare data",
+            "9F Further applications of normal distributions"
+        ],
+        "10. Network flow and critical path analysis": [
+            "10A Network flow problems",
+            "10B Introduction to critical path analysis",
+            "10C Constructing a network diagram given a precedence table",
+            "10D Dummy activities",
+            "10E Forward and backward scanning",
+            "10F Float times and the critical path",
+            "10G Minimum completion time",
+            "10H Gantt charts"
         ]
     },
     "Year 12 (Extension 1)": {
@@ -1774,61 +1820,102 @@ MATHS_IN_FOCUS_CURRICULUM: Dict[str, Dict[str, List[str]]] = {
         ]
     },
     "Year 12 (Standard)": {
-        "1. Loans, Investments and Annuities": [
-            "1.1 Compound interest and future value calculations",
-            "1.2 Depreciation: straight-line and declining-balance methods",
-            "1.3 Credit card interest, balances and fees",
-            "1.4 Future value of an annuity using tables and formulas",
-            "1.5 Present value of an annuity using tables and formulas",
-            "1.6 Reducing balance loans and mortgage repayments"
+        "1. Investment and depreciation": [
+            "1.01 Simple interest",
+            "1.02 Simple interest graphs",
+            "1.03 Compound interest",
+            "1.04 Inflation and appreciation",
+            "1.05 Investing in shares",
+            "1.06 Share tables and graphs",
+            "1.07 Straight-line depreciation",
+            "1.08 Declining balance depreciation"
         ],
-        "2. Linear Functions and Modeling": [
-            "2.1 Graphing linear equations and finding intercepts",
-            "2.2 Direct variation and linear modeling",
-            "2.3 Cost, revenue and break-even analysis",
-            "2.4 Simultaneous linear equations in business contexts"
+        "2. Ratios and scales": [
+            "2.01 Ratio problems",
+            "2.02 Dividing a quantity in a given ratio",
+            "2.03 The capture–recapture technique",
+            "2.04 Scale drawings",
+            "2.05 Scale maps and plans",
+            "2.06 House plans",
+            "2.07 Surveying and the trapezoidal rule"
         ],
-        "3. Similar Figures and Trigonometry": [
-            "3.1 Similar figures, scale factors and area/volume ratios",
-            "3.2 Right-angled trigonometry review and bearings",
-            "3.3 The Sine Rule for sides and angles",
-            "3.4 The Cosine Rule for sides and angles",
-            "3.5 Area of a triangle formula: A = 1/2 ab sin C"
+        "3. Equations and linear functions": [
+            "3.01 Solving equations",
+            "3.02 Formulas and equations",
+            "3.03 Changing the subject of a formula",
+            "3.04 Linear functions",
+            "3.05 Direct linear variation",
+            "3.06 Intersection of lines",
+            "3.07 Simultaneous equations"
         ],
-        "4. Rates and Ratio Analysis": [
-            "4.1 Ratios and dividing quantities in given ratios",
-            "4.2 Unit rates, speed, and fuel consumption",
-            "4.3 Heart rate, target training zones and energy expenditure",
-            "4.4 Medication dosages: Fried's, Clark's and Young's rules"
+        "4. Loans and annuities": [
+            "4.01 Loans",
+            "4.02 Reducing balance loans",
+            "4.03 Credit cards",
+            "4.04 Annuities",
+            "4.05 Present value of an annuity",
+            "4.06 Paying off loans"
         ],
-        "5. Non-linear Functions and Models": [
-            "5.1 Quadratic functions and parabolic models",
-            "5.2 Exponential functions and growth/decay models",
-            "5.3 Hyperbolic functions and inverse variation models"
+        "5. Correlation and regression": [
+            "5.01 Scatter plots",
+            "5.02 Correlation",
+            "5.03 Line of best fit",
+            "5.04 Least-squares regression line"
         ],
-        "6. Bivariate Data and Regression": [
-            "6.1 Scatter plots, dependent and independent variables",
-            "6.2 Pearson's correlation coefficient (r)",
-            "6.3 Line of best fit (by eye and least-squares regression line)",
-            "6.4 Interpolation and extrapolation reliability",
-            "6.5 Causation versus correlation"
+        "6. Project and flow networks (Critical Path Analysis)": [
+            "6.01 Minimum spanning trees",
+            "6.02 Shortest path problems",
+            "6.03 Project networks",
+            "6.04 Critical path analysis",
+            "6.05 Network flow problems",
+            "6.06 The maximum-flow minimum-cut theorem"
         ],
-        "7. The Normal Distribution": [
-            "7.1 The bell curve and properties of the normal distribution",
-            "7.2 The 68-95-99.7 empirical rule",
-            "7.3 Calculating and interpreting z-scores",
-            "7.4 Comparing scores across different test populations"
+        "7. Probability and Relative Frequency": [
+            "7.01 Probability of simple events",
+            "7.02 Complementary events",
+            "7.03 Venn diagrams and two-way tables",
+            "7.04 Tables and tree diagrams",
+            "7.05 Probability tree diagrams and the product rule",
+            "7.06 Relative frequency",
+            "7.07 Comparing relative frequency with theoretical probability"
         ],
-        "8. Critical Path Analysis and Network Flow": [
-            "8.1 Activity networks, predecessors and arrow diagrams",
-            "8.2 Earliest starting time (EST) and latest starting time (LST)",
-            "8.3 The Critical Path and float times",
-            "8.4 Network flow: source, sink, cuts and maximum flow minimum cut theorem"
+        "8. The sine and cosine rules": [
+            "8.01 Right-angled triangle trigonometry",
+            "8.02 Bearings",
+            "8.03 The sine rule",
+            "8.04 Trigonometry with obtuse angles",
+            "8.05 The sine rule for angles",
+            "8.06 The cosine rule",
+            "8.07 The cosine rule for angles",
+            "8.08 Area of a triangle",
+            "8.09 Problems involving the sine and cosine rules",
+            "8.10 Radial surveys"
         ],
-        "9. Relative Frequency and Probability": [
-            "9.1 Relative frequency and experimental probability",
-            "9.2 Theoretical probability and expected frequency",
-            "9.3 Multi-stage events, simulations and tree diagrams"
+        "9. Rates and energy": [
+            "9.01 Rate problems",
+            "9.02 Unit pricing",
+            "9.03 Speed and fuel consumption",
+            "9.04 Distance–time graphs",
+            "9.05 Converting rates",
+            "9.06 Electricity usage in the home",
+            "9.07 Energy consumption and the costs of appliances"
+        ],
+        "10. Non-linear functions": [
+            "10.01 The quadratic function",
+            "10.02 Maximum and minimum problems",
+            "10.03 The exponential function",
+            "10.04 Exponential growth and decay",
+            "10.05 The reciprocal function",
+            "10.06 Inverse variation"
+        ],
+        "11. The normal distribution": [
+            "11.01 The normal distribution",
+            "11.02 z-scores",
+            "11.03 Comparing z-scores",
+            "11.04 Measures of centre and spread",
+            "11.05 The shape of a distribution",
+            "11.06 The effect of outliers",
+            "11.07 Comparing datasets"
         ]
     }
 }
