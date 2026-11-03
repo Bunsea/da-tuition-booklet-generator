@@ -1488,6 +1488,134 @@ class TestAiEngine(unittest.TestCase):
         self.assertEqual(booklet["_audit_log"]["total_corrections"], 0)
         self.assertEqual(booklet["meta_tokens"], 2700)
 
+    @patch("requests.post")
+    def test_call_deepseek_audit_success(self, mock_post):
+        """Verify call_deepseek_audit sends correct headers, payload, and parses response & tokens."""
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "choices": [{"message": {"content": '{"concepts": []}'}}],
+            "usage": {"prompt_tokens": 500, "completion_tokens": 200, "total_tokens": 700}
+        }
+        mock_post.return_value = mock_resp
+
+        res = ai_engine.call_deepseek_audit("Audit prompt", api_key="sk-test-key")
+        self.assertEqual(res["raw_text"], '{"concepts": []}')
+        self.assertEqual(res["prompt_tokens"], 500)
+        self.assertEqual(res["completion_tokens"], 200)
+        self.assertEqual(res["total_tokens"], 700)
+        self.assertGreater(res["cost"], 0.0)
+        self.assertEqual(res["model"], "deepseek-chat")
+
+    @patch("requests.post")
+    def test_call_deepseek_audit_insufficient_balance_error(self, mock_post):
+        """Verify call_deepseek_audit raises RuntimeError when HTTP 402 is returned."""
+        mock_resp = MagicMock()
+        mock_resp.status_code = 402
+        mock_resp.text = '{"error": {"message": "Insufficient Balance"}}'
+        mock_post.return_value = mock_resp
+
+        with self.assertRaisesRegex(RuntimeError, "status 402"):
+            ai_engine.call_deepseek_audit("Audit prompt", api_key="sk-test-key")
+
+    @patch("ai_engine.call_deepseek_audit")
+    def test_audit_and_correct_booklet_agent_prioritizes_deepseek(self, mock_ds_call):
+        """Verify audit_and_correct_booklet_agent uses DeepSeek when key is provided."""
+        mock_ds_call.return_value = {
+            "raw_text": json.dumps({
+                "title": "Year 11 Polynomials Booklet",
+                "year_level": "Year 11 (Extension 1)",
+                "topic": "Polynomials",
+                "concepts": [{"concept_name": "Factor Theorem", "practice_questions": []}],
+                "_audit_log": {
+                    "status": "verified",
+                    "auditor": "DeepSeek Senior HSC Mathematics Chief Examiner Subagent",
+                    "total_corrections": 1,
+                    "corrections": [{"location": "Concept 1", "issue": "Sign error", "fix": "Fixed root"}]
+                }
+            }),
+            "prompt_tokens": 800,
+            "completion_tokens": 400,
+            "total_tokens": 1200,
+            "cost": 0.0015,
+            "model": "deepseek-chat"
+        }
+
+        draft = {
+            "title": "Year 11 Polynomials Booklet",
+            "year_level": "Year 11 (Extension 1)",
+            "topic": "Polynomials",
+            "meta_tokens": 2000,
+            "meta_cost": 0.003,
+            "model_used": "gemini-3.8-flash",
+            "concepts": [{"concept_name": "Factor Theorem", "practice_questions": []}]
+        }
+
+        audited = ai_engine.audit_and_correct_booklet_agent(
+            data=draft,
+            year_level="Year 11 (Extension 1)",
+            topic="Polynomials",
+            deepseek_api_key="sk-fake-key"
+        )
+
+        mock_ds_call.assert_called_once()
+        self.assertEqual(audited["_audit_log"]["status"], "verified")
+        self.assertIn("DeepSeek", audited["_audit_log"]["auditor"])
+        self.assertEqual(audited["auditor_model"], "DeepSeek (deepseek-chat)")
+        self.assertEqual(audited["meta_tokens"], 3200)
+        self.assertAlmostEqual(audited["meta_cost"], 0.0045, places=4)
+
+    @patch("ai_engine.get_client")
+    @patch("ai_engine.call_deepseek_audit")
+    def test_audit_and_correct_booklet_agent_falls_back_to_gemini_when_deepseek_fails(self, mock_ds_call, mock_get_client):
+        """Verify audit_and_correct_booklet_agent gracefully falls back to Gemini when DeepSeek encounters 402/error."""
+        # DeepSeek fails with 402 insufficient balance
+        mock_ds_call.side_effect = RuntimeError("DeepSeek API error (status 402): Insufficient Balance")
+
+        # Gemini succeeds
+        mock_gemini_client = MagicMock()
+        mock_gemini_resp = MagicMock()
+        mock_gemini_resp.text = json.dumps({
+            "title": "Year 11 Polynomials Booklet",
+            "year_level": "Year 11 (Extension 1)",
+            "topic": "Polynomials",
+            "concepts": [{"concept_name": "Factor Theorem", "practice_questions": []}],
+            "_audit_log": {
+                "status": "verified",
+                "auditor": "DA Senior HSC Mathematics Chief Examiner Subagent",
+                "total_corrections": 0,
+                "corrections": []
+            }
+        })
+        mock_gemini_resp.usage_metadata.prompt_token_count = 600
+        mock_gemini_resp.usage_metadata.candidates_token_count = 300
+        mock_gemini_resp.usage_metadata.total_token_count = 900
+        mock_gemini_client.models.generate_content.return_value = mock_gemini_resp
+        mock_get_client.return_value = mock_gemini_client
+
+        draft = {
+            "title": "Year 11 Polynomials Booklet",
+            "year_level": "Year 11 (Extension 1)",
+            "topic": "Polynomials",
+            "meta_tokens": 1500,
+            "meta_cost": 0.002,
+            "concepts": [{"concept_name": "Factor Theorem", "practice_questions": []}]
+        }
+
+        audited = ai_engine.audit_and_correct_booklet_agent(
+            data=draft,
+            year_level="Year 11 (Extension 1)",
+            topic="Polynomials",
+            client=mock_gemini_client,
+            deepseek_api_key="sk-fake-key"
+        )
+
+        # DeepSeek was tried, failed, and Gemini was called as fallback
+        mock_ds_call.assert_called_once()
+        mock_gemini_client.models.generate_content.assert_called_once()
+        self.assertEqual(audited["_audit_log"]["status"], "verified")
+        self.assertEqual(audited["meta_tokens"], 2400)
+
 
 if __name__ == "__main__":
     unittest.main()

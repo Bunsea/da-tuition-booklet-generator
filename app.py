@@ -780,6 +780,23 @@ with st.sidebar:
                     st.warning("Personal API key removed. AI operations are disabled until a key is supplied.")
                 st.rerun()
 
+    # DeepSeek Auditor Subagent API Key Management
+    ds_env_key = os.environ.get("DEEPSEEK_API_KEY", "").strip()
+    has_ds_key = bool(st.session_state.get("deepseek_api_key") or ds_env_key)
+    with st.expander("🤖 DeepSeek API Key (Auditor Subagent)", expanded=False):
+        st.caption("DeepSeek (DeepSeek-V3 / R1) serves as an independent Chief Examiner & Auditor Subagent to cross-verify all booklet calculations, proofs, and syllabus limits.")
+        st.link_button("🔑 Get DeepSeek API Key (DeepSeek Platform)", "https://platform.deepseek.com/api_keys", use_container_width=True)
+        current_ds_val = st.session_state.get("deepseek_api_key") or ds_env_key
+        ds_key_val = st.text_input("DeepSeek API Key", value=current_ds_val, type="password", key="ds_key_input_box")
+        if st.button("Save DeepSeek Key", use_container_width=True, key="btn_save_ds_key"):
+            st.session_state["deepseek_api_key"] = ds_key_val.strip()
+            st.success("DeepSeek API key saved!")
+            st.rerun()
+        if has_ds_key:
+            st.markdown("🟢 **DeepSeek Auditor: Active** (Multi-Model Critic Architecture)")
+        else:
+            st.caption("ℹ️ DeepSeek key is optional. When omitted or unavailable, Gemini Flash performs the audit automatically.")
+
     # Password Change Management
     with st.expander("🔐 Change Password", expanded=False):
         old_pwd = st.text_input("Current Password", type="password", key="cp_old_pwd")
@@ -1224,7 +1241,8 @@ if main_section == "📖 1. Theory & Practice Materials":
                             api_key=current_api_key,
                             question_distribution=theory_custom_distribution,
                             level_distribution=theory_level_distribution,
-                            textbook_reference=uploaded_reference_text
+                            textbook_reference=uploaded_reference_text,
+                            deepseek_api_key=(st.session_state.get("deepseek_api_key") or os.environ.get("DEEPSEEK_API_KEY", "")).strip()
                         )
 
                         booklet_data["textbook"] = theory_textbook
@@ -3051,7 +3069,8 @@ if main_section == "📖 1. Theory & Practice Materials":
                             api_key=active_tutor_api_key,
                             textbook=rev_textbook,
                             question_distribution=rev_custom_distribution,
-                            level_distribution=rev_level_distribution
+                            level_distribution=rev_level_distribution,
+                            deepseek_api_key=(st.session_state.get("deepseek_api_key") or os.environ.get("DEEPSEEK_API_KEY", "")).strip()
                         )
                         rev_data["textbook"] = rev_textbook
                         rev_booklet_id = int(time.time())
@@ -3620,7 +3639,8 @@ if main_section == "📖 1. Theory & Practice Materials":
                             textbook=pkg_textbook,
                             api_key=active_tutor_api_key,
                             question_distribution=pkg_custom_distribution if (has_pkg_custom and pkg_custom_distribution) else None,
-                            level_distribution=pkg_level_distribution
+                            level_distribution=pkg_level_distribution,
+                            deepseek_api_key=(st.session_state.get("deepseek_api_key") or os.environ.get("DEEPSEEK_API_KEY", "")).strip()
                         )
                         pkg_data["textbook"] = pkg_textbook
                         pkg_id = int(time.time())
