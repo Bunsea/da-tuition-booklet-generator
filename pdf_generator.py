@@ -3667,6 +3667,26 @@ def get_concept_fallback_tikz(concept_name: str, topic: str = "") -> str:
     t_lower = str(topic or "").lower()
     combined = f"{c_lower} {t_lower}"
 
+    if "sign" in c_lower and "function" in c_lower:
+        return r'''\begin{center}
+\begin{tikzpicture}[x=1.12cm,y=0.75cm]
+\node[anchor=west,font=\small\bfseries,text=danavy] at (0,2.6) {Example: $f(x)=(x+1)(x-2)$};
+\fill[green!12] (0,0.65) rectangle (3.7,1.65);
+\fill[red!10] (3.7,0.65) rectangle (8.0,1.65);
+\fill[green!12] (8.0,0.65) rectangle (11.7,1.65);
+\draw[->,thick] (0,0) -- (11.8,0) node[right] {$x$};
+\draw[thick] (3.7,-0.15) -- (3.7,1.7);
+\draw[thick] (8.0,-0.15) -- (8.0,1.7);
+\node[below,font=\small] at (3.7,-0.15) {$-1$};
+\node[below,font=\small] at (8.0,-0.15) {$2$};
+\node[font=\large\bfseries,text=green!50!black] at (1.85,1.16) {$f(x)>0$};
+\node[font=\large\bfseries,text=red!70!black] at (5.85,1.16) {$f(x)<0$};
+\node[font=\large\bfseries,text=green!50!black] at (9.85,1.16) {$f(x)>0$};
+\node[above,font=\small] at (3.7,1.7) {$f(x)=0$};
+\node[above,font=\small] at (8.0,1.7) {$f(x)=0$};
+\end{tikzpicture}
+\end{center}'''
+
     # 0. Networks and Graph Theory (NSW Stage 5 / Stage 6 Standard & Advanced)
     if any(k in combined for k in ["network", "graph theory", "vertex", "vertices", "edges", "loops", "degree", "planar", "euler", "matrix", "matrices", "traversable"]):
         if any(k in combined for k in ["tree", "spanning tree", "minimum spanning", "kruskal", "prim"]):
@@ -5165,7 +5185,12 @@ def build_masterclass_theory_box_content(
         )
 
     # Card 2.5: Visual Model & Key Diagram (Embedded directly inside Theory Box)
-    concept_diag = sanitize_tikz_diagram(tikz_diagram) if tikz_diagram else ""
+    # A sign chart uses the available card width and keeps each interval legible.
+    # Generated sketches for this concept are often only a few millimetres wide.
+    sign_model = "sign" in c_lower and "function" in c_lower
+    concept_diag = sanitize_tikz_diagram(
+        get_concept_fallback_tikz(concept_name, topic) if sign_model else tikz_diagram
+    ) if (sign_model or tikz_diagram) else ""
     if not concept_diag and not is_combinatorics and (concept_name or topic):
         concept_diag = sanitize_tikz_diagram(get_concept_fallback_tikz(concept_name, topic))
 
@@ -5201,8 +5226,8 @@ def build_masterclass_theory_box_content(
             # Give the factorial unrolling model enough room for labels above
             # both arrows; other diagrams retain the compact theory-card size.
             unroll_model = "Unroll $(n-1)$" in diag_clean
-            max_width = "0.94" if unroll_model else "0.88"
-            max_height = "3.3" if unroll_model else "2.8"
+            max_width = "0.94" if (unroll_model or sign_model) else "0.88"
+            max_height = "3.3" if (unroll_model or sign_model) else "2.8"
             diag_clean = f"\\begin{{adjustbox}}{{max width={max_width}\\linewidth, max totalheight={max_height}cm, keepaspectratio, center}}\n{diag_clean}\n\\end{{adjustbox}}"
             cards.append(
                 "\\noindent\\colorbox{slatebg}{\\parbox{\\dimexpr\\linewidth-2\\fboxsep\\relax}{%\n"

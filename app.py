@@ -1249,7 +1249,16 @@ if main_section == "📖 1. Theory & Practice Materials":
                         tb_gen_cost = booklet_data.get('meta_cost', 0.0)
                         tb_gen_tokens = booklet_data.get('meta_tokens', 0)
                         reference_note = " Textbook exercise reference applied." if booklet_data.get("textbook_reference_used") else " No local textbook chapter reference was found; syllabus guidance was used."
-                        st.success(f"🎉 Generated & Saved Theory Booklet #{booklet_id}: {booklet_data.get('title')}! (💰 Cost: ${tb_gen_cost:.4f} AUD • {tb_gen_tokens:,} tokens) — Practice Worksheet #{practice_ws_id} registered.{reference_note}")
+                        
+                        audit_log = booklet_data.get("_audit_log", {})
+                        audit_status = audit_log.get("status", "unverified")
+                        corrections = audit_log.get("corrections", [])
+                        if audit_status == "verified":
+                            audit_badge = f" • 🛡️ Verified by Senior Examiner Subagent ({len(corrections)} auto-fix{'es' if len(corrections) != 1 else ''})"
+                        else:
+                            audit_badge = ""
+
+                        st.success(f"🎉 Generated & Saved Theory Booklet #{booklet_id}: {booklet_data.get('title')}! (💰 Cost: ${tb_gen_cost:.4f} AUD • {tb_gen_tokens:,} tokens{audit_badge}) — Practice Worksheet #{practice_ws_id} registered.{reference_note}")
                     except Exception as e:
                         st.error(f"Error generating theory booklet: {e}")
 
@@ -1260,6 +1269,32 @@ if main_section == "📖 1. Theory & Practice Materials":
             st.markdown(f"#### 📖 {tb.get('title', 'Theory Booklet')}")
             tw_label = f"Term {tb.get('term')} Week {tb.get('week')}" if (tb.get('term') and tb.get('week')) else "General Resource"
             st.caption(f"**Year Level:** {tb.get('year_level')} | **Topic:** {tb.get('topic')} | **{tw_label}** | **{len(tb.get('concepts', []))} Concepts**")
+
+            tb_audit = tb.get("_audit_log")
+            if isinstance(tb_audit, dict):
+                aud_status = tb_audit.get("status", "unverified")
+                aud_corrections = tb_audit.get("corrections", [])
+                if aud_status == "verified":
+                    fix_count = len(aud_corrections)
+                    fix_str = f" • {fix_count} auto-correction{'s' if fix_count != 1 else ''} applied" if fix_count else " • 0 errors found on first pass"
+                    st.success(f"🛡️ **100% Mathematically & Syllabus Verified** (Audited by {tb_audit.get('auditor', 'DA Senior HSC Mathematics Chief Examiner')}{fix_str})")
+                    with st.expander(f"🔍 View AI Examiner Verification Report ({fix_count} auto-fix{'es' if fix_count != 1 else ''})", expanded=False):
+                        st.markdown(f"**Verifier:** {tb_audit.get('auditor', 'DA Senior HSC Mathematics Chief Examiner')}")
+                        st.markdown(f"**Mathematical Accuracy:** {tb_audit.get('mathematical_accuracy', '100% Verified')}")
+                        st.markdown(f"**Syllabus Compliance:** {tb_audit.get('syllabus_compliance', '100% Compliant')}")
+                        st.markdown(f"**Summary:** {tb_audit.get('verification_summary', '')}")
+                        if aud_corrections:
+                            st.markdown("---")
+                            st.markdown("**Auto-Corrections Applied by Examiner Subagent:**")
+                            for c in aud_corrections:
+                                loc = c.get("location", "Section")
+                                issue = c.get("issue", "")
+                                fix = c.get("fix", "")
+                                st.markdown(f"- **{loc}**: {issue} ➔ *{fix}*")
+                        else:
+                            st.info("✅ All formulas, calculations, teacher demonstrations, and syllabus boundaries were verified 100% accurate.")
+                elif aud_status == "unverified":
+                    st.caption(f"ℹ️ Auditor subagent status: {tb_audit.get('verification_summary', 'Unverified')}")
 
             tb_font_theme = "charter"
 
@@ -3035,6 +3070,32 @@ if main_section == "📖 1. Theory & Practice Materials":
             st.markdown("---")
             st.markdown(f"### 📥 Download Generated Review Booklet: **{rb.get('title')}**")
 
+            rb_audit = rb.get("_audit_log")
+            if isinstance(rb_audit, dict):
+                aud_status = rb_audit.get("status", "unverified")
+                aud_corrections = rb_audit.get("corrections", [])
+                if aud_status == "verified":
+                    fix_count = len(aud_corrections)
+                    fix_str = f" • {fix_count} auto-correction{'s' if fix_count != 1 else ''} applied" if fix_count else " • 0 errors found on first pass"
+                    st.success(f"🛡️ **100% Mathematically & Syllabus Verified** (Audited by {rb_audit.get('auditor', 'DA Senior HSC Mathematics Chief Examiner')}{fix_str})")
+                    with st.expander(f"🔍 View AI Examiner Verification Report ({fix_count} auto-fix{'es' if fix_count != 1 else ''})", expanded=False):
+                        st.markdown(f"**Verifier:** {rb_audit.get('auditor', 'DA Senior HSC Mathematics Chief Examiner')}")
+                        st.markdown(f"**Mathematical Accuracy:** {rb_audit.get('mathematical_accuracy', '100% Verified')}")
+                        st.markdown(f"**Syllabus Compliance:** {rb_audit.get('syllabus_compliance', '100% Compliant')}")
+                        st.markdown(f"**Summary:** {rb_audit.get('verification_summary', '')}")
+                        if aud_corrections:
+                            st.markdown("---")
+                            st.markdown("**Auto-Corrections Applied by Examiner Subagent:**")
+                            for c in aud_corrections:
+                                loc = c.get("location", "Section")
+                                issue = c.get("issue", "")
+                                fix = c.get("fix", "")
+                                st.markdown(f"- **{loc}**: {issue} ➔ *{fix}*")
+                        else:
+                            st.info("✅ All formulas, calculations, teacher demonstrations, and syllabus boundaries were verified 100% accurate.")
+                elif aud_status == "unverified":
+                    st.caption(f"ℹ️ Auditor subagent status: {rb_audit.get('verification_summary', 'Unverified')}")
+
             if rb.get("meta_cost") is not None or rb.get("meta_tokens"):
                 st.info(f"💰 **Generation Cost:** **${rb.get('meta_cost', 0.0):.4f} AUD** • **{rb.get('meta_tokens', 0):,} tokens** ({rb.get('model_used', 'Gemini 3.8 Flash')})")
 
@@ -3577,6 +3638,32 @@ if main_section == "📖 1. Theory & Practice Materials":
             ep = st.session_state["latest_exam_package"]
             st.markdown("---")
             st.markdown(f"### 📥 Download Generated Exam Package: **{ep.get('title')}**")
+
+            ep_audit = ep.get("_audit_log")
+            if isinstance(ep_audit, dict):
+                aud_status = ep_audit.get("status", "unverified")
+                aud_corrections = ep_audit.get("corrections", [])
+                if aud_status == "verified":
+                    fix_count = len(aud_corrections)
+                    fix_str = f" • {fix_count} auto-correction{'s' if fix_count != 1 else ''} applied" if fix_count else " • 0 errors found on first pass"
+                    st.success(f"🛡️ **100% Mathematically & Syllabus Verified** (Audited by {ep_audit.get('auditor', 'DA Senior HSC Mathematics Chief Examiner')}{fix_str})")
+                    with st.expander(f"🔍 View AI Examiner Verification Report ({fix_count} auto-fix{'es' if fix_count != 1 else ''})", expanded=False):
+                        st.markdown(f"**Verifier:** {ep_audit.get('auditor', 'DA Senior HSC Mathematics Chief Examiner')}")
+                        st.markdown(f"**Mathematical Accuracy:** {ep_audit.get('mathematical_accuracy', '100% Verified')}")
+                        st.markdown(f"**Syllabus Compliance:** {ep_audit.get('syllabus_compliance', '100% Compliant')}")
+                        st.markdown(f"**Summary:** {ep_audit.get('verification_summary', '')}")
+                        if aud_corrections:
+                            st.markdown("---")
+                            st.markdown("**Auto-Corrections Applied by Examiner Subagent:**")
+                            for c in aud_corrections:
+                                loc = c.get("location", "Section")
+                                issue = c.get("issue", "")
+                                fix = c.get("fix", "")
+                                st.markdown(f"- **{loc}**: {issue} ➔ *{fix}*")
+                        else:
+                            st.info("✅ All formulas, calculations, teacher demonstrations, and syllabus boundaries were verified 100% accurate.")
+                elif aud_status == "unverified":
+                    st.caption(f"ℹ️ Auditor subagent status: {ep_audit.get('verification_summary', 'Unverified')}")
 
             if ep.get("meta_cost") is not None or ep.get("meta_tokens"):
                 st.info(f"💰 **Generation Cost:** **${ep.get('meta_cost', 0.0):.4f} AUD** • **{ep.get('meta_tokens', 0):,} tokens** ({ep.get('model_used', 'Gemini 3.8 Flash')})")

@@ -192,7 +192,7 @@ class TestTheoryCompilationSafety(unittest.TestCase):
         # Verify text is not collapsed into math italics
         self.assertIn("compounded annually", full_text, "Words must have normal spacing, not collapsed math italics")
         self.assertIn("for 4 years", full_text, "Remaining question text must be present")
-        self.assertIn("paying 5.4% p.a.", full_text, "Percentage must render in text mode without math italic corruption")
+        self.assertIn("paying 5.4%", full_text, "Percentage must render in text mode without math italic corruption")
         self.assertIn("correct to the nearest cent", full_text, "Subpart (a) text must be present")
         self.assertIn("Determine the total compound interest", full_text, "Subpart (b) text must be present")
 

@@ -217,13 +217,13 @@ def _question_activity(concept: str, topic: str, page_context: str = "", variant
         return choose(activities)
     activities = [
         (
-        "Look for a pattern in the differences between consecutive terms.",
-        "What number comes next: 1, 2, 4, 7, 11, ...?",
-        "16",
-        "The differences are 1, 2, 3, 4, so add 5 next: 11 + 5 = 16.",
+        "The gaps between terms can have a pattern of their own.",
+        "The sequence is 2, 6, 12, 20, 30, ... . What is the next term, and why?",
+        "42",
+        "The gaps are 4, 6, 8 and 10; the next gap is 12, so 30 + 12 = 42.",
         ),
-        ("A constant second difference often signals a quadratic sequence.", "What number comes next: 2, 5, 10, 17, ...?", "26", "The differences are 3, 5, 7; add 9 next to get 26."),
-        ("Check whether each term is made by multiplying the previous term by a fixed number.", "What number comes next: 3, 6, 12, 24, ...?", "48", "Each term doubles, so 24 x 2 = 48."),
+        ("A constant second difference often signals a quadratic sequence.", "Find the missing term: 2, 5, 10, 17, __, 37. Explain the gap pattern.", "26", "The gaps are 3, 5, 7, 9 and 11, so 17 + 9 = 26."),
+        ("Compare consecutive gaps before deciding on a sequence rule.", "Find the missing term: 3, 8, 15, 24, __, 48. What is the next gap?", "35", "The gaps are 5, 7, 9, 11 and 13; 24 + 11 = 35, then 35 + 13 = 48."),
     ]
     if variant >= len(activities):
         start = variant + 2
@@ -287,8 +287,13 @@ def _activity_for(concept: str, topic: str, page_context: str = "", variant: int
             ]
             fact = facts[serial % len(facts)]
         else:
-            start = serial + 1
-            fact = f"The sequence {start}, {start + 2}, {start + 4}, ... has a constant difference of 2."
+            sequence_facts = [
+                "The sequence 2, 5, 10, 17, 26 grows by 3, 5, 7, 9. Those gaps grow by 2 each time.",
+                "When the gaps in a sequence increase by a fixed amount, its terms can follow a quadratic rule.",
+                "The gaps in 1, 4, 9, 16 are 3, 5, 7: consecutive square numbers differ by odd numbers.",
+                "A sequence can keep increasing even when its gaps shrink: 2, 5, 7, 8 has gaps 3, 2, 1.",
+            ]
+            fact = sequence_facts[serial % len(sequence_facts)]
         return fact, fact, "", ""
 
     if kind == "pun":
@@ -340,8 +345,7 @@ def _activity_for(concept: str, topic: str, page_context: str = "", variant: int
         n = 3 + serial
         caption = f"The start of Pascal's triangle, row {n}"
     else:
-        n = 4 + serial
-        caption = f"A number pattern with {n} steps"
+        caption = f"Start at {serial + 2}: gaps 3, 5, 7, 9; second differences are all 2."
     return caption, caption, "", ""
 
 
@@ -695,17 +699,26 @@ def _draw_mini_visual(page_canvas, x, width, top, bottom, concept, topic, serial
                 page_canvas.setFont("Helvetica-Bold", 7.5)
                 page_canvas.drawCentredString(row_x + col * spacing, y - 2.5, value)
     else:
-        count = 5
-        labels = [str(serial + i) for i in range(count)]
-        gap = min(44, (width - 60) / (count - 1))
-        start_x = center_x - gap * (count - 1) / 2
+        labels = [str(n * n + 1 + serial) for n in range(1, 6)]
+        gap = min(76, (width - 64) / 4)
+        start_x = center_x - gap * 2
+        row_y = bottom + available * 0.46
         for i, label in enumerate(labels):
             bx = start_x + i * gap
             page_canvas.setFillColor(fills[i % len(fills)])
-            page_canvas.roundRect(bx - 13, mid_y - 13, 26, 26, 4, stroke=1, fill=1)
+            page_canvas.roundRect(bx - 17, row_y - 14, 34, 28, 5, stroke=1, fill=1)
             page_canvas.setFillColor(colors.HexColor("#25345B"))
-            page_canvas.setFont("Helvetica-Bold", 9)
-            page_canvas.drawCentredString(bx, mid_y - 3, label)
+            page_canvas.setFont("Helvetica-Bold", 10)
+            page_canvas.drawCentredString(bx, row_y - 3, label)
+            if i < 4:
+                page_canvas.setFillColor(colors.HexColor("#596B9D"))
+                page_canvas.setFont("Helvetica-Bold", 9)
+                page_canvas.drawCentredString(bx + gap / 2, row_y + 22, f"+{2 * i + 3}")
+                page_canvas.setStrokeColor(stroke)
+                page_canvas.line(bx + 21, row_y, bx + gap - 21, row_y)
+        page_canvas.setFillColor(colors.HexColor("#596B9D"))
+        page_canvas.setFont("Helvetica", 9)
+        page_canvas.drawCentredString(center_x, row_y - 31, "Each gap is 2 more than the previous gap.")
 
 
 def _draw_factorial_picture(page_canvas, center_x, center_y, width, height, serial, fills, stroke):

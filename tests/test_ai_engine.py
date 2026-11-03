@@ -506,7 +506,8 @@ class TestAiEngine(unittest.TestCase):
             term=1,
             week=2,
             custom_instructions="Focus on HSC fundamentals",
-            api_key="fake-key"
+            api_key="fake-key",
+            audit=False
         )
 
         self.assertIn("Algebraic Techniques & Equations", res["title"])
@@ -543,7 +544,8 @@ class TestAiEngine(unittest.TestCase):
             term=2,
             week=4,
             custom_instructions="Strict exam tips",
-            api_key="fake-key"
+            api_key="fake-key",
+            audit=False
         )
 
         self.assertIn("Calculus & Integration", res["title"])
@@ -658,7 +660,8 @@ class TestAiEngine(unittest.TestCase):
             topic="Linear Equations",
             subtopics=["Simultaneous Equations"],
             api_key="test_key",
-            question_distribution=custom_dist
+            question_distribution=custom_dist,
+            audit=False
         )
         called_prompt_theory = mock_client.models.generate_content.call_args[1]["contents"]
         self.assertIn("Exact Question Tier Breakdown Per Subtopic", called_prompt_theory)
@@ -678,7 +681,8 @@ class TestAiEngine(unittest.TestCase):
             topic="Functions & Graphs",
             subtopics=["Vertical Line Test"],
             api_key="test_key",
-            level_distribution=new_level_dist
+            level_distribution=new_level_dist,
+            audit=False
         )
         called_prompt_new = mock_client.models.generate_content.call_args[1]["contents"]
         self.assertIn("Level 1 - Commit to Memory: 2 questions", called_prompt_new)
@@ -868,7 +872,8 @@ class TestAiEngine(unittest.TestCase):
         ai_engine.generate_exam_package(
             year_level="Year 11 (Advanced)",
             topic="Functions and Graphs",
-            api_key="test-key"
+            api_key="test-key",
+            audit=False
         )
         called_prompt = mock_client.models.generate_content.call_args[1]["contents"]
         self.assertIn("STRICT NSW NESA SYLLABUS BOUNDARY & SCOPE DIRECTIVE FOR YEAR 11 MATHEMATICS ADVANCED", called_prompt)
@@ -960,12 +965,23 @@ class TestAiEngine(unittest.TestCase):
                 {"extracted_name": "Alex Tan", "page_range": "1-4", "score": 4.0,
                  "total_marks": 4.0, "accuracy_pct": 100.0, "mistakes": [], "summary_text": "Perfect."},
                 {"extracted_name": "Sam Lee", "page_range": "5-8", "score": 2.0,
-                 "total_marks": 4.0, "accuracy_pct": 50.0, "mistakes": [], "summary_text": "Review needed."}
+                 "total_marks": 4.0, "accuracy_pct": 50.0,
+                 "mistakes": [{"question_num": "1", "status": "Incorrect", "marks_lost": 2.0, "correct_answer": "Prn"}],
+                 "summary_text": "Review needed."}
             ]
         })
         mock_client.models.generate_content.return_value = combined_response
+        from io import BytesIO
+        from pypdf import PdfWriter
+        pdf_writer = PdfWriter()
+        for _ in range(8):
+            pdf_writer.add_blank_page(width=100, height=100)
+        pdf_buf = BytesIO()
+        pdf_writer.write(pdf_buf)
+        dummy_8page_pdf = pdf_buf.getvalue()
+
         combined = ai_engine.grade_combined_student_submissions(
-            student_pdf_bytes=b"%PDF-1.4...", marking_key={"1": "Prn"},
+            student_pdf_bytes=dummy_8page_pdf, marking_key={"1": "Prn"},
             total_marks=4.0, api_key="fake-key"
         )
         self.assertEqual([item["extracted_name"] for item in combined], ["Alex Tan", "Sam Lee"])
@@ -1240,6 +1256,237 @@ class TestAiEngine(unittest.TestCase):
             ai_engine.generate_aligned_companion_worksheet(
                 theory, sheet_type="Homework", difficulty_counts=allocation, api_key="fake-key"
             )
+
+    @patch("ai_engine.get_client")
+    def test_auditor_subagent_applies_corrections_and_logs(self, mock_get_client):
+        """Verify Pass 2 auditor subagent recalculates, corrects errors, and returns structured _audit_log."""
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.text = json.dumps({
+            "title": "Year 11 Functions Theory Booklet",
+            "year_level": "Year 11 (Advanced)",
+            "topic": "Functions and Relations",
+            "concepts": [
+                {
+                    "concept_name": "Domain and Range",
+                    "teacher_examples": [
+                        {
+                            "title": "Finding domain of square root",
+                            "problem": "Find the domain of $f(x) = \\sqrt{x - 3}$.",
+                            "step_by_step_working": ["$x - 3 \\ge 0$", "$x \\ge 3$"],
+                            "final_answer": "$x \\ge 3$"
+                        }
+                    ],
+                    "practice_questions": [
+                        {
+                            "item_label": "1",
+                            "difficulty": "Section 1 - Commit to Memory",
+                            "question": "Find the range of $y = x^2 + 1$.",
+                            "solution": "$x^2 \\ge 0 \\implies y \\ge 1$",
+                            "final_answer": "$y \\ge 1$",
+                            "marks": 2,
+                            "marking_criteria": ["Identifies minimum value (1 mark)", "States range $y \\ge 1$ (1 mark)"]
+                        }
+                    ]
+                }
+            ],
+            "_audit_log": {
+                "status": "verified",
+                "auditor": "DA Senior HSC Mathematics Chief Examiner Subagent",
+                "verified_at": "2026-11-03 12:00:00",
+                "mathematical_accuracy": "100% Verified",
+                "syllabus_compliance": "100% Compliant (NSW Stage 6 2026 Syllabus)",
+                "total_corrections": 1,
+                "corrections": [
+                    {
+                        "location": "Concept 1, Teacher Example 1",
+                        "issue": "Draft solution had incorrect inequality direction $x \\le 3$",
+                        "fix": "Re-solved radicand condition $x - 3 \\ge 0 \\implies x \\ge 3$ and corrected final answer."
+                    }
+                ],
+                "verification_summary": "Recalculated domain inequality and verified all other practice solutions."
+            }
+        })
+        mock_response.usage_metadata.prompt_token_count = 1200
+        mock_response.usage_metadata.candidates_token_count = 800
+        mock_response.usage_metadata.total_token_count = 2000
+        mock_client.models.generate_content.return_value = mock_response
+        mock_get_client.return_value = mock_client
+
+        draft_data = {
+            "title": "Year 11 Functions Theory Booklet",
+            "year_level": "Year 11 (Advanced)",
+            "topic": "Functions and Relations",
+            "meta_tokens": 1500,
+            "meta_cost": 0.002,
+            "model_used": "gemini-3.8-flash",
+            "concepts": [
+                {
+                    "concept_name": "Domain and Range",
+                    "teacher_examples": [{"title": "Example 1", "problem": "...", "final_answer": "$x \\le 3$"}],
+                    "practice_questions": []
+                }
+            ]
+        }
+
+        audited = ai_engine.audit_and_correct_booklet_agent(
+            data=draft_data,
+            year_level="Year 11 (Advanced)",
+            topic="Functions and Relations",
+            client=mock_client
+        )
+
+        self.assertIn("_audit_log", audited)
+        log = audited["_audit_log"]
+        self.assertEqual(log["status"], "verified")
+        self.assertEqual(log["total_corrections"], 1)
+        self.assertEqual(len(log["corrections"]), 1)
+        self.assertIn("radicand", log["corrections"][0]["fix"])
+        self.assertEqual(audited["meta_tokens"], 3500)
+        self.assertGreater(audited["meta_cost"], 0.002)
+        self.assertIn("(Auditor)", audited["model_used"])
+
+    @patch("ai_engine.get_client")
+    def test_auditor_subagent_fallback_on_exception(self, mock_get_client):
+        """Verify auditor subagent catches API/parsing errors gracefully and returns unverified fallback log."""
+        mock_client = MagicMock()
+        mock_client.models.generate_content.side_effect = RuntimeError("ResourceExhausted: 429 Rate limit")
+        mock_get_client.return_value = mock_client
+
+        draft_data = {
+            "title": "Year 12 Vectors Booklet",
+            "year_level": "Year 12 (Extension 1)",
+            "topic": "Vectors",
+            "meta_tokens": 1000,
+            "meta_cost": 0.001,
+            "concepts": [{"concept_name": "Dot Product", "practice_questions": []}]
+        }
+
+        result = ai_engine.audit_and_correct_booklet_agent(
+            data=draft_data,
+            year_level="Year 12 (Extension 1)",
+            topic="Vectors",
+            client=mock_client
+        )
+
+        self.assertIn("_audit_log", result)
+        self.assertEqual(result["_audit_log"]["status"], "unverified")
+        self.assertEqual(result["_audit_log"]["total_corrections"], 0)
+        self.assertIn("ResourceExhausted", result["_audit_log"]["verification_summary"])
+        # Original concepts remain intact
+        self.assertEqual(len(result["concepts"]), 1)
+        self.assertEqual(result["concepts"][0]["concept_name"], "Dot Product")
+
+    @patch("ai_engine.get_client")
+    def test_generate_theory_booklet_two_pass_pipeline(self, mock_get_client):
+        """Verify generate_theory_booklet executes 2-pass pipeline: Pass 1 Generator then Pass 2 Auditor."""
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+
+        pass1_response = MagicMock()
+        pass1_response.text = json.dumps({
+            "title": "Year 10 Linear Equations",
+            "year_level": "Year 10",
+            "topic": "Linear Equations",
+            "concepts": [
+                {
+                    "concept_name": "Solving Multi-step Equations",
+                    "learning_intentions": ["Solve equations"],
+                    "success_criteria": ["Find x"],
+                    "theory_exposition": "Isolate x on one side.",
+                    "key_formulas": [{"name": "Linear Form", "formula": "$ax+b=c$", "description": "Standard form"}],
+                    "teacher_examples": [
+                        {
+                            "title": "Solving linear equation",
+                            "problem": "Solve $2x + 4 = 10$.",
+                            "step_by_step_working": ["$2x = 6$", "$x = 3$"],
+                            "final_answer": "$x = 3$",
+                            "teacher_note": "Subtract 4 then divide by 2."
+                        }
+                    ],
+                    "practice_questions": [
+                        {
+                            "item_label": "1",
+                            "difficulty": "Level 1 - Commit to Memory",
+                            "question": "Solve $3x = 12$.",
+                            "solution": "$x = 4$",
+                            "final_answer": "$x = 4$",
+                            "marks": 1,
+                            "marking_criteria": ["Correct solution"]
+                        }
+                    ]
+                }
+            ]
+        })
+        pass1_response.usage_metadata.prompt_token_count = 1000
+        pass1_response.usage_metadata.candidates_token_count = 500
+        pass1_response.usage_metadata.total_token_count = 1500
+
+        pass2_response = MagicMock()
+        pass2_response.text = json.dumps({
+            "title": "Year 10 Linear Equations",
+            "year_level": "Year 10",
+            "topic": "Linear Equations",
+            "concepts": [
+                {
+                    "concept_name": "Solving Multi-step Equations",
+                    "learning_intentions": ["Solve equations"],
+                    "success_criteria": ["Find x"],
+                    "theory_exposition": "Isolate x on one side.",
+                    "key_formulas": [{"name": "Linear Form", "formula": "$ax+b=c$", "description": "Standard form"}],
+                    "teacher_examples": [
+                        {
+                            "title": "Solving linear equation",
+                            "problem": "Solve $2x + 4 = 10$.",
+                            "step_by_step_working": ["$2x = 6$", "$x = 3$"],
+                            "final_answer": "$x = 3$",
+                            "teacher_note": "Subtract 4 then divide by 2."
+                        }
+                    ],
+                    "practice_questions": [
+                        {
+                            "item_label": "1",
+                            "difficulty": "Section 1 - Commit to Memory",
+                            "question": "Solve $3x = 12$.",
+                            "solution": "$x = 4$",
+                            "final_answer": "$x = 4$",
+                            "marks": 1,
+                            "marking_criteria": ["Correct solution"]
+                        }
+                    ]
+                }
+            ],
+            "_audit_log": {
+                "status": "verified",
+                "auditor": "DA Senior HSC Mathematics Chief Examiner Subagent",
+                "verified_at": "2026-11-03 12:00:00",
+                "mathematical_accuracy": "100% Verified",
+                "syllabus_compliance": "100% Compliant (Stage 5)",
+                "total_corrections": 0,
+                "corrections": [],
+                "verification_summary": "All linear equation calculations and steps verified 100% accurate."
+            }
+        })
+        pass2_response.usage_metadata.prompt_token_count = 800
+        pass2_response.usage_metadata.candidates_token_count = 400
+        pass2_response.usage_metadata.total_token_count = 1200
+
+        # Return pass1 on 1st call, pass2 on 2nd call
+        mock_client.models.generate_content.side_effect = [pass1_response, pass2_response]
+
+        booklet = ai_engine.generate_theory_booklet(
+            year_level="Year 10",
+            topic="Linear Equations",
+            subtopics=["Solving Multi-step Equations"],
+            api_key="fake-key",
+            audit=True
+        )
+
+        self.assertEqual(mock_client.models.generate_content.call_count, 2)
+        self.assertIn("_audit_log", booklet)
+        self.assertEqual(booklet["_audit_log"]["status"], "verified")
+        self.assertEqual(booklet["_audit_log"]["total_corrections"], 0)
+        self.assertEqual(booklet["meta_tokens"], 2700)
 
 
 if __name__ == "__main__":

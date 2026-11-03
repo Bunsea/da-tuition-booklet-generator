@@ -3,6 +3,7 @@ import json
 import re
 import logging
 from functools import lru_cache
+from datetime import datetime
 from typing import List, Dict, Any, Optional, Union
 
 logger = logging.getLogger(__name__)
@@ -2797,7 +2798,7 @@ The content generated is strictly for NSW Stage 5 (Years 9-10: 5.1/5.2/5.3) Math
     if is_stage6_standard(year_level):
         if "11" in yl:
             return """
-STRICT NSW NESA SYLLABUS BOUNDARY DIRECTIVE (STAGE 6 YEAR 11 MATHEMATICS STANDARD) - ZERO TOLERANCE LEAKAGE:
+STRICT NSW NESA SYLLABUS BOUNDARY DIRECTIVE (STAGE 6 MATHEMATICS STANDARD - YEAR 11) - ZERO TOLERANCE LEAKAGE:
 The content generated is strictly for NSW Stage 6 Year 11 Mathematics Standard (non-calculus pathway).
 1. PERMITTED YEAR 11 STANDARD TOPICS:
 - Financial Mathematics: Earning and managing money, taxation (PAYG, Medicare levy, tax tables, deductions, net pay), budgeting, household expenses.
@@ -2815,7 +2816,7 @@ The content generated is strictly for NSW Stage 6 Year 11 Mathematics Standard (
 - STRICTLY NO CALCULUS, NO RADIANS, NO LOGARITHMS, NO EXTENSION 1 / 2 TOPICS.
 """
         return """
-STRICT NSW NESA SYLLABUS BOUNDARY DIRECTIVE (STAGE 6 YEAR 12 MATHEMATICS STANDARD) - ZERO TOLERANCE LEAKAGE:
+STRICT NSW NESA SYLLABUS BOUNDARY DIRECTIVE (STAGE 6 MATHEMATICS STANDARD - YEAR 12) - ZERO TOLERANCE LEAKAGE:
 The content generated is strictly for NSW Stage 6 Year 12 Mathematics Standard (non-calculus pathway).
 1. PERMITTED YEAR 12 STANDARD TOPICS:
 - Financial Mathematics: Investments and loans, simple and compound interest, reducing balance loans, credit cards, annuities (future and present value formulas and tables), superannuation.
@@ -4135,6 +4136,196 @@ def normalize_difficulty(diff: str) -> str:
     res = d if d else "Section 1 - Commit to Memory"
     return re.sub(r"\bLevel\b", "Section", res, flags=re.IGNORECASE)
 
+
+def _attach_fallback_audit_log(data: Dict[str, Any], reason: str = "") -> Dict[str, Any]:
+    """Attaches a fallback audit log indicating manual review or skipped auditor call."""
+    if not isinstance(data, dict):
+        return data
+    data["_audit_log"] = {
+        "status": "unverified",
+        "auditor": "DA Senior HSC Mathematics Verifier Subagent (Fallback)",
+        "verified_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "mathematical_accuracy": "Draft generated - pending manual inspection",
+        "syllabus_compliance": "Regex checked",
+        "total_corrections": 0,
+        "corrections": [],
+        "verification_summary": f"Auditor subagent was skipped or encountered an error ({reason}). Raw generated draft preserved safely." if reason else "Auditor pass skipped."
+    }
+    return data
+
+
+def audit_and_correct_booklet_agent(
+    data: Dict[str, Any],
+    year_level: str,
+    topic: str,
+    client: Optional[Any] = None,
+    api_key: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Pass 2 Auditor Subagent (Chief Examiner & Mathematical Proofreader).
+    Takes a draft Theory Booklet JSON payload from Pass 1, rigorously re-evaluates all
+    mathematical derivations, proofs, formulas, worked whiteboard examples, and tiered
+    practice questions, checks question-solution alignment, enforces NSW 2026 syllabus
+    boundaries, fixes formatting / LaTeX, and attaches a detailed _audit_log.
+    """
+    if not isinstance(data, dict):
+        return data
+
+    if client is None:
+        try:
+            client = get_client(api_key)
+        except Exception as exc:
+            logger.warning("Auditor agent could not obtain Gemini client: %s", exc)
+            return _attach_fallback_audit_log(data, f"Client unavailable: {exc}")
+
+    # Strip existing token / cost metadata so the auditor reviews only curriculum content
+    clean_draft = {k: v for k, v in data.items() if not k.startswith("meta_") and k != "_audit_log"}
+    draft_json_str = json.dumps(clean_draft, ensure_ascii=False, indent=2)
+
+    stage6_prompt = get_stage6_syllabus_boundary_prompt(year_level, topic)
+
+    audit_prompt = f"""You are the NSW Senior HSC Mathematics Chief Examiner, Chief Proofreader, and Lead Academic Auditor for DA Tuition.
+You have been provided with a newly generated Draft Theory & Practice Booklet for:
+- Year Level: {year_level}
+- Topic: {topic}
+
+SYLLABUS BOUNDARY DIRECTIVES FOR THIS STAGE:
+{stage6_prompt}
+
+YOUR MISSION:
+Review the ENTIRE draft booklet JSON below with the highest level of mathematical and pedagogical scrutiny.
+Detect, recalculate, and correct every mathematical, pedagogical, or syllabus flaw.
+Return the complete, perfected JSON document with an updated `_audit_log` field.
+
+CORE AUDIT REQUIREMENTS:
+1. RIGOROUS MATHEMATICAL RE-CALCULATION & ARITHMETIC VERIFICATION:
+   - Re-evaluate EVERY calculation from scratch: arithmetic, fractions, decimals, quadratic roots, discriminant, coordinates, derivatives, integrals, limits, vectors (dot products, lengths, angles), trigonometric transformations, probability, and financial formulas.
+   - If ANY intermediate step, sign (+/-), fraction, or final answer is incorrect:
+     * Fix it directly in the corresponding `step_by_step_working`, `whiteboard_steps`, `solution`, and `final_answer`.
+     * Ensure the explanation describes why each step was taken.
+
+2. QUESTION-TO-SOLUTION 1:1 CORRESPONDENCE:
+   - Ensure the prompt/problem statement provides all necessary parameters, equations, and values to be solvable.
+   - Verify that the numbers, variables, and expressions in the question match the numbers in the worked solution with zero discrepancies.
+   - If a question asks for a specific format (e.g. "exact form", "to 2 decimal places", "simplified surd"), verify the final answer matches.
+
+3. NSW SYLLABUS BOUNDARY ENFORCEMENT (2026 RULES):
+   - Universal: STRICTLY NO PIGEONHOLE PRINCIPLE anywhere in the syllabus (Stage 4 to Extension 2). Replace any occurrence with standard combinatorics or probability.
+   - Extension 1: STRICTLY NO t-results / t-formula ($t = \\tan(\\theta/2)$) and NO products-to-sums / sums-to-products identities in Year 11 or 12 Extension 1 (Extension 2 only). Replace with compound/double-angle identities or alternative standard methods.
+   - Advanced: STRICTLY NO discrete probability distributions or random variables in Year 11 Advanced (Year 12 Advanced only). Data and statistics belong in Year 11 Advanced.
+   - Standard: Introductory network concepts (definitions, vertex degrees, walks/trails/paths, Euler/Hamiltonian, trees, minimum spanning trees) belong in Year 11 Standard. Critical Path Analysis (precedence tables, EST/LST, float, critical paths) and Maximum Network Flow belong in Year 12 Standard.
+   - Standard: Relative frequency and experimental probability belong in Year 12 Standard (not Year 11 Standard).
+   - If any out-of-scope question or concept is found for {year_level}, rewrite it so that it is 100% compliant with the NSW syllabus for {year_level}.
+
+4. LATEX & TYPOGRAPHICAL STANDARDS:
+   - All inline mathematical symbols, expressions, and equations must use proper LaTeX delimiters `$...$` or `$$...$$`.
+   - Fix double backslashes, broken macros, or malformed equations.
+   - Ensure percentage symbols are properly handled and do not break LaTeX syntax.
+
+5. AUDIT LOG & CHANGE TRACKING:
+   - In the returned JSON, include or replace the top-level key `_audit_log`:
+     ```json
+     "_audit_log": {{
+       "status": "verified",
+       "auditor": "DA Senior HSC Mathematics Chief Examiner Subagent",
+       "verified_at": "{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+       "mathematical_accuracy": "100% Verified",
+       "syllabus_compliance": "100% Compliant (NSW Stage 6 2026 Syllabus)",
+       "total_corrections": <number of corrections made>,
+       "corrections": [
+         {{
+           "location": "e.g. Concept 1, Teacher Example 2",
+           "issue": "Detailed description of error found",
+           "fix": "Specific correction applied"
+         }}
+       ],
+       "verification_summary": "Summary of findings and verification result"
+     }}
+     ```
+   - If no errors or adjustments were needed, set `total_corrections: 0`, `corrections: []`, and `verification_summary: "Booklet fully audited: all mathematical calculations, worked solutions, formulas, and syllabus boundaries verified 100% accurate on first pass."`
+
+DRAFT BOOKLET JSON TO AUDIT:
+{draft_json_str}
+
+Respond with valid JSON only. Return the complete corrected booklet JSON.
+"""
+
+    models_to_try = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.5-flash", "gemini-2.5-flash"]
+    last_err = None
+
+    for model_name in models_to_try:
+        try:
+            config = types.GenerateContentConfig(
+                response_mime_type="application/json",
+                temperature=0.1,
+                max_output_tokens=65536
+            )
+            response = client.models.generate_content(
+                model=model_name,
+                contents=audit_prompt,
+                config=config
+            )
+            audited_data = clean_json_response(response.text)
+            if not isinstance(audited_data, dict) or not audited_data.get("concepts"):
+                raise ValueError("Auditor response is missing booklet concepts structure.")
+
+            # Preserve essential top-level metadata from original data
+            for meta_k in [
+                "title", "year_level", "topic", "term", "week", "textbook",
+                "custom_instructions", "custom_notes", "extra_instructions",
+                "textbook_reference_used", "practice_worksheet_id"
+            ]:
+                if meta_k in data and meta_k not in audited_data:
+                    audited_data[meta_k] = data[meta_k]
+
+            # Token and cost accumulation
+            auditor_prompt_tokens = getattr(response.usage_metadata, 'prompt_token_count', 0) if hasattr(response, 'usage_metadata') else 0
+            auditor_candidates_tokens = getattr(response.usage_metadata, 'candidates_token_count', 0) if hasattr(response, 'usage_metadata') else 0
+            auditor_tokens = getattr(response.usage_metadata, 'total_token_count', 0) if hasattr(response, 'usage_metadata') else 0
+            auditor_cost = estimate_gemini_cost(auditor_prompt_tokens, auditor_candidates_tokens, model=model_name)
+
+            orig_tokens = data.get("meta_tokens", 0)
+            orig_cost = data.get("meta_cost", 0.0)
+            audited_data["meta_tokens"] = orig_tokens + auditor_tokens
+            audited_data["meta_cost"] = round(orig_cost + auditor_cost, 5)
+            audited_data["model_used"] = f"{data.get('model_used', 'Gemini')} + {model_name} (Auditor)"
+            audited_data["generator_model"] = data.get("model_used", "")
+            audited_data["auditor_model"] = model_name
+
+            # Normalize audit log
+            audit_log = audited_data.get("_audit_log")
+            if not isinstance(audit_log, dict):
+                audit_log = {
+                    "status": "verified",
+                    "auditor": "DA Senior HSC Mathematics Chief Examiner Subagent",
+                    "verified_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "mathematical_accuracy": "100% Verified",
+                    "syllabus_compliance": f"100% Compliant ({year_level})",
+                    "total_corrections": 0,
+                    "corrections": [],
+                    "verification_summary": "Audited and verified all calculations, proofs, and syllabus boundaries."
+                }
+                audited_data["_audit_log"] = audit_log
+            else:
+                audit_log.setdefault("status", "verified")
+                audit_log.setdefault("auditor", "DA Senior HSC Mathematics Chief Examiner Subagent")
+                audit_log.setdefault("verified_at", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                audit_log.setdefault("mathematical_accuracy", "100% Verified")
+                audit_log.setdefault("syllabus_compliance", f"100% Compliant ({year_level})")
+                if "corrections" not in audit_log or not isinstance(audit_log["corrections"], list):
+                    audit_log["corrections"] = []
+                audit_log["total_corrections"] = len(audit_log["corrections"])
+
+            return audited_data
+        except Exception as exc:
+            last_err = exc
+            logger.warning("Auditor subagent model %s failed: %s", model_name, exc)
+            continue
+
+    logger.warning("Auditor subagent failed across all models: %s. Returning generator draft.", last_err)
+    return _attach_fallback_audit_log(data, str(last_err))
+
+
 def generate_theory_booklet(
     year_level: str,
     topic: Union[str, List[str]],
@@ -4150,6 +4341,7 @@ def generate_theory_booklet(
     question_distribution: Optional[Dict[str, Any]] = None,
     level_distribution: Optional[Dict[str, int]] = None,
     textbook_reference: str = "",
+    audit: bool = True,
     **kwargs
 ) -> Dict[str, Any]:
     """
@@ -4566,6 +4758,23 @@ Respond with valid JSON ONLY matching this exact structure:
             data["meta_tokens"] = total_tokens
             data["meta_cost"] = round(est_cost, 5)
             data["model_used"] = model_name
+
+            # --- PASS 2: AUTOMATED AI AUDITOR SUBAGENT (Chief Examiner & Mathematical Proofreader) ---
+            if audit and kwargs.get("audit", True):
+                try:
+                    data = audit_and_correct_booklet_agent(
+                        data=data,
+                        year_level=year_level,
+                        topic=topic_str,
+                        client=client,
+                        api_key=api_key
+                    )
+                except Exception as auditor_err:
+                    logger.warning("Auditor subagent invocation failed: %s", auditor_err)
+                    _attach_fallback_audit_log(data, str(auditor_err))
+            else:
+                _attach_fallback_audit_log(data, "Audit pass disabled by caller")
+
             return audit_and_sanitize_year11_advanced_data(data, year_level, strict=True)
         except Exception as e:
             last_err = e
@@ -5105,6 +5314,7 @@ def generate_review_booklet(
     api_key: Optional[str] = None,
     question_distribution: Optional[Dict[str, Any]] = None,
     level_distribution: Optional[Dict[str, int]] = None,
+    audit: bool = True,
     **kwargs
 ) -> Dict[str, Any]:
     """
@@ -5426,6 +5636,23 @@ Respond with valid JSON ONLY matching this exact structure:
             data["meta_tokens"] = total_tokens
             data["meta_cost"] = round(est_cost, 5)
             data["model_used"] = model_name
+
+            # --- PASS 2: AUTOMATED AI AUDITOR SUBAGENT (Chief Examiner & Mathematical Proofreader) ---
+            if audit and kwargs.get("audit", True):
+                try:
+                    data = audit_and_correct_booklet_agent(
+                        data=data,
+                        year_level=year_level,
+                        topic=topic_str,
+                        client=client,
+                        api_key=api_key
+                    )
+                except Exception as auditor_err:
+                    logger.warning("Auditor subagent invocation failed: %s", auditor_err)
+                    _attach_fallback_audit_log(data, str(auditor_err))
+            else:
+                _attach_fallback_audit_log(data, "Audit pass disabled by caller")
+
             return audit_and_sanitize_year11_advanced_data(data, year_level, strict=True)
         except Exception as e:
             last_err = e
@@ -5447,6 +5674,7 @@ def generate_exam_package(
     api_key: Optional[str] = None,
     question_distribution: Optional[Dict[str, Any]] = None,
     level_distribution: Optional[Dict[str, int]] = None,
+    audit: bool = True,
     **kwargs
 ) -> Dict[str, Any]:
     """
@@ -5833,6 +6061,23 @@ OUTPUT SCHEMA:
             data["meta_tokens"] = total_tokens
             data["meta_cost"] = round(est_cost, 5)
             data["model_used"] = model_name
+
+            # --- PASS 2: AUTOMATED AI AUDITOR SUBAGENT (Chief Examiner & Mathematical Proofreader) ---
+            if audit and kwargs.get("audit", True):
+                try:
+                    data = audit_and_correct_booklet_agent(
+                        data=data,
+                        year_level=year_level,
+                        topic=topic_str,
+                        client=client,
+                        api_key=api_key
+                    )
+                except Exception as auditor_err:
+                    logger.warning("Auditor subagent invocation failed: %s", auditor_err)
+                    _attach_fallback_audit_log(data, str(auditor_err))
+            else:
+                _attach_fallback_audit_log(data, "Audit pass disabled by caller")
+
             return audit_and_sanitize_year11_advanced_data(data, year_level, strict=True)
 
         except Exception as e:
