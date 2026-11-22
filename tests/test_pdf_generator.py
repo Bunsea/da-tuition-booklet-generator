@@ -289,6 +289,27 @@ class TestPdfGenerator(unittest.TestCase):
         latex = convert.call_args.args[0]
         self.assertIn(r"variable=\x] plot (\x,{\x^2})", latex)
 
+    def test_theory_booklet_displays_question_diagrams_once_below_the_text(self):
+        curve = r"\begin{tikzpicture}\draw[magenta] (0,0) -- (2,1);\end{tikzpicture}"
+        second_curve = r"\begin{tikzpicture}\draw[orange] (0,0) -- (1,2);\end{tikzpicture}"
+        booklet = {
+            "topic": "Graphs",
+            "concepts": [{
+                "concept_name": "Curve Sketching",
+                "practice_questions": [
+                    {"text": f"Find the intercepts.\n\\begin{{center}}{curve}\\end{{center}}", "diagram_tikz": curve},
+                    {"text": f"Label the axes.\n{second_curve}"},
+                ],
+            }],
+        }
+        for mode in ("teacher", "student_private", "student_class"):
+            with self.subTest(mode=mode):
+                latex = pdf_generator.build_latex_theory_booklet_source(booklet, mode=mode)
+                self.assertEqual(latex.count(r"\draw[magenta]"), 1)
+                self.assertEqual(latex.count(r"\draw[orange]"), 1)
+                self.assertIn("{\\raggedright\nFind the intercepts.\n\\par}", latex)
+                self.assertIn("{\\raggedright\nLabel the axes.\n\\par}", latex)
+
     def test_bonnyrigg_clean_sections_and_qmark(self):
         # Generate questions with multiple subtopics to trigger Set A, Set B
         questions = [
@@ -365,7 +386,8 @@ class TestPdfGenerator(unittest.TestCase):
             "num_mc": 0,
             "mc_prompt_section": "",
             "theory_alignment_text": "",
-            "get_stage6_syllabus_boundary_prompt": ai_engine.get_stage6_syllabus_boundary_prompt
+            "get_stage6_syllabus_boundary_prompt": ai_engine.get_stage6_syllabus_boundary_prompt,
+            "TIKZ_DIAGRAM_SCALING_AND_READABILITY_PROMPT": ai_engine.TIKZ_DIAGRAM_SCALING_AND_READABILITY_PROMPT,
         }
         start = src.find('prompt = f"""')
         end = src.find('"""', start + 12) + 3
@@ -809,11 +831,11 @@ class TestPdfGenerator(unittest.TestCase):
         }
         tex = pdf_generator.build_latex_theory_booklet_source(booklet_sample, mode="teacher")
         # Check two-line heading
-        self.assertIn(r"\textbf{\color{danavy}Year 9 Maths}}\\[0.1cm]", tex)
+        self.assertIn(r"\textbf{\color{danavy}Yr 9 Maths}}\\[0.1cm]", tex)
         self.assertIn(r"\textbf{\color{danavy}Properties of Geometrical Figures}}\\[0.15cm]", tex)
         # Check parbox running headers
-        self.assertIn(r"\fancyhead[L]{\parbox[b]{0.62\textwidth}", tex)
-        self.assertIn(r"\fancyhead[R]{\parbox[b]{0.36\textwidth}", tex)
+        self.assertIn(r"\fancyhead[L]{\parbox[b]{0.68\textwidth}", tex)
+        self.assertIn(r"\fancyhead[R]{\parbox[b]{0.30\textwidth}", tex)
         self.assertIn("DA Tuition --- Teacher Master", tex)
 
     def test_prefilled_student_and_teacher_answer_sheets(self):
@@ -2371,7 +2393,7 @@ class TestPdfGenerator(unittest.TestCase):
 
         # 2. Review Booklet checks
         rev_tex = pdf_generator.build_latex_review_booklet_source(booklet_data, mode="teacher")
-        self.assertIn(r"\\[0.05cm]", rev_tex)
+        self.assertIn(r"\par\vspace{0.05cm}", rev_tex)
         self.assertIn(r"\vspace{-0.22cm}", rev_tex)
         self.assertIn("before skip=1pt", rev_tex)
         self.assertIn("after skip=6pt", rev_tex)
@@ -2733,6 +2755,98 @@ class TestPdfGenerator(unittest.TestCase):
         self.assertIn(r"\textbf{Key:} $3 \mid 1 = 31$", clean_tex)
         self.assertIn(r"\begin{tabular}{r|l}", clean_tex)
         self.assertNotIn(r"\begin{centre}", clean_tex)
+
+    def test_sanitize_tikz_diagram_auto_scales_small_domain_graphs(self):
+        """Verify that diagrams with small coordinate ranges are automatically scaled up for readability."""
+        raw_tikz = r"""\begin{center}
+\begin{tikzpicture}
+\draw[->] (-0.5, 0) -- (3.0, 0) node[right] {$x$};
+\draw[->] (0, -0.3) -- (0, 1.2) node[above] {$y$};
+\fill[blue!20] (0,0) -- plot[domain=0:1, samples=50] (\x, {rad(atan(\x))}) -- (0, {pi/4}) -- cycle;
+\draw[blue, thick, domain=0:1.3, samples=50] plot (\x, {rad(atan(\x))}) node[above right] {$y = \tan^{-1} x$};
+\draw[dashed, red] (0, {pi/4}) node[left, black] {$\frac{\pi}{4}$} -- (1, {pi/4});
+\draw[dashed] (1, 0) node[below] {$1$} -- (1, {pi/4});
+\fill[blue] (1, {pi/4}) circle (2pt) node[above, red] {$(1, \frac{\pi}{4})$};
+\end{tikzpicture}
+\end{center}"""
+        sanitized = pdf_generator.sanitize_tikz_diagram(raw_tikz)
+        # Should have auto-scaled x and y
+        import re
+        m_x = re.search(r'x=([0-9\.]+)cm', sanitized)
+        m_y = re.search(r'y=([0-9\.]+)cm', sanitized)
+        self.assertIsNotNone(m_x, "Should inject explicit x scaling for small domain")
+        self.assertIsNotNone(m_y, "Should inject explicit y scaling for small range")
+        x_val = float(m_x.group(1))
+        y_val = float(m_y.group(1))
+        # Total horizontal span is 3.5 units -> 3.5 * x_val should be >= 7.0cm
+        self.assertGreaterEqual(3.5 * x_val, 7.0)
+        # Total vertical span is 1.5 units -> 1.5 * y_val should be >= 4.5cm
+        self.assertGreaterEqual(1.5 * y_val, 4.5)
+
+    def test_sanitize_tikz_diagram_separates_curve_and_point_labels(self):
+        """Verify that curve equation labels and point coordinate labels are prevented from colliding."""
+        raw_tikz = r"""\begin{tikzpicture}
+\draw[blue, thick, domain=0:1.3] plot (\x, {rad(atan(\x))}) node[above right] {$y = \tan^{-1} x$};
+\fill[blue] (1, 0.785) circle (2pt) node[above, red] {$(1, \frac{\pi}{4})$};
+\end{tikzpicture}"""
+        sanitized = pdf_generator.sanitize_tikz_diagram(raw_tikz)
+        self.assertIn("above left=8pt", sanitized)
+        self.assertIn(r"$(1, \frac{\pi}{4})$", sanitized)
+
+    def test_theory_booklet_practice_diagram_generous_height(self):
+        """Verify that practice question diagrams in theory booklets are given generous 5.2cm height instead of 2.6cm."""
+        booklet_data = {
+            "title": "Year 12 Calculus",
+            "year_level": "Year 12",
+            "topic": "Calculus",
+            "concepts": [{
+                "concept_name": "Integration along y-axis",
+                "study_notes": {"summary_points": ["Review."]},
+                "teacher_examples": [],
+                "practice_questions": [{
+                    "q_num": 1,
+                    "text": "Find the area bounded by the curve.",
+                    "diagram_tikz": r"\begin{tikzpicture}\draw (0,0) -- (4,3);\end{tikzpicture}"
+                }]
+            }]
+        }
+        tex = pdf_generator.build_latex_theory_booklet_source(booklet_data, mode="teacher", has_logo=False)
+        self.assertIn("max totalheight=5.2cm", tex)
+        self.assertNotIn("max totalheight=2.6cm", tex)
+
+    def test_format_compact_booklet_header_shortens_and_deduplicates(self):
+        """Verify that headers shorten 'Year' to 'Yr', 'Extension 1' to 'Ext 1', and deduplicate course names."""
+        subj, topic, combined = pdf_generator.format_compact_booklet_header(
+            "Year 12 (Extension 1)", "Inverse trigonometric functions (Extension 1)"
+        )
+        self.assertEqual(subj, "Yr 12 (Ext 1) Maths")
+        self.assertEqual(topic, "Inverse trigonometric functions")
+        self.assertEqual(combined, "Yr 12 (Ext 1) Maths --- Inverse trigonometric functions")
+
+        subj2, topic2, combined2 = pdf_generator.format_compact_booklet_header(
+            "Year 11 (Advanced)", "Calculus (Adv)"
+        )
+        self.assertEqual(subj2, "Yr 11 (Adv) Maths")
+        self.assertEqual(topic2, "Calculus")
+
+    def test_theory_booklet_header_uses_compact_single_line_format(self):
+        """Verify that generated LaTeX source uses the compact header and wider parbox."""
+        booklet_data = {
+            "title": "Year 12 (Extension 1) Maths - Inverse trig",
+            "year_level": "Year 12 (Extension 1)",
+            "topic": "Inverse trigonometric functions (Extension 1)",
+            "concepts": [{
+                "concept_name": "Inverse Trig Graphs",
+                "study_notes": {"summary_points": ["Notes."]},
+                "teacher_examples": [],
+                "practice_questions": []
+            }]
+        }
+        tex = pdf_generator.build_latex_theory_booklet_source(booklet_data, mode="teacher", has_logo=False)
+        self.assertIn(r"Yr 12 (Ext 1) Maths --- Inverse trigonometric functions", tex)
+        self.assertNotIn(r"Year 12 (Extension 1) Maths --- Inverse trigonometric functions (Extension 1)", tex)
+        self.assertIn(r"\fancyhead[L]{\parbox[b]{0.68\textwidth}", tex)
+        self.assertIn(r"\fancyhead[R]{\parbox[b]{0.30\textwidth}", tex)
 
 
 if __name__ == "__main__":

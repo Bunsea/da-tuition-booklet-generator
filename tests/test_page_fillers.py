@@ -257,6 +257,21 @@ class TestPrivateTheoryPageFillers(unittest.TestCase):
         self.assertEqual(sum(text.count(heading) for heading in headings),
                          sum(first_text.count(heading) for heading in headings))
 
+    def test_senior_booklets_skip_all_page_fillers(self):
+        """Senior Year 11/12 booklets must never include elementary brain breaks or visual puzzles."""
+        original = _sample_pdf(430)
+        for yl in ("Year 12 (Extension 1)", "Year 11 (Advanced)", "Year 12", "Yr 11 Ext 2", "Stage 6 Mathematics"):
+            result = fill_sparse_private_theory_pages(original, {
+                "year_level": yl,
+                "topic": "Inverse trigonometric functions",
+                "concepts": [{"name": "Graphing inverse trig"}],
+            })
+            self.assertEqual(result, original, f"Senior booklet ({yl}) must not have fillers added")
+            reader = PdfReader(io.BytesIO(result))
+            text = reader.pages[0].extract_text()
+            for heading in ("QUICK MATHS PUZZLE", "QUICK MATHS FACT", "MATHS PUN", "VISUAL MATHS"):
+                self.assertNotIn(heading, text)
+
 
 if __name__ == "__main__":
     unittest.main()

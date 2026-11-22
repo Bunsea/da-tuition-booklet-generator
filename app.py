@@ -1319,7 +1319,7 @@ if main_section == "📖 1. Theory & Practice Materials":
 
             # Bump when theory PDF rendering changes so a long-lived Streamlit
             # session cannot keep serving an older edition-specific fallback.
-            tb_cache_key = f"v24_{tb.get('id', 0)}_{tb.get('title', '')}_{tb_font_theme}"
+            tb_cache_key = f"v25_{tb.get('id', 0)}_{tb.get('title', '')}_{tb_font_theme}"
             if st.session_state.get("latest_tb_cache_key") != tb_cache_key or "latest_tb_artifacts" not in st.session_state:
                 with st.spinner("Compiling Theory Booklet PDFs & Materials (one-time)..."):
                     _tb_t_pdf = pdf_generator.generate_theory_booklet_pdf(
@@ -1600,7 +1600,7 @@ if main_section == "📖 1. Theory & Practice Materials":
                     total_ic_target = st.number_input(
                         "Total Questions in In-Class Booklet",
                         min_value=1,
-                        max_value=40,
+                        max_value=100,
                         value=default_total_ic,
                         step=1,
                         key=f"total_ic_q_{tb_id}",
@@ -1638,7 +1638,7 @@ if main_section == "📖 1. Theory & Practice Materials":
                             with col_target:
                                 q_cnt = st.number_input(
                                     f"Concept {c_idx}: {c_name[:30]}{'...' if len(c_name)>30 else ''}",
-                                    min_value=0, max_value=15, value=2, step=1,
+                                    min_value=0, max_value=50, value=2, step=1,
                                     key=f"ic_q_cnt_{tb_id}_{c_idx}",
                                     help=f"Full concept name: {c_name}"
                                 )
@@ -1838,8 +1838,8 @@ if main_section == "📖 1. Theory & Practice Materials":
                     total_hw_target = st.number_input(
                         "Total Questions in Homework Booklet",
                         min_value=1,
-                        max_value=40,
-                        value=min(default_total_hw, 40),
+                        max_value=100,
+                        value=min(default_total_hw, 100),
                         step=1,
                         key=f"total_hw_q_{tb_id}",
                         help="Select the total number of homework questions across all concepts."
@@ -1872,7 +1872,7 @@ if main_section == "📖 1. Theory & Practice Materials":
                             with col_target:
                                 q_cnt = st.number_input(
                                     f"Concept {c_idx}: {c_name[:30]}{'...' if len(c_name)>30 else ''}",
-                                    min_value=0, max_value=15, value=3, step=1,
+                                    min_value=0, max_value=50, value=3, step=1,
                                     key=f"hw_q_cnt_{tb_id}_{c_idx}",
                                     help=f"Full concept name: {c_name}"
                                 )
@@ -1892,7 +1892,7 @@ if main_section == "📖 1. Theory & Practice Materials":
                                     tier_counts[level] = st.number_input(
                                         level,
                                         min_value=0,
-                                        max_value=15,
+                                        max_value=30,
                                         value=default_levels[tier_idx],
                                         step=1,
                                         key=f"hw_difficulty_{tb_id}_{c_idx}_{tier_idx}",
@@ -2005,7 +2005,7 @@ if main_section == "📖 1. Theory & Practice Materials":
 
                 col_rq1, col_rq2 = st.columns([1, 2])
                 with col_rq1:
-                    rev_q_per_c = st.number_input("Revision Questions per Concept", min_value=1, max_value=10, value=3, step=1, key=f"rev_q_per_c_{tb_id}")
+                    rev_q_per_c = st.number_input("Revision Questions per Concept", min_value=1, max_value=30, value=3, step=1, key=f"rev_q_per_c_{tb_id}")
                 with col_rq2:
                     st.caption("Balanced distribution across Level 1 (Foundations), Level 2 (Application), and Level 3 (Extension / Trap questions).")
 

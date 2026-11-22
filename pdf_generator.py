@@ -4,6 +4,7 @@ import re
 import shutil
 import tempfile
 import subprocess
+from fractions import Fraction
 from xml.sax.saxutils import escape
 from io import BytesIO
 from typing import List, Dict, Any, Optional, Tuple
@@ -846,7 +847,7 @@ def _build_custom_network_tikz(vertices: List[str], edges: List[Any]) -> str:
 
     tikz_lines = [
         r'\begin{center}',
-        r'\begin{adjustbox}{max width=0.85\linewidth, max totalheight=3.4cm, keepaspectratio, center}',
+        r'\begin{adjustbox}{max width=0.88\linewidth, max totalheight=5.0cm, keepaspectratio, center}',
         r'\begin{tikzpicture}[',
         r'    scale=0.95,',
         r'    vertex/.style={circle, draw=danavy, fill=dablue!15, thick, inner sep=0pt, minimum size=7.0mm, font=\small\bfseries\color{danavy}},',
@@ -882,7 +883,7 @@ def _build_custom_network_tikz(vertices: List[str], edges: List[Any]) -> str:
 
 def _build_planar_graph_tikz() -> str:
     return rf"""\begin{{center}}
-\begin{{adjustbox}}{{max width=0.85\linewidth, max totalheight=3.4cm, keepaspectratio, center}}
+\begin{{adjustbox}}{{max width=0.88\linewidth, max totalheight=5.0cm, keepaspectratio, center}}
 \begin{{tikzpicture}}[
     scale=0.95,
     vertex/.style={{circle, draw=danavy, fill=dablue!15, thick, inner sep=0pt, minimum size=7.0mm, font=\small\bfseries\color{{danavy}}}},
@@ -908,7 +909,7 @@ def _build_planar_graph_tikz() -> str:
 
 def _build_shortest_path_network_tikz() -> str:
     return rf"""\begin{{center}}
-\begin{{adjustbox}}{{max width=0.85\linewidth, max totalheight=3.4cm, keepaspectratio, center}}
+\begin{{adjustbox}}{{max width=0.88\linewidth, max totalheight=5.0cm, keepaspectratio, center}}
 \begin{{tikzpicture}}[
     scale=0.95,
     vertex/.style={{circle, draw=danavy, fill=dablue!15, thick, inner sep=0pt, minimum size=7.0mm, font=\small\bfseries\color{{danavy}}}},
@@ -933,7 +934,7 @@ def _build_shortest_path_network_tikz() -> str:
 
 def _build_general_network_tikz() -> str:
     return rf"""\begin{{center}}
-\begin{{adjustbox}}{{max width=0.85\linewidth, max totalheight=3.4cm, keepaspectratio, center}}
+\begin{{adjustbox}}{{max width=0.88\linewidth, max totalheight=5.0cm, keepaspectratio, center}}
 \begin{{tikzpicture}}[
     scale=0.95,
     vertex/.style={{circle, draw=danavy, fill=dablue!15, thick, inner sep=0pt, minimum size=7.0mm, font=\small\bfseries\color{{danavy}}}},
@@ -957,7 +958,7 @@ def _build_general_network_tikz() -> str:
 
 def _build_directed_network_tikz() -> str:
     return rf"""\begin{{center}}
-\begin{{adjustbox}}{{max width=0.85\linewidth, max totalheight=3.4cm, keepaspectratio, center}}
+\begin{{adjustbox}}{{max width=0.88\linewidth, max totalheight=5.0cm, keepaspectratio, center}}
 \begin{{tikzpicture}}[
     scale=0.95,
     vertex/.style={{circle, draw=danavy, fill=dablue!15, thick, inner sep=0pt, minimum size=7.0mm, font=\small\bfseries\color{{danavy}}}},
@@ -980,7 +981,7 @@ def _build_directed_network_tikz() -> str:
 
 def _build_mst_network_tikz() -> str:
     return rf"""\begin{{center}}
-\begin{{adjustbox}}{{max width=0.85\linewidth, max totalheight=3.4cm, keepaspectratio, center}}
+\begin{{adjustbox}}{{max width=0.88\linewidth, max totalheight=5.0cm, keepaspectratio, center}}
 \begin{{tikzpicture}}[
     scale=0.95,
     vertex/.style={{circle, draw=danavy, fill=dablue!15, thick, inner sep=0pt, minimum size=7.0mm, font=\small\bfseries\color{{danavy}}}},
@@ -1005,7 +1006,7 @@ def _build_mst_network_tikz() -> str:
 
 def _build_traversable_network_tikz() -> str:
     return rf"""\begin{{center}}
-\begin{{adjustbox}}{{max width=0.85\linewidth, max totalheight=3.4cm, keepaspectratio, center}}
+\begin{{adjustbox}}{{max width=0.88\linewidth, max totalheight=5.0cm, keepaspectratio, center}}
 \begin{{tikzpicture}}[
     scale=0.95,
     vertex/.style={{circle, draw=danavy, fill=dablue!15, thick, inner sep=0pt, minimum size=7.0mm, font=\small\bfseries\color{{danavy}}}},
@@ -1028,7 +1029,7 @@ def _build_traversable_network_tikz() -> str:
 
 def _build_degree_loop_network_tikz() -> str:
     return rf"""\begin{{center}}
-\begin{{adjustbox}}{{max width=0.85\linewidth, max totalheight=3.4cm, keepaspectratio, center}}
+\begin{{adjustbox}}{{max width=0.88\linewidth, max totalheight=5.0cm, keepaspectratio, center}}
 \begin{{tikzpicture}}[
     scale=0.95,
     vertex/.style={{circle, draw=danavy, fill=dablue!15, thick, inner sep=0pt, minimum size=7.0mm, font=\small\bfseries\color{{danavy}}}},
@@ -1198,7 +1199,7 @@ def _build_right_triangle_tikz(t_clean: str) -> str:
 \node[right, font=\footnotesize\bfseries\color{{dablue}}] at (0.85, 0.25) {{$\theta$}};"""
 
     return rf"""\begin{{center}}
-\begin{{adjustbox}}{{max width=0.85\linewidth, max totalheight=3.4cm, keepaspectratio, center}}
+\begin{{adjustbox}}{{max width=0.88\linewidth, max totalheight=5.0cm, keepaspectratio, center}}
 \begin{{tikzpicture}}[scale=0.9]
 \coordinate (A) at (0, 0);
 \coordinate (B) at (4.0, 0);
@@ -1218,7 +1219,7 @@ def _build_parallel_lines_transversal_tikz(t_clean: str) -> str:
     angle_m = re.search(r'\b([1-8]\d)\s*(?:\^?\\circ|degrees?)\b', t_clean, re.IGNORECASE)
     angle_val = f"{angle_m.group(1)}^\\circ" if angle_m else "65^\\circ"
     return rf"""\begin{{center}}
-\begin{{adjustbox}}{{max width=0.85\linewidth, max totalheight=3.4cm, keepaspectratio, center}}
+\begin{{adjustbox}}{{max width=0.88\linewidth, max totalheight=5.0cm, keepaspectratio, center}}
 \begin{{tikzpicture}}[scale=0.9]
 \draw[line width=1.1pt, danavy] (-0.5, 2.0) -- (4.8, 2.0);
 \draw[line width=1.1pt, danavy] (-0.5, 0.0) -- (4.8, 0.0);
@@ -2021,6 +2022,19 @@ def split_implication_chain(raw_line: str, indent: str = r"\hspace*{0.4cm}", mar
     return steps
 
 
+def _break_run_on_solution_lines(text: str) -> str:
+    """Separate prose steps without splitting equations inside LaTeX math mode."""
+    tokens = re.split(r"(\$\$[\s\S]*?\$\$|\$[^$]*\$|\\\[[\s\S]*?\\\])", text)
+    for index in range(0, len(tokens), 2):
+        prose = tokens[index]
+        prose = re.sub(r"(\[[^\]]*\bmarks?\])\s+(?=\S)", r"\1\n", prose, flags=re.IGNORECASE)
+        prose = re.sub(r"(?<=[.!?])\s+(?=[A-Z])", "\n", prose)
+        prose = re.sub(r"\s+(?=\d+[.)](?:\s|$))", "\n", prose)
+        prose = re.sub(r"\s+(?=Final Answer\s*:)", "\n", prose, flags=re.IGNORECASE)
+        tokens[index] = prose
+    return "".join(tokens)
+
+
 def format_latex_solution_steps(raw_sol: str) -> str:
     """
     Formats mathematical solutions vertically down, one step per line,
@@ -2029,7 +2043,7 @@ def format_latex_solution_steps(raw_sol: str) -> str:
     """
     if not raw_sol:
         return ""
-    text_clean = str(raw_sol).strip()
+    text_clean = _break_run_on_solution_lines(str(raw_sol).strip())
     text_clean = clean_set_notation(text_clean)
     # Preserve LaTeX commands starting with \n (e.g. \ne, \neq, \notin, \node, \noindent, \newline, etc.)
     text_clean = re.sub(
@@ -2244,7 +2258,7 @@ def format_latex_practice_solution(raw_sol: str) -> str:
     """
     if not raw_sol:
         return ""
-    text = str(raw_sol).strip()
+    text = _break_run_on_solution_lines(str(raw_sol).strip())
     text = clean_set_notation(text)
     # Preserve LaTeX commands starting with \n
     text = re.sub(
@@ -2672,6 +2686,75 @@ def split_question_subparts(text: str) -> tuple:
     return text, []
 
 
+def _collinear_3d_parameter(question: str) -> Optional[Tuple[str, Fraction]]:
+    """Solve a three-point 3D collinearity prompt with one unknown coordinate.
+
+    Return None for prompts outside this narrow, deterministic form so other
+    vector questions are left to the normal mathematics audit.
+    """
+    if not re.search(r"\bcollinear\b", question, re.IGNORECASE):
+        return None
+    point_pattern = re.compile(
+        r"(?<![A-Za-z])([A-Z])\s*\(\s*([+-]?\d+|[a-z])\s*,\s*"
+        r"([+-]?\d+|[a-z])\s*,\s*([+-]?\d+|[a-z])\s*\)"
+    )
+    points = [match.groups() for match in point_pattern.finditer(question)]
+    if len(points) != 3 or len({point[0] for point in points}) != 3:
+        return None
+    first, second, third = [point[1:] for point in points]
+    if not all(value.lstrip("+-").isdigit() for value in first + second):
+        return None
+    variables = [value for value in third if not value.lstrip("+-").isdigit()]
+    if len(variables) != 1:
+        return None
+    variable = variables[0]
+    p = tuple(map(int, first))
+    q = tuple(map(int, second))
+    pq = tuple(q[i] - p[i] for i in range(3))
+    if pq == (0, 0, 0):
+        raise ValueError("The first two points coincide, so the collinearity question is ambiguous.")
+    pr_constant = tuple((0 if value == variable else int(value)) - p[i] for i, value in enumerate(third))
+    pr_coefficient = tuple(int(value == variable) for value in third)
+    required_values = set()
+    for i, j in ((1, 2), (2, 0), (0, 1)):
+        constant = pq[i] * pr_constant[j] - pq[j] * pr_constant[i]
+        coefficient = pq[i] * pr_coefficient[j] - pq[j] * pr_coefficient[i]
+        if coefficient:
+            required_values.add(Fraction(-constant, coefficient))
+        elif constant:
+            raise ValueError("The fixed coordinates cannot be collinear for any value of the parameter.")
+    if len(required_values) != 1:
+        raise ValueError("The collinearity question has no unique parameter value.")
+    return variable, required_values.pop()
+
+
+def validate_booklet_collinearity(booklet_data: Dict[str, Any]) -> None:
+    """Reject inconsistent 3D collinearity questions before publication."""
+    for concept_index, concept in enumerate(booklet_data.get("concepts", []), 1):
+        for field in ("teacher_examples", "checking_understanding_questions", "practice_questions",
+                      "worked_past_paper_examples", "mastery_examples", "review_questions"):
+            for item_index, item in enumerate(concept.get(field, []) or [], 1):
+                if not isinstance(item, dict):
+                    continue
+                question = str(item.get("problem_text") or item.get("text") or item.get("question") or "")
+                try:
+                    result = _collinear_3d_parameter(question)
+                    if result is None:
+                        continue
+                    variable, expected = result
+                    for field_name in ("final_answer", "answer", "worked_solution", "solution", "solution_text", "solution_steps"):
+                        answer = str(item.get(field_name) or "")
+                        for stated in re.finditer(
+                            rf"(?<![A-Za-z]){re.escape(variable)}\s*=\s*([+-]?\d+(?:/\d+)?)", answer
+                        ):
+                            if Fraction(stated.group(1)) != expected:
+                                raise ValueError(
+                                    f"The stated answer conflicts with the coordinate data; {variable} = {expected}."
+                                )
+                except ValueError as exc:
+                    raise ValueError(f"Concept {concept_index}, {field} item {item_index}: {exc}") from exc
+
+
 def split_stem_bullet_items(text: str) -> tuple:
     """
     Detects comparative bullet items or sub-options inside a question stem, e.g.:
@@ -2970,7 +3053,7 @@ def format_hsc_solution_latex(sol: str) -> str:
     if not sol:
         return ""
 
-    text = str(sol).strip()
+    text = _break_run_on_solution_lines(str(sol).strip())
 
     # 1. Strip markdown bold asterisks around Step headers
     text = re.sub(r'^\s*\*{1,2}\s*(Step\s+\d+|Method\s+\d+|Case\s+\d+|Condition\s+\d+|Part\s+[A-Za-z0-9]+)\s*[:\-]?\s*(.*?)\s*\*{0,2}\s*$', r'\1: \2', text, flags=re.MULTILINE | re.IGNORECASE)
@@ -3614,24 +3697,84 @@ def sanitize_tikz_diagram(diag: str) -> str:
         return prefix + "[" + opts + "]"
     s = re.sub(r"(node\s*)\[([^\]]*)\]", _transparent_text_node, s)
 
-    # Auto-scale TikZ coordinates if large coordinate ranges are detected without explicit unit scaling
+    # Auto-scale TikZ coordinates so graphs are generously sized and readable (never stamp-sized or page-breaking)
     coords = re.findall(r'\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)', s)
-    if len(coords) >= 2:
+    domain_m = re.findall(r'domain\s*=\s*(-?\d+(?:\.\d+)?)\s*:\s*(-?\d+(?:\.\d+)?)', s)
+    if len(coords) >= 2 or (coords and domain_m):
         try:
             xs = [float(x) for x, y in coords]
             ys = [float(y) for x, y in coords]
+            if domain_m:
+                for d_min, d_max in domain_m:
+                    xs.extend([float(d_min), float(d_max)])
             dx = max(xs) - min(xs)
             dy = max(ys) - min(ys)
-            if dy > 7.0 and not re.search(r'\by\s*=', s) and not re.search(r'\byscale\s*=', s):
-                scale_x = round(min(1.1, max(0.45, 6.8 / dx)), 2) if dx > 0 else 1.0
-                scale_y = round(min(1.0, max(0.12, 4.8 / dy)), 2) if dy > 0 else 1.0
-                # Prepend x and y scale into \begin{tikzpicture}[...]
-                if re.search(r'\\begin\{tikzpicture\}\s*\[', s):
-                    s = re.sub(r'(\\begin\{tikzpicture\}\s*\[)', rf'\1x={scale_x}cm, y={scale_y}cm, ', s, count=1)
-                else:
-                    s = re.sub(r'\\begin\{tikzpicture\}', rf'\\begin{{tikzpicture}}[x={scale_x}cm, y={scale_y}cm]', s, count=1)
+            if dx >= 0.2 and dy >= 0.2:
+                # Check existing scale in \begin{tikzpicture}[...]
+                opt_match = re.search(r'\\begin\{tikzpicture\}\s*(\[[^\]]*\])?', s)
+                opts = opt_match.group(1) if opt_match and opt_match.group(1) else ""
+
+                cur_x = 1.0
+                cur_y = 1.0
+                cur_scale = 1.0
+
+                m_x = re.search(r'\bx\s*=\s*([0-9\.]+)\s*(?:cm)?\b', opts)
+                if m_x:
+                    cur_x = float(m_x.group(1))
+
+                m_y = re.search(r'\by\s*=\s*([0-9\.]+)\s*(?:cm)?\b', opts)
+                if m_y:
+                    cur_y = float(m_y.group(1))
+
+                m_s = re.search(r'\bscale\s*=\s*([0-9\.]+)\b', opts)
+                if m_s:
+                    cur_scale = float(m_s.group(1))
+
+                eff_w = dx * cur_x * cur_scale
+                eff_h = dy * cur_y * cur_scale
+
+                # Desired target range: width ~7.5cm to 10.5cm, height ~4.5cm to 5.5cm
+                target_w = 8.5
+                target_h = 5.0
+
+                # Rescale if effective dimensions are too small or excessively large
+                if eff_w < 7.0 or eff_h < 4.2 or eff_w > 12.0 or eff_h > 6.2:
+                    is_geom_circle = bool(
+                        re.search(r'circle\s*\(\s*(?!\d+\s*pt|\d+\s*mm)[0-9\.]+\s*(?:cm)?\s*\)', s)
+                        or re.search(r'circle\s*\[\s*radius\s*=\s*(?!\d+\s*pt|\d+\s*mm)', s)
+                    )
+                    if is_geom_circle:
+                        iso_scale = round(min(target_w / dx, 5.2 / dy), 2)
+                        iso_scale = max(0.6, min(3.5, iso_scale))
+                        new_x = iso_scale
+                        new_y = iso_scale
+                    else:
+                        new_x = round(min(5.0, max(0.45, target_w / dx)), 2)
+                        new_y = round(min(5.0, max(0.15, target_h / dy)), 2)
+
+                    clean_opts = opts.strip("[]")
+                    clean_opts = re.sub(r'\b(?:x|y)\s*=\s*[0-9\.]+\s*(?:cm|pt|mm|in)?\s*,?', '', clean_opts)
+                    clean_opts = re.sub(r'\bscale\s*=\s*[0-9\.]+\s*,?', '', clean_opts)
+                    clean_opts = re.sub(r',\s*,', ',', clean_opts).strip(" ,")
+
+                    scale_str = f"x={new_x}cm, y={new_y}cm"
+                    new_opts = f"[{scale_str}, {clean_opts}]" if clean_opts else f"[{scale_str}]"
+
+                    if opt_match and opt_match.group(1):
+                        s = s[:opt_match.start(1)] + new_opts + s[opt_match.end(1):]
+                    else:
+                        s = re.sub(r'\\begin\{tikzpicture\}', rf'\\begin{{tikzpicture}}{new_opts}', s, count=1)
         except Exception:
             pass
+
+    # Prevent collision when a curve label ($y = ...$ or $f(x) = ...$) is attached at a plot boundary
+    # while a point coordinate label (e.g. $(1, \pi/4)$) is also placed near that same point:
+    if re.search(r'\\fill.*?circle.*?node.*?\(', s) and re.search(r'node\[[^\]]*above\s*right[^\]]*\]\s*\{(?:\$)?(?:y\s*=|f\([a-z]\)\s*=)', s):
+        s = re.sub(
+            r'(node\[[^\]]*?)above\s*right([^\]]*\]\s*\{(?:\$)?(?:y\s*=|f\([a-z]\)\s*=))',
+            r'\1above left=8pt\2',
+            s
+        )
 
     # Detect broken linear function diagrams where x-intercept or theta is detached:
     if ("mx + c" in s or "mx+c" in s) and ("c/m" in s or r"\frac{c}{m}" in s):
@@ -4350,6 +4493,44 @@ def clean_worksheet_topic_title(topic: str) -> str:
     cleaned = cleaned.replace("_", " ")
     cleaned = re.sub(r'\s+', ' ', cleaned).strip()
     return cleaned or "Mathematics"
+
+def format_compact_booklet_header(year_level: str, topic: str) -> Tuple[str, str, str]:
+    """
+    Formats clean, non-overflowing header strings for LaTeX booklets and worksheets:
+    1. 'Year 12' -> 'Yr 12', 'Year 11' -> 'Yr 11', etc.
+    2. 'Extension 1' -> 'Ext 1', 'Extension 2' -> 'Ext 2', 'Advanced' -> 'Adv', 'Standard' -> 'Std'.
+    3. Trailing course deduplication:
+       If year_level specifies '(Ext 1)', '(Ext 2)', etc., strip duplicate trailing
+       '(Extension 1)', '(Ext 1)', '(Extension 2)', '(Ext 2)', etc. from topic.
+    Returns: (compact_subject, clean_topic, combined_header)
+    e.g. ('Yr 12 (Ext 1) Maths', 'Inverse trigonometric functions', 'Yr 12 (Ext 1) Maths --- Inverse trigonometric functions')
+    """
+    raw_yl = str(year_level or "").strip()
+
+    # Abbreviate Year -> Yr
+    compact_yl = re.sub(r'\bYear\b', 'Yr', raw_yl, flags=re.IGNORECASE)
+    # Abbreviate Extension 1 -> Ext 1, Extension 2 -> Ext 2, etc.
+    compact_yl = re.sub(r'\bExtension\s*1\b', 'Ext 1', compact_yl, flags=re.IGNORECASE)
+    compact_yl = re.sub(r'\bExtension\s*2\b', 'Ext 2', compact_yl, flags=re.IGNORECASE)
+    compact_yl = re.sub(r'\bAdvanced\b', 'Adv', compact_yl, flags=re.IGNORECASE)
+    compact_yl = re.sub(r'\bStandard\b', 'Std', compact_yl, flags=re.IGNORECASE)
+
+    compact_yl = re.sub(r'\s+', ' ', compact_yl).strip()
+    if not compact_yl:
+        compact_subject = "Maths"
+    elif compact_yl.lower().endswith("maths") or compact_yl.lower().endswith("mathematics"):
+        compact_subject = compact_yl
+    else:
+        compact_subject = f"{compact_yl} Maths"
+
+    clean_topic = clean_worksheet_topic_title(topic)
+
+    # Strip redundant trailing course label from clean_topic if already in compact_subject
+    clean_topic = re.sub(r'\s*[\(\[\{\-\–\—\:]\s*(?:Extension\s*1|Ext\s*1|Extension\s*2|Ext\s*2|Advanced|Adv|Standard|Std)[\)\]\}]?\s*$', '', clean_topic, flags=re.IGNORECASE).strip()
+    clean_topic = re.sub(r'[\-\–\—\:\,\s]+$', '', clean_topic).strip()
+
+    combined_header = f"{compact_subject} --- {clean_topic}" if clean_topic else compact_subject
+    return compact_subject, clean_topic, combined_header
 
 def get_tiered_sections_for_questions(questions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
@@ -5226,8 +5407,8 @@ def build_masterclass_theory_box_content(
             # Give the factorial unrolling model enough room for labels above
             # both arrows; other diagrams retain the compact theory-card size.
             unroll_model = "Unroll $(n-1)$" in diag_clean
-            max_width = "0.94" if (unroll_model or sign_model) else "0.88"
-            max_height = "3.3" if (unroll_model or sign_model) else "2.8"
+            max_width = "0.94" if (unroll_model or sign_model) else "0.90"
+            max_height = "3.8" if (unroll_model or sign_model) else "3.4"
             diag_clean = f"\\begin{{adjustbox}}{{max width={max_width}\\linewidth, max totalheight={max_height}cm, keepaspectratio, center}}\n{diag_clean}\n\\end{{adjustbox}}"
             cards.append(
                 "\\noindent\\colorbox{slatebg}{\\parbox{\\dimexpr\\linewidth-2\\fboxsep\\relax}{%\n"
@@ -5336,10 +5517,10 @@ def build_latex_worksheet_source(
     font_theme: str = "charter"
 ) -> str:
     """Builds the complete LaTeX source string for an authentic Australian exam worksheet."""
-    subject_clean = f"{year_level} Maths"
+    compact_subject, clean_topic, _ = format_compact_booklet_header(year_level, topic)
+    subject_clean = compact_subject
     questions = order_and_renumber_worksheet_questions(questions)
     groups = group_questions_by_subtopic(questions)
-    clean_topic = clean_worksheet_topic_title(topic)
 
     if str(sheet_type).strip().lower() == "homework":
         set_str = f" Set {set_number if set_number else 1}"
@@ -5373,8 +5554,8 @@ def build_latex_worksheet_source(
         "",
         r"\pagestyle{fancy}",
         r"\fancyhf{}",
-        f"\\fancyhead[L]{{\\parbox[b]{{0.55\\textwidth}}{{\\raggedright\\footnotesize\\bfseries {subject_clean}}}}}",
-        f"\\fancyhead[R]{{\\parbox[b]{{0.42\\textwidth}}{{\\raggedleft\\footnotesize\\bfseries {sheet_type_label} --- DA TUITION}}}}",
+        f"\\fancyhead[L]{{\\parbox[b]{{0.58\\textwidth}}{{\\raggedright\\footnotesize\\bfseries {subject_clean}}}}}",
+        f"\\fancyhead[R]{{\\parbox[b]{{0.40\\textwidth}}{{\\raggedleft\\footnotesize\\bfseries {sheet_type_label} --- DA TUITION}}}}",
         r"\fancyfoot[C]{\thepage}",
         r"\renewcommand{\headrulewidth}{0.4pt}",
         "",
@@ -7988,6 +8169,33 @@ def generate_lesson_cover_sheet_pdf(
 # THEORY BOOKLET GENERATOR (TEACHER & STUDENT EDITIONS)
 # =========================================================================
 
+def _separate_theory_question_diagram(text: str, diagram: Optional[str]) -> Tuple[str, str]:
+    """Remove copies of a standalone question diagram from the stem."""
+    text = str(text or "")
+    diagram = str(diagram or "").strip()
+    picture = re.compile(r"\\begin\{tikzpicture\}.*?\\end\{tikzpicture\}", re.DOTALL)
+    embedded = list(picture.finditer(text))
+    if not embedded:
+        return text, diagram
+
+    if not diagram and len(embedded) == 1:
+        # Promote a single trailing inline figure to the normal diagram block.
+        match = embedded[0]
+        before = text[:match.start()].rstrip()
+        after = text[match.end():].strip()
+        if not after or (after == r"\end{center}" and before.endswith(r"\begin{center}")):
+            diagram = match.group()
+
+    if not diagram:
+        return text, diagram
+
+    standalone = {" ".join(match.group().split()) for match in picture.finditer(diagram)}
+    stem = picture.sub(lambda match: "" if " ".join(match.group().split()) in standalone else match.group(), text)
+    if stem != text:
+        stem = re.sub(r"\\begin\{center\}\s*\\end\{center\}", "", stem).strip()
+    return stem, diagram
+
+
 def build_latex_theory_booklet_source(
     booklet_data: Dict[str, Any],
     mode: str = "teacher",
@@ -7997,6 +8205,8 @@ def build_latex_theory_booklet_source(
     font_theme: str = "charter"
 ) -> str:
     """Builds the complete LaTeX source string for an official DA Tuition Theory Booklet."""
+    booklet_data = enforce_australian_english_dict(booklet_data)
+    validate_booklet_collinearity(booklet_data)
     booklet_data = sanitize_out_of_syllabus_abs_y(booklet_data)
     year_level = booklet_data.get("year_level", "Mathematics")
     topic = booklet_data.get("topic", "Theory & Practice Booklet")
@@ -8018,13 +8228,8 @@ def build_latex_theory_booklet_source(
         edition_label = r"THEORY STUDENT CLASS (IN-CLASS WORKBOOK)"
         short_edition = "Student Class"
         badge_bg = "dagreen"
-    year_str = str(year_level).strip()
-    if year_str.lower().endswith("maths") or year_str.lower().endswith("mathematics"):
-        subject_clean = year_str
-    else:
-        subject_clean = f"{year_str} Maths"
-    clean_topic = clean_worksheet_topic_title(topic)
-    topic_header = f"{subject_clean} --- {clean_topic}"
+    compact_subject, clean_topic, topic_header = format_compact_booklet_header(year_level, topic)
+    subject_clean = compact_subject
 
     font_key = booklet_data.get("font_theme") or font_theme or "charter"
     font_lines = get_font_latex_preamble(font_key)
@@ -8069,8 +8274,8 @@ def build_latex_theory_booklet_source(
         "",
         r"\pagestyle{fancy}",
         r"\fancyhf{}",
-        f"\\fancyhead[L]{{\\parbox[b]{{0.62\\textwidth}}{{\\raggedright\\footnotesize\\bfseries {sanitize_for_latex(topic_header)}}}}}",
-        f"\\fancyhead[R]{{\\parbox[b]{{0.36\\textwidth}}{{\\raggedleft\\footnotesize\\bfseries DA Tuition --- {short_edition}}}}}",
+        f"\\fancyhead[L]{{\\parbox[b]{{0.68\\textwidth}}{{\\raggedright\\footnotesize\\bfseries {sanitize_for_latex(topic_header)}}}}}",
+        f"\\fancyhead[R]{{\\parbox[b]{{0.30\\textwidth}}{{\\raggedleft\\footnotesize\\bfseries DA Tuition --- {short_edition}}}}}",
         r"\fancyfoot[C]{\thepage}",
         r"\renewcommand{\headrulewidth}{0.4pt}",
         "",
@@ -8123,6 +8328,7 @@ def build_latex_theory_booklet_source(
         r"    coltitle=white,",
         r"    fonttitle=\bfseries\small\sffamily,",
         f"    title={{{theory_box_title}}},",
+        r"    varwidth boxed title=0.88\linewidth,",
         r"    before skip=1pt,",
         r"    after skip=6pt,",
         r"    breakable,",
@@ -8142,6 +8348,7 @@ def build_latex_theory_booklet_source(
         r"    colbacktitle=white,",
         r"    attach boxed title to top left={yshift=-2mm, xshift=4mm},",
         r"    boxed title style={boxrule=0.5pt, colframe=dagreen!30, arc=2pt},",
+        r"    varwidth boxed title=0.88\linewidth,",
         r"    before skip=1pt,",
         r"    breakable",
         r"}",
@@ -8279,7 +8486,7 @@ def build_latex_theory_booklet_source(
             heading_title = sanitize_for_latex(c_name)
         else:
             heading_title = f"Concept {part_letter}: {sanitize_for_latex(c_name)}"
-        tex_lines.append(f"\\noindent{{\\Large\\textbf{{\\color{{danavy}}\\rule[-2pt]{{3.5pt}}{{14pt}}\\hspace{{6pt}}{heading_title}}}}}\\label{{sec:concept_{c_idx}}}\\\\[0.05cm]")
+        tex_lines.append(f"\\noindent\\parbox[t]{{0.96\\linewidth}}{{\\raggedright\\Large\\bfseries\\color{{danavy}}\\rule[-2pt]{{3.5pt}}{{14pt}}\\hspace{{6pt}}{heading_title}}}\\label{{sec:concept_{c_idx}}}\\par\\vspace{{0.05cm}}")
         if not is_student_class:
             tex_lines.append(r"\nopagebreak")
             tex_lines.append(r"\vspace{-0.22cm}")
@@ -8338,7 +8545,7 @@ def build_latex_theory_booklet_source(
                 demo_needspace = "7.0cm" if first_reserve == "6.0cm" else "12.0cm"
                 tex_lines.append(f"\\needspace{{{demo_needspace}}}")
             elif is_teacher:
-                demo_needspace = "7.0cm"
+                demo_needspace = "9.0cm"
                 tex_lines.append(f"\\needspace{{{demo_needspace}}}")
             if is_student_class:
                 tex_lines.append(f"\\noindent{{\\large\\bfseries\\color{{danavy}}Teacher Demonstration Examples}}\\label{{sec:demo_{c_idx}}}\\par\\vspace{{0.10cm}}")
@@ -8351,7 +8558,9 @@ def build_latex_theory_booklet_source(
                 p_text = ex.get("problem_text", "")
                 w_sol = ex.get("worked_solution", "")
                 t_notes = ex.get("teaching_notes", "")
-                ex_diag = ex.get("diagram_tikz") or ex.get("tikz_diagram") or ex.get("diagram")
+                p_text, ex_diag = _separate_theory_question_diagram(
+                    p_text, ex.get("diagram_tikz") or ex.get("tikz_diagram") or ex.get("diagram")
+                )
                 if not ex_diag or not str(ex_diag).strip():
                     fallback_diag = synthesize_network_diagram_from_text(p_text, topic=topic, concept_name=c_name)
                     if fallback_diag:
@@ -8367,23 +8576,30 @@ def build_latex_theory_booklet_source(
                 # its worked solution. Reserve enough room to move the whole
                 # example forward instead of leaving the question stranded at
                 # the bottom of one page.
-                ex_needspace = private_example_reserve(ex) if is_student_private else ("1.5cm" if not is_teacher else "5.0cm")
+                if is_student_private:
+                    ex_needspace = private_example_reserve(ex)
+                elif is_teacher:
+                    ex_needspace = "8.0cm" if len(p_text) + len(w_sol) + len(t_notes) < 600 else "5.0cm"
+                else:
+                    ex_needspace = "1.5cm"
                 tex_lines.append(f"\\needspace{{{ex_needspace}}}")
                 if is_student_private:
                     tex_lines.append(r"\begin{samepage}")
                 tex_lines.append(f"\\noindent\\textbf{{{ex_heading}}}\\\\[0.15cm]")
                 p_lines = format_latex_question_with_subparts(p_text, as_item=False)
                 p_body = "\n".join(p_lines)
+                tex_lines.append(r"{\raggedright")
                 if is_student_private or is_student_class:
                     tex_lines.append(p_body + r"\par\vspace{0.02cm}")
                 elif p_body.strip().endswith(r"\end{enumerate}"):
                     tex_lines.append(p_body + r"\vspace{-0.25cm}")
                 else:
                     tex_lines.append(p_body + r"\par\vspace{-0.12cm}")
+                tex_lines.append("}")
                 if ex_diag and str(ex_diag).strip():
                     clean_ex_diag = sanitize_tikz_diagram(str(ex_diag).strip())
-                    clean_ex_diag = re.sub(r'max totalheight=[0-9\.]+cm', 'max totalheight=2.8cm', clean_ex_diag)
-                    clean_ex_diag = re.sub(r'max width=[0-9\.]+\\linewidth', r'max width=0.82\\linewidth', clean_ex_diag)
+                    clean_ex_diag = re.sub(r'max totalheight=[0-9\.]+cm', 'max totalheight=5.2cm', clean_ex_diag)
+                    clean_ex_diag = re.sub(r'max width=[0-9\.]+\\linewidth', r'max width=0.88\\linewidth', clean_ex_diag)
                     tex_lines.append(clean_ex_diag)
                     tex_lines.append(r"\vspace{0.15cm}")
 
@@ -8394,8 +8610,8 @@ def build_latex_theory_booklet_source(
                     tex_lines.append(format_latex_solution_steps(w_sol))
                     if sol_diag and str(sol_diag).strip():
                         clean_sol_diag = sanitize_tikz_diagram(str(sol_diag).strip())
-                        clean_sol_diag = re.sub(r'max totalheight=[0-9\.]+cm', 'max totalheight=2.8cm', clean_sol_diag)
-                        clean_sol_diag = re.sub(r'max width=[0-9\.]+\\linewidth', r'max width=0.82\\linewidth', clean_sol_diag)
+                        clean_sol_diag = re.sub(r'max totalheight=[0-9\.]+cm', 'max totalheight=5.2cm', clean_sol_diag)
+                        clean_sol_diag = re.sub(r'max width=[0-9\.]+\\linewidth', r'max width=0.88\\linewidth', clean_sol_diag)
                         tex_lines.append(r"\par\vspace{0.15cm}")
                         tex_lines.append(clean_sol_diag)
                     tex_lines.append(r"\end{solutionbox}")
@@ -8420,14 +8636,16 @@ def build_latex_theory_booklet_source(
             for check_idx, cq in enumerate(checking_questions, 1):
                 check_num = cq.get("q_num", check_idx)
                 check_text = cq.get("text") or cq.get("question_text") or cq.get("question") or ""
-                check_diag = cq.get("diagram_tikz") or cq.get("tikz_diagram") or cq.get("diagram") or ""
+                check_text, check_diag = _separate_theory_question_diagram(
+                    check_text, cq.get("diagram_tikz") or cq.get("tikz_diagram") or cq.get("diagram")
+                )
                 tex_lines.append(r"\needspace{3.5cm}")
                 check_body = "\n".join(format_latex_question_with_subparts(check_text, as_item=False))
-                tex_lines.append(f"\\noindent\\textbf{{{check_num}.}}\\enspace {check_body}\\par\\vspace{{0.08cm}}")
+                tex_lines.append(f"{{\\raggedright\\noindent\\textbf{{{check_num}.}}\\enspace {check_body}\\par}}\\vspace{{0.08cm}}")
                 if check_diag and str(check_diag).strip():
                     clean_check_diag = sanitize_tikz_diagram(str(check_diag).strip())
-                    clean_check_diag = re.sub(r'max totalheight=[0-9\.]+cm', 'max totalheight=2.4cm', clean_check_diag)
-                    clean_check_diag = re.sub(r'max width=[0-9\.]+\\linewidth', r'max width=0.78\\linewidth', clean_check_diag)
+                    clean_check_diag = re.sub(r'max totalheight=[0-9\.]+cm', 'max totalheight=4.8cm', clean_check_diag)
+                    clean_check_diag = re.sub(r'max width=[0-9\.]+\\linewidth', r'max width=0.85\\linewidth', clean_check_diag)
                     tex_lines.append(clean_check_diag)
                     tex_lines.append(r"\vspace{0.08cm}")
                 if is_teacher:
@@ -8467,7 +8685,9 @@ def build_latex_theory_booklet_source(
                     q_text = pq.get("text") or pq.get("question_text") or pq.get("question") or ""
                     ans = pq.get("final_answer") or pq.get("answer") or ""
                     worked = pq.get("worked_solution") or pq.get("solution") or ""
-                    pq_diag = pq.get("diagram_tikz") or pq.get("tikz_diagram") or pq.get("diagram")
+                    q_text, pq_diag = _separate_theory_question_diagram(
+                        q_text, pq.get("diagram_tikz") or pq.get("tikz_diagram") or pq.get("diagram")
+                    )
                     if not pq_diag or not str(pq_diag).strip():
                         fallback_diag = synthesize_network_diagram_from_text(q_text, topic=topic, concept_name=c_name)
                         if fallback_diag:
@@ -8490,18 +8710,20 @@ def build_latex_theory_booklet_source(
                     q_subpart_lines = format_latex_question_with_subparts(q_text, as_item=False)
                     item_body = "\n".join(q_subpart_lines)
 
-                    # For practice questions, sanitize diagram and constrain height to 2.6cm and width to 0.82\linewidth
+                    # For practice questions, sanitize diagram and provide generous sizing (max height 5.2cm, max width 0.88\linewidth)
                     clean_pq_diag = ""
                     if pq_diag and str(pq_diag).strip():
                         diag_raw = sanitize_tikz_diagram(str(pq_diag).strip())
-                        clean_pq_diag = re.sub(r'max totalheight=[0-9\.]+cm', 'max totalheight=2.6cm', diag_raw)
-                        clean_pq_diag = re.sub(r'max width=[0-9\.]+\\linewidth', r'max width=0.82\\linewidth', clean_pq_diag)
+                        clean_pq_diag = re.sub(r'max totalheight=[0-9\.]+cm', 'max totalheight=5.2cm', diag_raw)
+                        clean_pq_diag = re.sub(r'max width=[0-9\.]+\\linewidth', r'max width=0.88\\linewidth', clean_pq_diag)
 
                     item_lines = [
                         r"\needspace{3.2cm}",
                         r"\begin{samepage}",
                         r"\item",
-                        item_body
+                        r"{\raggedright",
+                        item_body,
+                        r"\par}",
                     ]
                     if clean_pq_diag:
                         item_lines.append(r"\vspace{0.06cm}")
@@ -8516,8 +8738,8 @@ def build_latex_theory_booklet_source(
                             item_lines.append(f"{{\\footnotesize\\color{{danavy!85!black}}\\textbf{{Step-by-Step Working:}}\\par\\vspace{{0.03cm}}\n{fmt_w}}}")
                         if pq_sol_diag and str(pq_sol_diag).strip():
                             clean_pq_sol_diag = sanitize_tikz_diagram(str(pq_sol_diag).strip())
-                            clean_pq_sol_diag = re.sub(r'max totalheight=[0-9\.]+cm', 'max totalheight=2.6cm', clean_pq_sol_diag)
-                            clean_pq_sol_diag = re.sub(r'max width=[0-9\.]+\\linewidth', r'max width=0.82\\linewidth', clean_pq_sol_diag)
+                            clean_pq_sol_diag = re.sub(r'max totalheight=[0-9\.]+cm', 'max totalheight=5.2cm', clean_pq_sol_diag)
+                            clean_pq_sol_diag = re.sub(r'max width=[0-9\.]+\\linewidth', r'max width=0.88\\linewidth', clean_pq_sol_diag)
                             item_lines.append(r"\par\vspace{0.08cm}")
                             item_lines.append(clean_pq_sol_diag)
                         item_lines.append(r"\end{practicesolutionbox}")
@@ -9198,6 +9420,8 @@ def generate_theory_booklet_pdf(
     Attempts native LaTeX compilation first with tcolorbox.
     Falls back to ReportLab if pdflatex is unavailable.
     """
+    booklet_data = enforce_australian_english_dict(booklet_data)
+    validate_booklet_collinearity(booklet_data)
     latex_bytes = generate_latex_theory_booklet_pdf(
         booklet_data=booklet_data,
         mode=mode,
@@ -9210,7 +9434,10 @@ def generate_theory_booklet_pdf(
     if latex_bytes:
         result = prune_trailing_blank_pages(latex_bytes, topic=topic_str, year_level=yl_str)
         if str(mode).strip().lower() in ("student_private", "private", "student private"):
-            result = fill_sparse_private_theory_pages(result, booklet_data)
+            yl_lower = yl_str.lower()
+            is_senior = any(k in yl_lower for k in ("11", "12", "extension", "ext", "advanced", "adv", "stage 6"))
+            if not is_senior and not booklet_data.get("disable_fillers", False):
+                result = fill_sparse_private_theory_pages(result, booklet_data)
         return result
     rl_bytes = generate_reportlab_theory_booklet_pdf(
         booklet_data=booklet_data,
@@ -9220,7 +9447,10 @@ def generate_theory_booklet_pdf(
     )
     result = prune_trailing_blank_pages(rl_bytes, topic=topic_str, year_level=yl_str)
     if str(mode).strip().lower() in ("student_private", "private", "student private"):
-        result = fill_sparse_private_theory_pages(result, booklet_data)
+        yl_lower = yl_str.lower()
+        is_senior = any(k in yl_lower for k in ("11", "12", "extension", "ext", "advanced", "adv", "stage 6"))
+        if not is_senior and not booklet_data.get("disable_fillers", False):
+            result = fill_sparse_private_theory_pages(result, booklet_data)
     return result
 
 
@@ -9256,9 +9486,8 @@ def build_latex_review_booklet_source(
         edition_label = r"STUDENT TOPIC REVISION \& MASTERY REVIEW"
         short_edition = "Student Revision"
         badge_bg = "danavy"
-    clean_topic = clean_worksheet_topic_title(topic)
-    subject_clean = f"{year_level} Maths"
-    topic_header = f"{subject_clean} --- {clean_topic}"
+    compact_subject, clean_topic, topic_header = format_compact_booklet_header(year_level, topic)
+    subject_clean = compact_subject
 
     font_key = booklet_data.get("font_theme") or font_theme or "charter"
     font_lines = get_font_latex_preamble(font_key)
@@ -9298,8 +9527,8 @@ def build_latex_review_booklet_source(
         "",
         r"\pagestyle{fancy}",
         r"\fancyhf{}",
-        f"\\fancyhead[L]{{\\parbox[b]{{0.62\\textwidth}}{{\\raggedright\\footnotesize\\bfseries {sanitize_for_latex(topic_header)} Revision}}}}",
-        f"\\fancyhead[R]{{\\parbox[b]{{0.36\\textwidth}}{{\\raggedleft\\footnotesize\\bfseries DA Tuition --- {short_edition}}}}}",
+        f"\\fancyhead[L]{{\\parbox[b]{{0.68\\textwidth}}{{\\raggedright\\footnotesize\\bfseries {sanitize_for_latex(topic_header)} Revision}}}}",
+        f"\\fancyhead[R]{{\\parbox[b]{{0.30\\textwidth}}{{\\raggedleft\\footnotesize\\bfseries DA Tuition --- {short_edition}}}}}",
         r"\fancyfoot[C]{\thepage}",
         r"\renewcommand{\headrulewidth}{0.4pt}",
         "",
@@ -9389,6 +9618,7 @@ def build_latex_review_booklet_source(
         r"    colbacktitle=white,",
         r"    attach boxed title to top left={yshift=-2mm, xshift=4mm},",
         r"    boxed title style={boxrule=0.5pt, colframe=dawine!30, arc=2pt},",
+        r"    varwidth boxed title=0.88\linewidth,",
         r"    breakable,",
         r"    pad at break=2mm,",
         r"    lines before break=2",
@@ -9505,7 +9735,7 @@ def build_latex_review_booklet_source(
             heading_title = sanitize_for_latex(c_name)
         else:
             heading_title = f"Review Part {part_letter}: {sanitize_for_latex(c_name)}"
-        tex_lines.append(f"\\noindent{{\\Large\\textbf{{\\color{{danavy}}\\rule[-2pt]{{3.5pt}}{{14pt}}\\hspace{{6pt}}{heading_title}}}}}\\label{{sec:rev_concept_{c_idx}}}\\\\[0.05cm]")
+        tex_lines.append(f"\\noindent\\parbox[t]{{0.96\\linewidth}}{{\\raggedright\\Large\\bfseries\\color{{danavy}}\\rule[-2pt]{{3.5pt}}{{14pt}}\\hspace{{6pt}}{heading_title}}}\\label{{sec:rev_concept_{c_idx}}}\\par\\vspace{{0.05cm}}")
         tex_lines.append(r"\nopagebreak")
         tex_lines.append(r"\vspace{-0.22cm}")
         tex_lines.append(r"\nopagebreak")
@@ -10433,9 +10663,8 @@ def build_latex_exam_theory_source(
         short_edition = "Exam Study Notes"
         badge_bg = "danavy"
 
-    clean_topic = clean_worksheet_topic_title(topic)
-    subject_clean = year_level if ("math" in year_level.lower()) else f"{year_level} Maths"
-    topic_header = f"{subject_clean} --- {clean_topic}"
+    compact_subject, clean_topic, topic_header = format_compact_booklet_header(year_level, topic)
+    subject_clean = compact_subject
 
     font_key = package_data.get("font_theme") or font_theme or "charter"
     font_lines = get_font_latex_preamble(font_key)
@@ -10467,8 +10696,8 @@ def build_latex_exam_theory_source(
         "",
         r"\pagestyle{fancy}",
         r"\fancyhf{}",
-        f"\\fancyhead[L]{{\\parbox[b]{{0.65\\textwidth}}{{\\raggedright\\footnotesize\\bfseries {sanitize_for_latex(topic_header)} Study Notes}}}}",
-        f"\\fancyhead[R]{{\\parbox[b]{{0.33\\textwidth}}{{\\raggedleft\\footnotesize\\bfseries DA Tuition --- {short_edition}}}}}",
+        f"\\fancyhead[L]{{\\parbox[b]{{0.68\\textwidth}}{{\\raggedright\\footnotesize\\bfseries {sanitize_for_latex(topic_header)} Study Notes}}}}",
+        f"\\fancyhead[R]{{\\parbox[b]{{0.30\\textwidth}}{{\\raggedleft\\footnotesize\\bfseries DA Tuition --- {short_edition}}}}}",
         r"\fancyfoot[C]{\thepage}",
         r"\renewcommand{\headrulewidth}{0.4pt}",
         "",
@@ -10505,6 +10734,7 @@ def build_latex_exam_theory_source(
         r"    colbacktitle=slatebg,",
         r"    attach boxed title to top left={yshift=-2mm, xshift=4mm},",
         r"    boxed title style={boxrule=0pt, colframe=slatebg, arc=2pt},",
+        r"    varwidth boxed title=0.88\linewidth,",
         r"    breakable,",
         r"    enforce breakable,",
         r"    pad at break=2mm,",
@@ -10700,7 +10930,7 @@ def build_latex_exam_theory_source(
             tex_lines.append(r"\clearpage")
         
         heading_title = f"Part {part_letter}: {sanitize_for_latex(c_name)}"
-        tex_lines.append(f"\\noindent{{\\Large\\textbf{{\\color{{danavy}}\\rule[-2pt]{{3.5pt}}{{14pt}}\\hspace{{6pt}}{heading_title}}}}}\\label{{sec:exam_concept_{c_idx}}}\\\\[0.05cm]")
+        tex_lines.append(f"\\noindent\\parbox[t]{{0.96\\linewidth}}{{\\raggedright\\Large\\bfseries\\color{{danavy}}\\rule[-2pt]{{3.5pt}}{{14pt}}\\hspace{{6pt}}{heading_title}}}\\label{{sec:exam_concept_{c_idx}}}\\par\\vspace{{0.05cm}}")
         tex_lines.append(r"\nopagebreak")
         tex_lines.append(r"\vspace{-0.22cm}")
         tex_lines.append(r"\nopagebreak")
@@ -10805,7 +11035,7 @@ def build_latex_exam_theory_source(
                 
                 # Source pill & Marks
                 tex_lines.append(f"\\noindent \\tikz[baseline=-0.6ex]{{\\node[fill=dawine!10, text=dawine, rounded corners=2pt, inner sep=2pt, font=\\scriptsize\\bfseries] {{{sanitize_for_latex(source_tag)}}};}} \\hfill \\textbf{{[{marks_val} Mark{'s' if marks_val != 1 else ''}]}}\\\\[0.2cm]")
-                p_formatted = format_question_parts_latex(sanitize_for_latex(p_text))
+                p_formatted = "\n".join(format_latex_question_with_subparts(p_text, as_item=False))
                 tex_lines.append(f"\\textbf{{Problem Statement:}}\\\\[0.1cm]\n{p_formatted}\\par")
                 if ex_diag and str(ex_diag).strip():
                     tex_lines.append(r"\vspace{0.15cm}")
@@ -10877,9 +11107,8 @@ def build_latex_exam_practice_source(
         short_edition = "Student Practice"
         badge_bg = "danavy"
 
-    clean_topic = clean_worksheet_topic_title(topic)
-    subject_clean = year_level if ("math" in year_level.lower()) else f"{year_level} Maths"
-    topic_header = f"{subject_clean} --- {clean_topic}"
+    compact_subject, clean_topic, topic_header = format_compact_booklet_header(year_level, topic)
+    subject_clean = compact_subject
 
     font_key = package_data.get("font_theme") or font_theme or "charter"
     font_lines = get_font_latex_preamble(font_key)
@@ -10911,8 +11140,8 @@ def build_latex_exam_practice_source(
         "",
         r"\pagestyle{fancy}",
         r"\fancyhf{}",
-        f"\\fancyhead[L]{{\\parbox[b]{{0.65\\textwidth}}{{\\raggedright\\footnotesize\\bfseries {sanitize_for_latex(topic_header)} Practice}}}}",
-        f"\\fancyhead[R]{{\\parbox[b]{{0.33\\textwidth}}{{\\raggedleft\\footnotesize\\bfseries DA Tuition --- {short_edition}}}}}",
+        f"\\fancyhead[L]{{\\parbox[b]{{0.68\\textwidth}}{{\\raggedright\\footnotesize\\bfseries {sanitize_for_latex(topic_header)} Practice}}}}",
+        f"\\fancyhead[R]{{\\parbox[b]{{0.30\\textwidth}}{{\\raggedleft\\footnotesize\\bfseries DA Tuition --- {short_edition}}}}}",
         r"\fancyfoot[C]{\thepage}",
         r"\renewcommand{\headrulewidth}{0.4pt}",
         "",
@@ -11049,7 +11278,7 @@ def build_latex_exam_practice_source(
             tex_lines.append(r"\clearpage")
 
         heading_title = f"Part {part_letter}: {sanitize_for_latex(c_name)} --- Exam Practice"
-        tex_lines.append(f"\\noindent{{\\Large\\textbf{{\\color{{danavy}}\\rule[-2pt]{{3.5pt}}{{14pt}}\\hspace{{6pt}}{heading_title}}}}}\\\\[0.35cm]")
+        tex_lines.append(f"\\noindent\\parbox[t]{{0.96\\linewidth}}{{\\raggedright\\Large\\bfseries\\color{{danavy}}\\rule[-2pt]{{3.5pt}}{{14pt}}\\hspace{{6pt}}{heading_title}}}\\par\\vspace{{0.35cm}}")
 
         if is_solutions:
             for q_idx, q in enumerate(practice_questions, 1):
@@ -11089,7 +11318,7 @@ def build_latex_exam_practice_source(
                 source_badge = f"\\tikz[baseline=-0.6ex]{{\\node[fill=danavy!10, text=danavy, rounded corners=2pt, inner sep=2.5pt, font=\\scriptsize\\bfseries] {{{sanitize_for_latex(source_tag)}}};}}"
                 diff_marks_tag = f"\\mbox{{\\textbf{{[{diff_display} $\\bullet$ {marks}~mark{'s' if marks > 1 else ''}]}}}}"
                 tex_lines.append(f"\\noindent\\textbf{{{q_label}}} \\quad {source_badge} \\hfill {diff_marks_tag}\\\\[0.18cm]")
-                formatted_q_text = format_question_parts_latex(sanitize_for_latex(q_text))
+                formatted_q_text = "\n".join(format_latex_question_with_subparts(q_text, as_item=False))
                 tex_lines.append(formatted_q_text + r"\par\vspace{0.18cm}")
                 if q_diag and str(q_diag).strip():
                     tex_lines.append(sanitize_tikz_diagram(str(q_diag).strip()))

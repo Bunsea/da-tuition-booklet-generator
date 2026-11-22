@@ -960,6 +960,13 @@ def _draw_pun_visual(page_canvas, center_x, center_y, serial, width=180, height=
 
 def fill_sparse_private_theory_pages(pdf_bytes: bytes, booklet_data: Dict[str, Any]) -> bytes:
     """Add one concept-matched brain-break card to Student Private pages with 28%+ blank body area."""
+    # Senior secondary booklets (Year 11, Year 12, Extension 1/2, Advanced, Stage 6)
+    # must NOT include elementary brain-breaks or visual puzzles, as they devalue senior booklets.
+    year_level = str(booklet_data.get("year_level", "")).lower()
+    is_senior = any(k in year_level for k in ("11", "12", "extension", "ext", "advanced", "adv", "stage 6"))
+    if is_senior or booklet_data.get("disable_fillers", False):
+        return pdf_bytes
+
     try:
         import pypdfium2 as pdfium
 

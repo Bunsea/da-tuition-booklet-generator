@@ -3325,6 +3325,39 @@ def clean_json_response(raw_text: str) -> Dict[str, Any]:
 
     return enforce_australian_english_dict(parsed)
 
+# --- UNIFIED MANDATORY TIKZ GRAPH SCALING & SIZING RULES ---
+TIKZ_DIAGRAM_SCALING_AND_READABILITY_PROMPT = r"""
+MANDATORY DIAGRAM SIZING & GRAPH SCALING RULES (CRITICAL - NO TINY GRAPHS):
+1. GENEROUS TARGET DIMENSIONS (NEVER PRODUCE MINIATURE / POSTAGE-STAMP GRAPHS):
+   - Every graph, coordinate plane, curve diagram, geometric figure, or network MUST have generous, clear proportions on the printed page:
+     * TARGET WIDTH: 8.0cm to 10.5cm (minimum 7.5cm).
+     * TARGET HEIGHT: 4.8cm to 6.0cm (minimum 4.5cm).
+   - NEVER produce tiny, cramped graphs (e.g. 2cm to 4cm wide or 1cm to 3cm tall)! A graph must be immediately legible with ample room for curves, shaded regions, axes, tick marks, and labels.
+
+2. MANDATORY EXPLICIT AXIS SCALING \begin{tikzpicture}[x=...cm, y=...cm]:
+   - ALWAYS calculate and explicitly specify [x=...cm, y=...cm] based on the coordinate spans \Delta x = x_{max} - x_{min} and \Delta y = y_{max} - y_{min}:
+     * Set x-scale = (8.5 / \Delta x) cm (clamped: 0.5cm to 5.0cm).
+     * Set y-scale = (5.2 / \Delta y) cm (clamped: 0.15cm to 5.0cm).
+   - FOR SMALL DOMAINS/RANGES (e.g. calculus curves, inverse trig, unit circles, probability):
+     * If x is in [0, 1.5] (\Delta x \approx 2), YOU MUST SCALE UP: x=3.5cm to 4.2cm!
+     * If y is in [0, \pi/4 \approx 0.8] (\Delta y \approx 1), YOU MUST SCALE UP: y=4.5cm to 5.5cm!
+     * If domain is x in [-1, 1] or [-2, 2], use x=2.5cm to 3.5cm, y=2.5cm to 3.5cm!
+     * NEVER use default 1cm:1cm scaling on small domains like [0, 1] — with default 1cm scaling, the entire graph is only 1cm wide, causing labels to collide and creating an unreadable miniature!
+   - FOR STANDARD DOMAINS (e.g. x in [-3, 3], y in [-3, 3]): use [x=1.3cm, y=0.85cm].
+   - FOR LARGE RANGES (e.g. y in [-15, 15]): scale down y: [x=0.9cm, y=0.18cm] so height never exceeds 5.5cm.
+   - FOR UNIT CIRCLES or TRIG FIGURES (r = 1): use [scale=2.5] or [x=2.5cm, y=2.5cm].
+   - FOR NUMBER LINES: use wide horizontal axes (width 10cm to 12cm).
+
+3. LABEL COLLISION & OVERLAP PREVENTION (ZERO TOLERANCE FOR OVERLAPPING TEXT):
+   - NEVER place multiple labels at or near the exact same coordinate!
+   - When a curve passes through or terminates at a labeled feature point (e.g. (1, \pi/4) on y = \tan^{-1}x):
+     * NEVER anchor the curve equation label ($y = \tan^{-1}x$) at that same point!
+     * Place the curve equation label at an intermediate position along the curve (e.g. at x = 0.4 or 0.5 using node[above left, dablue] {$y = \tan^{-1}x$}).
+     * Place the point coordinate label at the point itself with contrasting anchor (e.g. node[above right=2pt, danavy] {$(1, \frac{\pi}{4})$}).
+   - Use contrasting anchors (above left vs above right vs below), transparent backgrounds (fill=none), and at least 1.5cm physical separation between distinct text annotations.
+   - For dashed guideline projections (e.g. from (1, \pi/4) to the axes), place axis tick labels on the outside of the axis (e.g. node[left] {$\frac{\pi}{4}$} on the y-axis and node[below] {$1$} on the x-axis).
+"""
+
 # --- 1. WORKSHEET & AUTO-KEY GENERATION (SUBTOPIC & DIFFICULTY-ALLOCATED) ---
 def generate_curriculum_worksheet(
     topic: str,
@@ -3486,7 +3519,8 @@ DIAGRAMS & PYTHON GRAPHING (MANDATORY WHERE APPROPRIATE):
 - For questions involving geometry, 2D/3D vectors, angles, geometric proofs, triangles, circles, networks/graphs, probability trees, Venn diagrams, coordinate geometry, or calculus curves: you MUST provide a compilable LaTeX TikZ diagram in the "diagram_tikz" field (or embedded in "text").
 - MANDATORY GRAPH SKETCHING IN SOLUTIONS: Whenever a question asks to "sketch", "plot", "draw the graph", or "graph" a function, relation, or curve: provide a complete, beautifully labelled TikZ coordinate plane in "solution_diagram_tikz" with axes, origin, curve, and key features.
 - For worked solutions requiring geometric construction, angle markings, vector additions, sign diagrams, or step-by-step visual proofs: provide a compilable TikZ diagram in the "solution_diagram_tikz" field.
-- DIAGRAM SPACING RULES (CRITICAL):
+- DIAGRAM SPACING & GRAPH SCALING RULES (CRITICAL):
+{TIKZ_DIAGRAM_SCALING_AND_READABILITY_PROMPT}
   * For number lines and probability lines, use a generous horizontal axis (e.g. 10cm to 12cm width) and stagger label heights (or place alternating labels above and below the axis) so coordinates and text NEVER collide or overlap.
   * For Venn diagrams, ensure circles have adequate radius and distinct centres with clear label positioning inside each region.
   * All TikZ code must be clean, 100% syntactically valid LaTeX enclosed in \\begin{{center}}\\begin{{tikzpicture}}...\\end{{tikzpicture}}\\end{{center}}.
@@ -3612,7 +3646,11 @@ Respond with valid JSON ONLY matching this structure:
                     m_key[lbl] = str(q.get("correct_answer") or q.get("final_answer") or "").strip()
             data["marking_key"] = m_key
 
-            return audit_and_sanitize_year11_advanced_data(data, year_level, strict=True)
+            from pdf_generator import enforce_australian_english_dict, validate_booklet_collinearity
+            data = audit_and_sanitize_year11_advanced_data(data, year_level, strict=True)
+            data = enforce_australian_english_dict(data)
+            validate_booklet_collinearity(data)
+            return data
         except Exception as e:
             last_err = e
             continue
@@ -4067,6 +4105,8 @@ FOCUS: {focus_instruction}
 
 {get_stage6_syllabus_boundary_prompt(year_level)}
 
+{TIKZ_DIAGRAM_SCALING_AND_READABILITY_PROMPT}
+
 STRICT LATEX RULES:
 All math expressions MUST be in LaTeX enclosed in single dollar signs $...$.
 
@@ -4280,6 +4320,7 @@ CORE AUDIT REQUIREMENTS:
 2. QUESTION-TO-SOLUTION 1:1 CORRESPONDENCE:
    - Ensure the prompt/problem statement provides all necessary parameters, equations, and values to be solvable.
    - Verify that the numbers, variables, and expressions in the question match the numbers in the worked solution with zero discrepancies.
+   - For 3D collinearity questions, compare the ratios or cross product of all three displacement components before solving for a parameter. If fixed coordinates conflict, correct the question data and recompute the entire solution.
    - If a question asks for a specific format (e.g. "exact form", "to 2 decimal places", "simplified surd"), verify the final answer matches.
 
 3. NSW SYLLABUS BOUNDARY ENFORCEMENT (2026 RULES):
@@ -4295,7 +4336,13 @@ CORE AUDIT REQUIREMENTS:
    - Fix double backslashes, broken macros, or malformed equations.
    - Ensure percentage symbols are properly handled and do not break LaTeX syntax.
 
-5. AUDIT LOG & CHANGE TRACKING:
+5. DIAGRAM SIZING & READABILITY AUDIT (CRITICAL - NO TINY GRAPHS):
+   - Inspect all TikZ diagrams in `tikz_diagram`, `diagram_tikz`, and `solution_diagram_tikz`.
+   - Ensure every graph, coordinate plane, and curve has generous, readable proportions (target width 8.0cm to 10.5cm, height 4.8cm to 5.5cm).
+   - If any diagram has small coordinate domains (e.g. x in [0, 1] or y in [0, 1]) without proper axis scaling, update to explicit generous axis scaling e.g. `\\begin{{tikzpicture}}[x=3.5cm, y=4.5cm]` so the graph is never a tiny miniature stamp.
+   - Verify that curve formula labels (e.g. $y = \\tan^{-1} x$) and coordinate labels (e.g. $(1, \\pi/4)$) do not overlap or collide at the same location. Move the curve label to an intermediate position along the curve.
+
+6. AUDIT LOG & CHANGE TRACKING:
    - In the returned JSON, include or replace the top-level key `_audit_log`:
      ```json
      "_audit_log": {{
@@ -4587,6 +4634,7 @@ REQUIREMENTS FOR EACH CONCEPT:
         - Timelines & Diagram Spacing: In any TikZ timeline (e.g. credit card cycles, compounding periods), use a wide axis (11cm to 12cm) and stacked, double-tiered brackets (e.g. `raise=4pt` for sub-periods and `raise=24pt` for overall period) so text labels NEVER collide or overlap.
       * All TikZ code must be clean, 100% syntactically valid LaTeX.
       * Descriptive labels on coordinate axes (e.g. 'Single intersection', 'Vertical Line', 'Turning point') must use `above right=3pt` or `above=3pt`, with no fill so the page watermark shows through. Circular seating labels must have no fill and sit outside the table.
+{TIKZ_DIAGRAM_SCALING_AND_READABILITY_PROMPT}
 
 2. TEACHER DEMONSTRATION EXAMPLES ({total_teacher_examples} TOTAL PER CONCEPT - MANDATORY):
    For EACH concept, provide exactly {total_teacher_examples} worked demonstration examples:
@@ -4602,6 +4650,7 @@ REQUIREMENTS FOR EACH CONCEPT:
    - `example_num`: 1, 2, ..., {total_teacher_examples}
    - `title`: Clean descriptive title WITHOUT the word "Example" or numbers
    - `problem_text`: Complete mathematical problem statement with LaTeX.
+     * For 3D collinearity with an unknown coordinate, verify that the two fixed coordinate differences give the same scalar multiple before asking for the unknown. Never change the stated points inside the worked solution.
      * If a question presents multiple options, investment accounts, schemes, plans, or scenarios (e.g. Account 1 and Account 2, Option A and Option B), each option MUST start on its own bulleted line (e.g. '- Account 1: ...\\n- Account 2: ...'), followed by the concluding question prompt (e.g. 'Calculate the total interest...') on its own separate line.
    - `diagram_tikz`: Compilable TikZ diagram for the problem statement (or empty string)
    - `solution_diagram_tikz`: Compilable TikZ diagram for the solution (or empty string)
@@ -4937,6 +4986,7 @@ DIFFICULTY LEVEL ATTRIBUTE MAPPING:
 
 DIAGRAMS & TIKZ (MANDATORY WHERE APPROPRIATE):
 For geometric questions, coordinate geometry, probability trees, or vector problems, provide clean, 100% compilable TikZ code in "diagram_tikz".
+{TIKZ_DIAGRAM_SCALING_AND_READABILITY_PROMPT}
 
 LATEX MATHEMATICAL FORMATTING:
 Enclose every equation, variable, number with units, or fraction in single dollar signs $...$ (e.g. '$A = P(1+r)^n$', '$x = 4$').
@@ -5218,6 +5268,8 @@ DIFFICULTY LEVEL DISTRIBUTION:
 PROOF AND REASONING ANSWERS:
 - If a question asks students to prove, show, explain, or justify a result, provide the actual line-by-line argument in "solution_steps".
 - Never use "Proof as shown", "See solution", or another placeholder as the correct answer or marking key. State the proof or its essential reasoning explicitly.
+
+{TIKZ_DIAGRAM_SCALING_AND_READABILITY_PROMPT}
 
 LATEX MATHEMATICAL FORMATTING:
 Enclose all mathematical expressions, equations, coordinates, fractions, and variables in single dollar signs $...$ (e.g. '$y = 2x - 5$', '$\\sqrt{{x+1}}$', '$(3, -4)$').
@@ -5518,6 +5570,7 @@ PEDAGOGICAL REQUIREMENTS: THOROUGH & ACCESSIBLE SELF-LEARNING REVISION NOTES (SI
      \\end{{tabular}}
      \\end{{center}}
    - GENERAL SPACING: Use wide axes (10cm to 12cm) for number and probability lines, stagger labels, and ensure Venn diagrams have separated centers so text never collides. All TikZ code must be clean, 100% syntactically valid LaTeX enclosed in \\begin{{center}}\\begin{{tikzpicture}}...\\end{{tikzpicture}}\\end{{center}}.
+{TIKZ_DIAGRAM_SCALING_AND_READABILITY_PROMPT}
    - STRICTLY FORBIDDEN (SET NOTATION): NEVER use university/abstract set theory notation, set builder notation, or abstract set symbols (such as set membership in, not-in, for-all, there-exists, set-builder braces, cardinality bars, subset, union, intersection, or blackboard bold R). High school students at this centre do not understand university set theory. State all definitions, conditions, domain, and range in clear, plain English and standard high school inequalities or intervals (e.g. write 'Each $x$-value has at most one $y$-value', 'For all real $x$', '$x \\ge 0$', 'Domain: all real $x$', 'Vertical Line Test: Any vertical line $x = c$ intersects the graph at most once').
 
    - STRICTLY FORBIDDEN (SIGMA NOTATION): NEVER use capital sigma summation notation (\\sum, \\Sigma, or ∑). Year 10 NSW students have NOT been taught summation notation! Always write formulas and working in plain English: 'Sum of degrees = 2 × number of edges' or 'Sum of degrees = 2e', 'Sum of scores', etc. Write additions out explicitly (e.g. deg(A) + deg(B) + deg(C) = 2e).
@@ -5892,13 +5945,9 @@ CRITICAL DESIGN DIRECTIVES (SELF-LEARNING TUITION GUIDE • COMPREHENSIVE & INTU
      * NEVER place the vertical test line along the y-axis ($x = 0$)! Always offset the vertical test line to $x = 1$ or $x = 2$ where it intersects the curve clearly.
      * For the test line label, place it with `node[above=3pt, red, fill=none, inner sep=1.5pt] {{$x = 1$}};` and keep it clear of axis arrow tips and labels.
      * Ensure the y-axis is clearly labeled with `node[above left] {{$y$}}` and x-axis with `node[right] {{$x$}}`.
-   - GRAPH SCALING RULES:
-     * For all function graphs, parabolas, cubics, quartics, hyperbolas, and circles, ALWAYS BALANCE AXIS SCALING on \\begin{{tikzpicture}}[x=...cm, y=...cm]:
-       - If the y-values span large numbers (e.g. y from -15 to +15), YOU MUST SCALE THE Y-AXIS APPROPRIATELY, e.g. \\begin{{tikzpicture}}[x=0.8cm, y=0.22cm], so the total graph height NEVER exceeds 5.2cm!
-       - NEVER use default 1cm:1cm scaling when the y-values span more than 6 units (e.g. y from -12 to 8 with 1cm=1unit produces an absurd 20cm needle graph that ruins the page!).
-       - Keep total diagram width between 6.0cm and 8.5cm, and total diagram height between 4.0cm and 5.2cm.
+   - GRAPH SCALING & DIAGRAM SIZING RULES:
+{TIKZ_DIAGRAM_SCALING_AND_READABILITY_PROMPT}
      * PREVENT ASYMPTOTE BLOWUPS: For hyperbolas and curves with asymptotes, use \\clip or domain restrictions so curves do not shoot off to infinity.
-     * LABEL COLLISION PREVENTION: Never place two labels with identical anchors near the origin. Use contrasting anchors (e.g. node[above right] vs node[below left]), transparent label backgrounds (`fill=none`), and enough spacing that text never overlaps.
 
 STRICT LATEX & JSON FORMATTING:
 - Enclose all mathematical variables, expressions, and equations in single dollar signs $...$ (e.g. '$y = mx + b$', '$\\vec{{v}} = 3\\mathbf{{i}} - 4\\mathbf{{j}}$').
