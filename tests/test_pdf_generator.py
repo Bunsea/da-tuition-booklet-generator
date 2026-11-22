@@ -272,6 +272,23 @@ class TestPdfGenerator(unittest.TestCase):
         self.assertIn("\\begin{tikzpicture}\n\\draw[->] (0,0) -- (3,2);\n\\end{tikzpicture}", sanitized)
         self.assertIn("25\\%", sanitized)
 
+    def test_teacher_theory_docx_renames_tikz_plot_variable(self):
+        booklet = {
+            "topic": "Graphs",
+            "concepts": [{
+                "concept_name": "Parabolas",
+                "tikz_diagram": r"""\begin{tikzpicture}
+\draw[domain=0:2, variable = \t] plot (\t,{\t^2});
+\end{tikzpicture}""",
+            }],
+        }
+        with patch.object(pdf_generator.docx_generator, "latex_to_docx") as convert:
+            pdf_generator.generate_theory_booklet_docx(booklet, mode="teacher")
+
+        convert.assert_called_once()
+        latex = convert.call_args.args[0]
+        self.assertIn(r"variable=\x] plot (\x,{\x^2})", latex)
+
     def test_bonnyrigg_clean_sections_and_qmark(self):
         # Generate questions with multiple subtopics to trigger Set A, Set B
         questions = [

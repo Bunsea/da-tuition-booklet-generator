@@ -3519,11 +3519,11 @@ def sanitize_tikz_diagram(diag: str) -> str:
     # Australian English spelling
     s = re.sub(r'\bSynthesizer\b', 'Synthesiser', s, flags=re.IGNORECASE)
 
-    # Replace variable=\t with variable=\x to avoid collision with LaTeX \t text accent (only when explicitly used as plot variable)
-    if "variable=\\t" in s or "variable = \\t" in s or "variable =\\t" in s or "variable= \\t" in s:
-        s = re.sub(r"variable\s*=\s*\\t\b", "variable=\\x", s)
-        s = re.sub(r"\\t\b", "\\x", s)
-        s = s.replace("{\\t}", "{\\x}")
+    # Rename the plot variable \t to avoid colliding with the LaTeX text accent.
+    plot_variable = r"\bvariable\s*=\s*\\t\b"
+    if re.search(plot_variable, s):
+        s = re.sub(plot_variable, r"variable=\\x", s)
+        s = re.sub(r"\\t\b", r"\\x", s)
 
     # Fix Cartesian plane quadrant label collisions:
     # Stack the quadrant name and sign tuple vertically, add a semi-opaque background badge, and position away from axes and coordinate points
