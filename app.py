@@ -780,22 +780,23 @@ with st.sidebar:
                     st.warning("Personal API key removed. AI operations are disabled until a key is supplied.")
                 st.rerun()
 
-    # DeepSeek Auditor Subagent API Key Management
-    ds_env_key = os.environ.get("DEEPSEEK_API_KEY", "").strip()
-    has_ds_key = bool(st.session_state.get("deepseek_api_key") or ds_env_key)
+    deepseek_audit_key = ai_engine.get_deepseek_api_key(st.session_state.get("deepseek_api_key"))
+    if not deepseek_audit_key:
+        try:
+            deepseek_audit_key = st.secrets.get("DEEPSEEK_API_KEY", "").strip()
+        except FileNotFoundError:
+            pass
     with st.expander("🤖 DeepSeek API Key (Auditor Subagent)", expanded=False):
-        st.caption("DeepSeek (DeepSeek-V3 / R1) serves as an independent Chief Examiner & Auditor Subagent to cross-verify all booklet calculations, proofs, and syllabus limits.")
+        st.caption("DeepSeek Flash audits theory and review booklets and exam packages. If the audit fails, the draft is marked unverified for manual review.")
         st.link_button("🔑 Get DeepSeek API Key (DeepSeek Platform)", "https://platform.deepseek.com/api_keys", use_container_width=True)
-        current_ds_val = st.session_state.get("deepseek_api_key") or ds_env_key
-        ds_key_val = st.text_input("DeepSeek API Key", value=current_ds_val, type="password", key="ds_key_input_box")
+        ds_key_val = st.text_input("DeepSeek API Key", type="password", key="ds_key_input_box")
         if st.button("Save DeepSeek Key", use_container_width=True, key="btn_save_ds_key"):
             st.session_state["deepseek_api_key"] = ds_key_val.strip()
-            st.success("DeepSeek API key saved!")
             st.rerun()
-        if has_ds_key:
-            st.markdown("🟢 **DeepSeek Auditor: Active** (Multi-Model Critic Architecture)")
+        if deepseek_audit_key:
+            st.markdown("🟢 **DeepSeek Flash key configured**")
         else:
-            st.caption("ℹ️ DeepSeek key is optional. When omitted or unavailable, Gemini Flash performs the audit automatically.")
+            st.warning("Add a DeepSeek API key to enable booklet audits.")
 
     # Password Change Management
     with st.expander("🔐 Change Password", expanded=False):
@@ -1242,7 +1243,7 @@ if main_section == "📖 1. Theory & Practice Materials":
                             question_distribution=theory_custom_distribution,
                             level_distribution=theory_level_distribution,
                             textbook_reference=uploaded_reference_text,
-                            deepseek_api_key=(st.session_state.get("deepseek_api_key") or os.environ.get("DEEPSEEK_API_KEY", "")).strip()
+                            deepseek_api_key=deepseek_audit_key
                         )
 
                         booklet_data["textbook"] = theory_textbook
@@ -3070,7 +3071,7 @@ if main_section == "📖 1. Theory & Practice Materials":
                             textbook=rev_textbook,
                             question_distribution=rev_custom_distribution,
                             level_distribution=rev_level_distribution,
-                            deepseek_api_key=(st.session_state.get("deepseek_api_key") or os.environ.get("DEEPSEEK_API_KEY", "")).strip()
+                            deepseek_api_key=deepseek_audit_key
                         )
                         rev_data["textbook"] = rev_textbook
                         rev_booklet_id = int(time.time())
@@ -3640,7 +3641,7 @@ if main_section == "📖 1. Theory & Practice Materials":
                             api_key=active_tutor_api_key,
                             question_distribution=pkg_custom_distribution if (has_pkg_custom and pkg_custom_distribution) else None,
                             level_distribution=pkg_level_distribution,
-                            deepseek_api_key=(st.session_state.get("deepseek_api_key") or os.environ.get("DEEPSEEK_API_KEY", "")).strip()
+                            deepseek_api_key=deepseek_audit_key
                         )
                         pkg_data["textbook"] = pkg_textbook
                         pkg_id = int(time.time())

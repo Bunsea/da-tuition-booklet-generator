@@ -4144,81 +4144,75 @@ def get_deepseek_api_key(provided_key: Optional[str] = None) -> str:
     return os.environ.get("DEEPSEEK_API_KEY", "").strip()
 
 
-def estimate_deepseek_cost(prompt_tokens: int, completion_tokens: int, model: str = "deepseek-chat") -> float:
-    """Estimates DeepSeek API call cost in AUD (approx USD/AUD 1.55)."""
-    usd_aud = 1.55
-    if "reasoner" in model:
-        cost_usd = (prompt_tokens / 1_000_000) * 0.55 + (completion_tokens / 1_000_000) * 2.19
-    else:
-        cost_usd = (prompt_tokens / 1_000_000) * 0.27 + (completion_tokens / 1_000_000) * 1.10
-    return round(cost_usd * usd_aud, 5)
+DEEPSEEK_AUDITOR_MODEL = "deepseek-flash"
+DEEPSEEK_AUDITOR_LABEL = "DeepSeek Flash"
+
+
+def estimate_deepseek_cost(prompt_tokens: int, completion_tokens: int, cache_hit_tokens: int = 0) -> float:
+    """Estimate the DeepSeek Flash cost in AUD at published peak rates."""
+    cache_hit_tokens = min(prompt_tokens, cache_hit_tokens)
+    cache_miss_tokens = prompt_tokens - cache_hit_tokens
+    cost_usd = (
+        cache_hit_tokens * 0.006 + cache_miss_tokens * 0.30 + completion_tokens * 1.20
+    ) / 1_000_000
+    return round(cost_usd * 1.55, 5)
 
 
 def call_deepseek_audit(
     prompt: str,
     api_key: Optional[str] = None,
-    model: str = "deepseek-chat",
-    max_tokens: int = 16384,
-    timeout: int = 120
+    max_tokens: int = 65536,
+    timeout: int = 300,
 ) -> Dict[str, Any]:
-    """
-    Calls DeepSeek API (deepseek-chat or deepseek-reasoner) to audit booklet data.
-    """
+    """Request a structured booklet audit from DeepSeek Flash."""
     import requests
+
     resolved_key = get_deepseek_api_key(api_key)
     if not resolved_key:
-        raise ValueError("DeepSeek API Key is not configured.")
-
-    url = "https://api.deepseek.com/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {resolved_key}",
-        "Content-Type": "application/json"
-    }
+        raise ValueError("DeepSeek API key is not configured. Add it in the sidebar.")
 
     payload = {
-        "model": model,
+        "model": DEEPSEEK_AUDITOR_MODEL,
         "messages": [
             {
                 "role": "system",
                 "content": "You are the NSW Senior HSC Mathematics Chief Examiner, Chief Proofreader, and Lead Academic Auditor for DA Tuition. You inspect, re-solve, verify arithmetic/algebra/calculus, and enforce NSW syllabus boundaries. Respond in valid JSON only."
             },
-            {
-                "role": "user",
-                "content": prompt
-            }
+            {"role": "user", "content": prompt},
         ],
+        "thinking": {"type": "disabled"},
+        "response_format": {"type": "json_object"},
         "temperature": 0.1,
-        "max_tokens": max_tokens
+        "max_tokens": max_tokens,
     }
-
-    if "reasoner" not in model:
-        payload["response_format"] = {"type": "json_object"}
-
-    res = requests.post(url, headers=headers, json=payload, timeout=timeout)
+    res = requests.post(
+        "https://api.deepseek.com/chat/completions",
+        headers={"Authorization": f"Bearer {resolved_key}"},
+        json=payload,
+        timeout=timeout,
+    )
+    if res.status_code == 402:
+        raise RuntimeError("DeepSeek API error (status 402): Insufficient balance.")
+    if res.status_code in (401, 403):
+        raise RuntimeError(f"DeepSeek API rejected the configured key (status {res.status_code}).")
     if res.status_code != 200:
-        raise RuntimeError(f"DeepSeek API error (status {res.status_code}): {res.text}")
+        raise RuntimeError(f"DeepSeek API error (status {res.status_code}).")
 
     res_json = res.json()
-    choices = res_json.get("choices", [])
-    if not choices:
-        raise ValueError("DeepSeek returned an empty choices list.")
-
-    message = choices[0].get("message", {})
-    content = message.get("content", "").strip()
-
-    usage = res_json.get("usage", {})
+    choices = res_json.get("choices") or [{}]
+    choice = choices[0]
+    usage = res_json.get("usage") or {}
     prompt_tokens = usage.get("prompt_tokens", 0)
     completion_tokens = usage.get("completion_tokens", 0)
-    total_tokens = usage.get("total_tokens", prompt_tokens + completion_tokens)
-    cost = estimate_deepseek_cost(prompt_tokens, completion_tokens, model=model)
 
     return {
-        "raw_text": content,
+        "raw_text": (choice.get("message", {}).get("content") or "").strip(),
+        "finish_reason": choice.get("finish_reason"),
         "prompt_tokens": prompt_tokens,
         "completion_tokens": completion_tokens,
-        "total_tokens": total_tokens,
-        "cost": cost,
-        "model": model
+        "total_tokens": usage.get("total_tokens", prompt_tokens + completion_tokens),
+        "cost": estimate_deepseek_cost(prompt_tokens, completion_tokens, usage.get("prompt_cache_hit_tokens", 0)),
+        "model": DEEPSEEK_AUDITOR_MODEL,
     }
 
 
@@ -4243,8 +4237,6 @@ def audit_and_correct_booklet_agent(
     data: Dict[str, Any],
     year_level: str,
     topic: str,
-    client: Optional[Any] = None,
-    api_key: Optional[str] = None,
     deepseek_api_key: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
@@ -4254,15 +4246,14 @@ def audit_and_correct_booklet_agent(
     practice questions, checks question-solution alignment, enforces NSW 2026 syllabus
     boundaries, fixes formatting / LaTeX, and attaches a detailed _audit_log.
 
-    Prioritizes DeepSeek (DeepSeek-V3) as an independent multi-model critic when an API key is
-    available, falling back to Google Gemini Flash models if DeepSeek is unconfigured or unavailable.
+    Uses DeepSeek Flash for the audit. If the audit cannot finish, preserve the draft for review.
     """
     if not isinstance(data, dict):
         return data
 
     # Strip existing token / cost metadata so the auditor reviews only curriculum content
     clean_draft = {k: v for k, v in data.items() if not k.startswith("meta_") and k != "_audit_log"}
-    draft_json_str = json.dumps(clean_draft, ensure_ascii=False, indent=2)
+    draft_json_str = json.dumps(clean_draft, ensure_ascii=False, separators=(",", ":"))
 
     stage6_prompt = get_stage6_syllabus_boundary_prompt(year_level, topic)
 
@@ -4309,7 +4300,7 @@ CORE AUDIT REQUIREMENTS:
      ```json
      "_audit_log": {{
        "status": "verified",
-       "auditor": "DeepSeek Senior HSC Mathematics Chief Examiner Subagent",
+       "auditor": "DeepSeek Flash",
        "verified_at": "{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
        "mathematical_accuracy": "100% Verified",
        "syllabus_compliance": "100% Compliant (NSW Stage 6 2026 Syllabus)",
@@ -4332,145 +4323,51 @@ DRAFT BOOKLET JSON TO AUDIT:
 Respond with valid JSON only. Return the complete corrected booklet JSON.
 """
 
-    # --- ATTEMPT 1: DEEPSEEK AUDITOR SUBAGENT (INDEPENDENT MULTI-MODEL CRITIC) ---
-    ds_key = get_deepseek_api_key(deepseek_api_key)
-    if ds_key:
-        try:
-            logger.info("Attempting DeepSeek auditor subagent pass...")
-            ds_res = call_deepseek_audit(
-                prompt=audit_prompt,
-                api_key=ds_key,
-                model="deepseek-chat",
-                max_tokens=16384
-            )
-            audited_data = clean_json_response(ds_res["raw_text"])
-            if isinstance(audited_data, dict) and audited_data.get("concepts"):
-                for meta_k in [
-                    "title", "year_level", "topic", "term", "week", "textbook",
-                    "custom_instructions", "custom_notes", "extra_instructions",
-                    "textbook_reference_used", "practice_worksheet_id"
-                ]:
-                    if meta_k in data and meta_k not in audited_data:
-                        audited_data[meta_k] = data[meta_k]
+    try:
+        audit = call_deepseek_audit(audit_prompt, api_key=deepseek_api_key)
+    except Exception as exc:
+        logger.warning("DeepSeek booklet audit could not run: %s", exc)
+        return _attach_fallback_audit_log(data, str(exc))
 
-                orig_tokens = data.get("meta_tokens", 0)
-                orig_cost = data.get("meta_cost", 0.0)
-                audited_data["meta_tokens"] = orig_tokens + ds_res["total_tokens"]
-                audited_data["meta_cost"] = round(orig_cost + ds_res["cost"], 5)
-                audited_data["generator_model"] = data.get("model_used", "Gemini")
-                audited_data["auditor_model"] = "DeepSeek (deepseek-chat)"
-                audited_data["model_used"] = f"{data.get('model_used', 'Gemini')} + DeepSeek-V3 (Auditor)"
+    try:
+        if audit["finish_reason"] != "stop" or not audit["raw_text"]:
+            raise ValueError("DeepSeek did not return a complete audit.")
+        audited_data = clean_json_response(audit["raw_text"])
+        concepts = audited_data.get("concepts") if isinstance(audited_data, dict) else None
+        if not isinstance(concepts, list) or not concepts or len(concepts) != len(data["concepts"]):
+            raise ValueError("DeepSeek did not return all booklet concepts.")
+        audit_log = audited_data.get("_audit_log")
+        if not isinstance(audit_log, dict) or audit_log.get("status") != "verified":
+            raise ValueError("DeepSeek did not verify the booklet.")
+    except (ValueError, KeyError) as exc:
+        logger.warning("DeepSeek booklet audit could not be applied: %s", exc)
+        audited_data = _attach_fallback_audit_log(data, str(exc))
+        audit_log = audited_data["_audit_log"]
+    else:
+        # Retain existing booklet metadata when the auditor omits it.
+        for field in (
+            "title", "year_level", "topic", "term", "week", "textbook",
+            "custom_instructions", "custom_notes", "extra_instructions",
+            "textbook_reference_used", "practice_worksheet_id",
+        ):
+            if field in data:
+                audited_data.setdefault(field, data[field])
 
-                audit_log = audited_data.get("_audit_log")
-                if not isinstance(audit_log, dict):
-                    audit_log = {
-                        "status": "verified",
-                        "auditor": "DeepSeek-V3 Senior HSC Mathematics Chief Examiner Subagent",
-                        "verified_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        "mathematical_accuracy": "100% Verified",
-                        "syllabus_compliance": f"100% Compliant ({year_level})",
-                        "total_corrections": 0,
-                        "corrections": [],
-                        "verification_summary": "DeepSeek audited and verified all calculations, proofs, and syllabus boundaries."
-                    }
-                    audited_data["_audit_log"] = audit_log
-                else:
-                    audit_log.setdefault("status", "verified")
-                    audit_log["auditor"] = "DeepSeek-V3 Senior HSC Mathematics Chief Examiner Subagent"
-                    audit_log.setdefault("verified_at", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-                    audit_log.setdefault("mathematical_accuracy", "100% Verified")
-                    audit_log.setdefault("syllabus_compliance", f"100% Compliant ({year_level})")
-                    if "corrections" not in audit_log or not isinstance(audit_log["corrections"], list):
-                        audit_log["corrections"] = []
-                    audit_log["total_corrections"] = len(audit_log["corrections"])
+        audit_log.setdefault("verified_at", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        corrections = audit_log.get("corrections")
+        if not isinstance(corrections, list):
+            audit_log["corrections"] = []
+        audit_log["total_corrections"] = len(audit_log["corrections"])
 
-                logger.info("DeepSeek auditor subagent completed successfully!")
-                return audited_data
-        except Exception as ds_err:
-            logger.warning("DeepSeek auditor subagent encountered an error (%s); falling back to Gemini Flash auditor...", ds_err)
-
-    # --- ATTEMPT 2: GEMINI FLASH AUDITOR SUBAGENT (FALLBACK CRITIC) ---
-    if client is None:
-        try:
-            client = get_client(api_key)
-        except Exception as exc:
-            logger.warning("Auditor agent could not obtain Gemini client: %s", exc)
-            return _attach_fallback_audit_log(data, f"Client unavailable: {exc}")
-
-    models_to_try = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.5-flash", "gemini-2.5-flash"]
-    last_err = None
-
-    for model_name in models_to_try:
-        try:
-            config = types.GenerateContentConfig(
-                response_mime_type="application/json",
-                temperature=0.1,
-                max_output_tokens=65536
-            )
-            response = client.models.generate_content(
-                model=model_name,
-                contents=audit_prompt,
-                config=config
-            )
-            audited_data = clean_json_response(response.text)
-            if not isinstance(audited_data, dict) or not audited_data.get("concepts"):
-                raise ValueError("Auditor response is missing booklet concepts structure.")
-
-            # Preserve essential top-level metadata from original data
-            for meta_k in [
-                "title", "year_level", "topic", "term", "week", "textbook",
-                "custom_instructions", "custom_notes", "extra_instructions",
-                "textbook_reference_used", "practice_worksheet_id"
-            ]:
-                if meta_k in data and meta_k not in audited_data:
-                    audited_data[meta_k] = data[meta_k]
-
-            # Token and cost accumulation
-            auditor_prompt_tokens = getattr(response.usage_metadata, 'prompt_token_count', 0) if hasattr(response, 'usage_metadata') else 0
-            auditor_candidates_tokens = getattr(response.usage_metadata, 'candidates_token_count', 0) if hasattr(response, 'usage_metadata') else 0
-            auditor_tokens = getattr(response.usage_metadata, 'total_token_count', 0) if hasattr(response, 'usage_metadata') else 0
-            auditor_cost = estimate_gemini_cost(auditor_prompt_tokens, auditor_candidates_tokens, model=model_name)
-
-            orig_tokens = data.get("meta_tokens", 0)
-            orig_cost = data.get("meta_cost", 0.0)
-            audited_data["meta_tokens"] = orig_tokens + auditor_tokens
-            audited_data["meta_cost"] = round(orig_cost + auditor_cost, 5)
-            audited_data["model_used"] = f"{data.get('model_used', 'Gemini')} + {model_name} (Auditor)"
-            audited_data["generator_model"] = data.get("model_used", "")
-            audited_data["auditor_model"] = model_name
-
-            # Normalize audit log
-            audit_log = audited_data.get("_audit_log")
-            if not isinstance(audit_log, dict):
-                audit_log = {
-                    "status": "verified",
-                    "auditor": "DA Senior HSC Mathematics Chief Examiner Subagent",
-                    "verified_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "mathematical_accuracy": "100% Verified",
-                    "syllabus_compliance": f"100% Compliant ({year_level})",
-                    "total_corrections": 0,
-                    "corrections": [],
-                    "verification_summary": "Audited and verified all calculations, proofs, and syllabus boundaries."
-                }
-                audited_data["_audit_log"] = audit_log
-            else:
-                audit_log.setdefault("status", "verified")
-                audit_log.setdefault("auditor", "DA Senior HSC Mathematics Chief Examiner Subagent")
-                audit_log.setdefault("verified_at", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-                audit_log.setdefault("mathematical_accuracy", "100% Verified")
-                audit_log.setdefault("syllabus_compliance", f"100% Compliant ({year_level})")
-                if "corrections" not in audit_log or not isinstance(audit_log["corrections"], list):
-                    audit_log["corrections"] = []
-                audit_log["total_corrections"] = len(audit_log["corrections"])
-
-            return audited_data
-        except Exception as exc:
-            last_err = exc
-            logger.warning("Auditor subagent model %s failed: %s", model_name, exc)
-            continue
-
-    logger.warning("Auditor subagent failed across all models: %s. Returning generator draft.", last_err)
-    return _attach_fallback_audit_log(data, str(last_err))
+    generator_model = data.get("model_used", "Gemini")
+    audited_data["meta_tokens"] = data.get("meta_tokens", 0) + audit["total_tokens"]
+    audited_data["meta_cost"] = round(data.get("meta_cost", 0.0) + audit["cost"], 5)
+    audited_data["generator_model"] = generator_model
+    audited_data["auditor_model"] = audit["model"]
+    audit_log["auditor"] = DEEPSEEK_AUDITOR_LABEL
+    audit_status = "Auditor" if audit_log["status"] == "verified" else "Audit incomplete"
+    audited_data["model_used"] = f"{generator_model} + {DEEPSEEK_AUDITOR_LABEL} ({audit_status})"
+    return audited_data
 
 
 def generate_theory_booklet(
@@ -4914,9 +4811,7 @@ Respond with valid JSON ONLY matching this exact structure:
                         data=data,
                         year_level=year_level,
                         topic=topic_str,
-                        client=client,
-                        api_key=api_key,
-                        deepseek_api_key=deepseek_api_key or kwargs.get("deepseek_api_key")
+                        deepseek_api_key=deepseek_api_key,
                     )
                 except Exception as auditor_err:
                     logger.warning("Auditor subagent invocation failed: %s", auditor_err)
@@ -5794,9 +5689,7 @@ Respond with valid JSON ONLY matching this exact structure:
                         data=data,
                         year_level=year_level,
                         topic=topic_str,
-                        client=client,
-                        api_key=api_key,
-                        deepseek_api_key=deepseek_api_key or kwargs.get("deepseek_api_key")
+                        deepseek_api_key=deepseek_api_key,
                     )
                 except Exception as auditor_err:
                     logger.warning("Auditor subagent invocation failed: %s", auditor_err)
@@ -6221,9 +6114,7 @@ OUTPUT SCHEMA:
                         data=data,
                         year_level=year_level,
                         topic=topic_str,
-                        client=client,
-                        api_key=api_key,
-                        deepseek_api_key=deepseek_api_key or kwargs.get("deepseek_api_key")
+                        deepseek_api_key=deepseek_api_key,
                     )
                 except Exception as auditor_err:
                     logger.warning("Auditor subagent invocation failed: %s", auditor_err)

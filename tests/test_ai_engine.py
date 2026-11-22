@@ -1257,12 +1257,10 @@ class TestAiEngine(unittest.TestCase):
                 theory, sheet_type="Homework", difficulty_counts=allocation, api_key="fake-key"
             )
 
-    @patch("ai_engine.get_client")
-    def test_auditor_subagent_applies_corrections_and_logs(self, mock_get_client):
+    @patch("ai_engine.call_deepseek_audit")
+    def test_auditor_subagent_applies_corrections_and_logs(self, mock_audit):
         """Verify Pass 2 auditor subagent recalculates, corrects errors, and returns structured _audit_log."""
-        mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.text = json.dumps({
+        corrected_booklet = {
             "title": "Year 11 Functions Theory Booklet",
             "year_level": "Year 11 (Advanced)",
             "topic": "Functions and Relations",
@@ -1306,12 +1304,14 @@ class TestAiEngine(unittest.TestCase):
                 ],
                 "verification_summary": "Recalculated domain inequality and verified all other practice solutions."
             }
-        })
-        mock_response.usage_metadata.prompt_token_count = 1200
-        mock_response.usage_metadata.candidates_token_count = 800
-        mock_response.usage_metadata.total_token_count = 2000
-        mock_client.models.generate_content.return_value = mock_response
-        mock_get_client.return_value = mock_client
+        }
+        mock_audit.return_value = {
+            "raw_text": json.dumps(corrected_booklet),
+            "finish_reason": "stop",
+            "total_tokens": 2000,
+            "cost": 0.002,
+            "model": "deepseek-flash",
+        }
 
         draft_data = {
             "title": "Year 11 Functions Theory Booklet",
@@ -1333,7 +1333,7 @@ class TestAiEngine(unittest.TestCase):
             data=draft_data,
             year_level="Year 11 (Advanced)",
             topic="Functions and Relations",
-            client=mock_client
+            deepseek_api_key="fake-deepseek-key"
         )
 
         self.assertIn("_audit_log", audited)
@@ -1346,39 +1346,9 @@ class TestAiEngine(unittest.TestCase):
         self.assertGreater(audited["meta_cost"], 0.002)
         self.assertIn("(Auditor)", audited["model_used"])
 
+    @patch("ai_engine.call_deepseek_audit")
     @patch("ai_engine.get_client")
-    def test_auditor_subagent_fallback_on_exception(self, mock_get_client):
-        """Verify auditor subagent catches API/parsing errors gracefully and returns unverified fallback log."""
-        mock_client = MagicMock()
-        mock_client.models.generate_content.side_effect = RuntimeError("ResourceExhausted: 429 Rate limit")
-        mock_get_client.return_value = mock_client
-
-        draft_data = {
-            "title": "Year 12 Vectors Booklet",
-            "year_level": "Year 12 (Extension 1)",
-            "topic": "Vectors",
-            "meta_tokens": 1000,
-            "meta_cost": 0.001,
-            "concepts": [{"concept_name": "Dot Product", "practice_questions": []}]
-        }
-
-        result = ai_engine.audit_and_correct_booklet_agent(
-            data=draft_data,
-            year_level="Year 12 (Extension 1)",
-            topic="Vectors",
-            client=mock_client
-        )
-
-        self.assertIn("_audit_log", result)
-        self.assertEqual(result["_audit_log"]["status"], "unverified")
-        self.assertEqual(result["_audit_log"]["total_corrections"], 0)
-        self.assertIn("ResourceExhausted", result["_audit_log"]["verification_summary"])
-        # Original concepts remain intact
-        self.assertEqual(len(result["concepts"]), 1)
-        self.assertEqual(result["concepts"][0]["concept_name"], "Dot Product")
-
-    @patch("ai_engine.get_client")
-    def test_generate_theory_booklet_two_pass_pipeline(self, mock_get_client):
+    def test_generate_theory_booklet_two_pass_pipeline(self, mock_get_client, mock_audit):
         """Verify generate_theory_booklet executes 2-pass pipeline: Pass 1 Generator then Pass 2 Auditor."""
         mock_client = MagicMock()
         mock_get_client.return_value = mock_client
@@ -1422,8 +1392,7 @@ class TestAiEngine(unittest.TestCase):
         pass1_response.usage_metadata.candidates_token_count = 500
         pass1_response.usage_metadata.total_token_count = 1500
 
-        pass2_response = MagicMock()
-        pass2_response.text = json.dumps({
+        corrected_booklet = {
             "title": "Year 10 Linear Equations",
             "year_level": "Year 10",
             "topic": "Linear Equations",
@@ -1466,23 +1435,27 @@ class TestAiEngine(unittest.TestCase):
                 "corrections": [],
                 "verification_summary": "All linear equation calculations and steps verified 100% accurate."
             }
-        })
-        pass2_response.usage_metadata.prompt_token_count = 800
-        pass2_response.usage_metadata.candidates_token_count = 400
-        pass2_response.usage_metadata.total_token_count = 1200
-
-        # Return pass1 on 1st call, pass2 on 2nd call
-        mock_client.models.generate_content.side_effect = [pass1_response, pass2_response]
+        }
+        mock_client.models.generate_content.return_value = pass1_response
+        mock_audit.return_value = {
+            "raw_text": json.dumps(corrected_booklet),
+            "finish_reason": "stop",
+            "total_tokens": 1200,
+            "cost": 0.001,
+            "model": "deepseek-flash",
+        }
 
         booklet = ai_engine.generate_theory_booklet(
             year_level="Year 10",
             topic="Linear Equations",
             subtopics=["Solving Multi-step Equations"],
             api_key="fake-key",
-            audit=True
+            audit=True,
+            deepseek_api_key="fake-deepseek-key",
         )
 
-        self.assertEqual(mock_client.models.generate_content.call_count, 2)
+        mock_client.models.generate_content.assert_called_once()
+        self.assertEqual(mock_audit.call_args.kwargs["api_key"], "fake-deepseek-key")
         self.assertIn("_audit_log", booklet)
         self.assertEqual(booklet["_audit_log"]["status"], "verified")
         self.assertEqual(booklet["_audit_log"]["total_corrections"], 0)
@@ -1494,8 +1467,8 @@ class TestAiEngine(unittest.TestCase):
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.json.return_value = {
-            "choices": [{"message": {"content": '{"concepts": []}'}}],
-            "usage": {"prompt_tokens": 500, "completion_tokens": 200, "total_tokens": 700}
+            "choices": [{"message": {"content": '{"concepts": []}'}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 500, "prompt_cache_hit_tokens": 100, "completion_tokens": 200, "total_tokens": 700}
         }
         mock_post.return_value = mock_resp
 
@@ -1504,8 +1477,12 @@ class TestAiEngine(unittest.TestCase):
         self.assertEqual(res["prompt_tokens"], 500)
         self.assertEqual(res["completion_tokens"], 200)
         self.assertEqual(res["total_tokens"], 700)
-        self.assertGreater(res["cost"], 0.0)
-        self.assertEqual(res["model"], "deepseek-chat")
+        self.assertEqual(res["cost"], 0.00056)
+        self.assertEqual(res["model"], "deepseek-flash")
+        payload = mock_post.call_args.kwargs["json"]
+        self.assertEqual(payload["model"], "deepseek-flash")
+        self.assertEqual(payload["thinking"], {"type": "disabled"})
+        self.assertEqual(payload["response_format"], {"type": "json_object"})
 
     @patch("requests.post")
     def test_call_deepseek_audit_insufficient_balance_error(self, mock_post):
@@ -1518,103 +1495,61 @@ class TestAiEngine(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "status 402"):
             ai_engine.call_deepseek_audit("Audit prompt", api_key="sk-test-key")
 
-    @patch("ai_engine.call_deepseek_audit")
-    def test_audit_and_correct_booklet_agent_prioritizes_deepseek(self, mock_ds_call):
-        """Verify audit_and_correct_booklet_agent uses DeepSeek when key is provided."""
-        mock_ds_call.return_value = {
-            "raw_text": json.dumps({
-                "title": "Year 11 Polynomials Booklet",
-                "year_level": "Year 11 (Extension 1)",
-                "topic": "Polynomials",
-                "concepts": [{"concept_name": "Factor Theorem", "practice_questions": []}],
-                "_audit_log": {
-                    "status": "verified",
-                    "auditor": "DeepSeek Senior HSC Mathematics Chief Examiner Subagent",
-                    "total_corrections": 1,
-                    "corrections": [{"location": "Concept 1", "issue": "Sign error", "fix": "Fixed root"}]
-                }
-            }),
-            "prompt_tokens": 800,
-            "completion_tokens": 400,
-            "total_tokens": 1200,
-            "cost": 0.0015,
-            "model": "deepseek-chat"
-        }
-
-        draft = {
-            "title": "Year 11 Polynomials Booklet",
-            "year_level": "Year 11 (Extension 1)",
-            "topic": "Polynomials",
-            "meta_tokens": 2000,
-            "meta_cost": 0.003,
-            "model_used": "gemini-3.8-flash",
-            "concepts": [{"concept_name": "Factor Theorem", "practice_questions": []}]
-        }
-
-        audited = ai_engine.audit_and_correct_booklet_agent(
-            data=draft,
-            year_level="Year 11 (Extension 1)",
-            topic="Polynomials",
-            deepseek_api_key="sk-fake-key"
-        )
-
-        mock_ds_call.assert_called_once()
-        self.assertEqual(audited["_audit_log"]["status"], "verified")
-        self.assertIn("DeepSeek", audited["_audit_log"]["auditor"])
-        self.assertEqual(audited["auditor_model"], "DeepSeek (deepseek-chat)")
-        self.assertEqual(audited["meta_tokens"], 3200)
-        self.assertAlmostEqual(audited["meta_cost"], 0.0045, places=4)
-
     @patch("ai_engine.get_client")
     @patch("ai_engine.call_deepseek_audit")
-    def test_audit_and_correct_booklet_agent_falls_back_to_gemini_when_deepseek_fails(self, mock_ds_call, mock_get_client):
-        """Verify audit_and_correct_booklet_agent gracefully falls back to Gemini when DeepSeek encounters 402/error."""
-        # DeepSeek fails with 402 insufficient balance
-        mock_ds_call.side_effect = RuntimeError("DeepSeek API error (status 402): Insufficient Balance")
-
-        # Gemini succeeds
-        mock_gemini_client = MagicMock()
-        mock_gemini_resp = MagicMock()
-        mock_gemini_resp.text = json.dumps({
-            "title": "Year 11 Polynomials Booklet",
-            "year_level": "Year 11 (Extension 1)",
-            "topic": "Polynomials",
-            "concepts": [{"concept_name": "Factor Theorem", "practice_questions": []}],
-            "_audit_log": {
-                "status": "verified",
-                "auditor": "DA Senior HSC Mathematics Chief Examiner Subagent",
-                "total_corrections": 0,
-                "corrections": []
-            }
-        })
-        mock_gemini_resp.usage_metadata.prompt_token_count = 600
-        mock_gemini_resp.usage_metadata.candidates_token_count = 300
-        mock_gemini_resp.usage_metadata.total_token_count = 900
-        mock_gemini_client.models.generate_content.return_value = mock_gemini_resp
-        mock_get_client.return_value = mock_gemini_client
-
+    def test_deepseek_failure_preserves_draft_without_a_gemini_audit(self, mock_audit, mock_get_client):
+        mock_audit.side_effect = RuntimeError("DeepSeek API error (status 402): Insufficient balance.")
         draft = {
-            "title": "Year 11 Polynomials Booklet",
-            "year_level": "Year 11 (Extension 1)",
-            "topic": "Polynomials",
             "meta_tokens": 1500,
             "meta_cost": 0.002,
-            "concepts": [{"concept_name": "Factor Theorem", "practice_questions": []}]
+            "model_used": "gemini-3.8-flash",
+            "concepts": [{"concept_name": "Factor Theorem"}],
         }
 
-        audited = ai_engine.audit_and_correct_booklet_agent(
-            data=draft,
-            year_level="Year 11 (Extension 1)",
-            topic="Polynomials",
-            client=mock_gemini_client,
-            deepseek_api_key="sk-fake-key"
+        result = ai_engine.audit_and_correct_booklet_agent(
+            draft, "Year 11 (Extension 1)", "Polynomials", deepseek_api_key="fake-key"
         )
 
-        # DeepSeek was tried, failed, and Gemini was called as fallback
-        mock_ds_call.assert_called_once()
-        mock_gemini_client.models.generate_content.assert_called_once()
-        self.assertEqual(audited["_audit_log"]["status"], "verified")
-        self.assertEqual(audited["meta_tokens"], 2400)
+        mock_audit.assert_called_once()
+        mock_get_client.assert_not_called()
+        self.assertEqual(result["_audit_log"]["status"], "unverified")
+        self.assertIn("Insufficient balance", result["_audit_log"]["verification_summary"])
+        self.assertEqual(result["meta_tokens"], 1500)
+        self.assertEqual(result["meta_cost"], 0.002)
+        self.assertEqual(result["model_used"], "gemini-3.8-flash")
+
+    @patch("ai_engine.get_client")
+    @patch("requests.post")
+    @patch("ai_engine.get_deepseek_api_key", return_value="")
+    def test_missing_auditor_key_does_not_call_an_audit_provider(self, mock_key, mock_post, mock_get_client):
+        draft = {"concepts": [{"concept_name": "Factor Theorem"}]}
+
+        result = ai_engine.audit_and_correct_booklet_agent(draft, "Year 11 (Extension 1)", "Polynomials")
+
+        mock_post.assert_not_called()
+        mock_get_client.assert_not_called()
+        self.assertEqual(result["_audit_log"]["status"], "unverified")
+        self.assertIn("API key is not configured", result["_audit_log"]["verification_summary"])
+
+    @patch("ai_engine.call_deepseek_audit")
+    def test_incomplete_deepseek_audit_keeps_the_draft_and_counts_usage(self, mock_audit):
+        draft_concepts = [{"concept_name": "Factor Theorem", "practice_questions": [{"text": "Factor x."}]}]
+        draft = {"concepts": draft_concepts, "meta_tokens": 1500, "meta_cost": 0.002}
+        mock_audit.return_value = {
+            "raw_text": '{"concepts":[{"concept_name":"Factor Theorem"}]}',
+            "finish_reason": "length",
+            "total_tokens": 700,
+            "cost": 0.001,
+            "model": "deepseek-flash",
+        }
+
+        result = ai_engine.audit_and_correct_booklet_agent(draft, "Year 11 (Extension 1)", "Polynomials")
+
+        self.assertEqual(result["concepts"], draft_concepts)
+        self.assertEqual(result["_audit_log"]["status"], "unverified")
+        self.assertEqual(result["meta_tokens"], 2200)
+        self.assertEqual(result["meta_cost"], 0.003)
+        self.assertIn("DeepSeek Flash (Audit incomplete)", result["model_used"])
 
 
 if __name__ == "__main__":
