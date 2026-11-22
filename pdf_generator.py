@@ -5624,8 +5624,10 @@ def build_latex_worksheet_source(
                     raw_text = strip_mc_options_from_text(raw_text)
                 marks = int(q.get('marks', 1))
 
+                raw_text, q_diag = _separate_theory_question_diagram(
+                    raw_text, q.get("diagram_tikz") or q.get("tikz_diagram") or q.get("diagram")
+                )
                 stem, subparts = split_question_subparts(raw_text)
-                q_diag = q.get("diagram_tikz") or q.get("tikz_diagram") or q.get("diagram")
                 if not q_diag or not str(q_diag).strip():
                     fallback_diag = synthesize_network_diagram_from_text(raw_text, topic=clean_topic, concept_name=q.get("subtopic", ""))
                     if fallback_diag:
@@ -9790,7 +9792,9 @@ def build_latex_review_booklet_source(
                 cleaned_ex_t = clean_ex_title(raw_ex_title)
                 ex_num_str = f"Mastery Example {e_idx}" if len(concepts) == 1 else f"Mastery Example {part_letter}.{e_idx}"
                 ex_heading = f"{ex_num_str}: {sanitize_for_latex(cleaned_ex_t)}" if cleaned_ex_t else ex_num_str
-                ex_diag = ex.get("diagram_tikz") or ex.get("tikz_diagram") or ex.get("diagram")
+                p_text, ex_diag = _separate_theory_question_diagram(
+                    p_text, ex.get("diagram_tikz") or ex.get("tikz_diagram") or ex.get("diagram")
+                )
                 if not ex_diag or not str(ex_diag).strip():
                     fallback_diag = synthesize_network_diagram_from_text(p_text, topic=topic, concept_name=c_name)
                     if fallback_diag:
@@ -9805,7 +9809,7 @@ def build_latex_review_booklet_source(
                 tex_lines.append(r"\needspace{4.5cm}")
                 tex_lines.append(f"\\begin{{masteryexamplebox}}[{{{sanitize_for_latex(ex_heading)}}}]")
                 p_lines = format_latex_question_with_subparts(p_text, as_item=False)
-                tex_lines.append(f"\\textbf{{Problem Statement:}}\\\\ " + "\n".join(p_lines))
+                tex_lines.append(f"{{\\raggedright\\textbf{{Problem Statement:}}\\\\[0.1cm]\n" + "\n".join(p_lines) + r"\par}")
                 if ex_diag and str(ex_diag).strip():
                     tex_lines.append(r"\vspace{0.15cm}")
                     tex_lines.append(sanitize_tikz_diagram(str(ex_diag).strip()))
@@ -9844,7 +9848,9 @@ def build_latex_review_booklet_source(
                     q_text = q.get("text") or q.get("question_text") or q.get("question") or ""
                     ans = q.get("final_answer") or q.get("answer") or ""
                     sol = q.get("worked_solution") or q.get("solution") or ""
-                    q_diag = q.get("diagram_tikz") or q.get("tikz_diagram") or q.get("diagram")
+                    q_text, q_diag = _separate_theory_question_diagram(
+                        q_text, q.get("diagram_tikz") or q.get("tikz_diagram") or q.get("diagram")
+                    )
                     if not q_diag or not str(q_diag).strip():
                         fallback_diag = synthesize_network_diagram_from_text(q_text, topic=topic, concept_name=c_name)
                         if fallback_diag:
@@ -9871,12 +9877,16 @@ def build_latex_review_booklet_source(
                     if use_minipage:
                         item_lines = [
                             r"\item \begin{minipage}[t]{\linewidth}",
-                            item_body
+                            r"{\raggedright",
+                            item_body,
+                            r"\par}"
                         ]
                     else:
                         item_lines = [
                             r"\item",
-                            item_body
+                            r"{\raggedright",
+                            item_body,
+                            r"\par}"
                         ]
                     if q_diag and str(q_diag).strip():
                         item_lines.append(r"\vspace{0.1cm}")
@@ -11016,7 +11026,9 @@ def build_latex_exam_theory_source(
                 sol = ex.get("worked_solution", "")
                 criteria_list = ex.get("marking_guidelines", [])
                 comm = ex.get("examiner_tip") or ex.get("exam_commentary", "")
-                ex_diag = ex.get("diagram_tikz")
+                p_text, ex_diag = _separate_theory_question_diagram(
+                    p_text, ex.get("diagram_tikz") or ex.get("tikz_diagram") or ex.get("diagram")
+                )
                 if not ex_diag or not str(ex_diag).strip():
                     fallback_diag = synthesize_network_diagram_from_text(p_text, topic=topic, concept_name=c_name)
                     if fallback_diag:
@@ -11036,7 +11048,7 @@ def build_latex_exam_theory_source(
                 # Source pill & Marks
                 tex_lines.append(f"\\noindent \\tikz[baseline=-0.6ex]{{\\node[fill=dawine!10, text=dawine, rounded corners=2pt, inner sep=2pt, font=\\scriptsize\\bfseries] {{{sanitize_for_latex(source_tag)}}};}} \\hfill \\textbf{{[{marks_val} Mark{'s' if marks_val != 1 else ''}]}}\\\\[0.2cm]")
                 p_formatted = "\n".join(format_latex_question_with_subparts(p_text, as_item=False))
-                tex_lines.append(f"\\textbf{{Problem Statement:}}\\\\[0.1cm]\n{p_formatted}\\par")
+                tex_lines.append(f"{{\\raggedright\\textbf{{Problem Statement:}}\\\\[0.1cm]\n{p_formatted}\\par}}")
                 if ex_diag and str(ex_diag).strip():
                     tex_lines.append(r"\vspace{0.15cm}")
                     tex_lines.append(sanitize_tikz_diagram(str(ex_diag).strip()))
@@ -11292,7 +11304,9 @@ def build_latex_exam_practice_source(
                 ans = q.get("final_answer", "")
                 criteria_list = q.get("marking_guidelines", [])
                 pitfall = q.get("examiner_pitfall", "")
-                q_diag = q.get("diagram_tikz")
+                q_text, q_diag = _separate_theory_question_diagram(
+                    q_text, q.get("diagram_tikz") or q.get("tikz_diagram") or q.get("diagram")
+                )
                 if not q_diag or not str(q_diag).strip():
                     fallback_diag = synthesize_network_diagram_from_text(q_text, topic=topic, concept_name=c_name)
                     if fallback_diag:
@@ -11319,7 +11333,7 @@ def build_latex_exam_practice_source(
                 diff_marks_tag = f"\\mbox{{\\textbf{{[{diff_display} $\\bullet$ {marks}~mark{'s' if marks > 1 else ''}]}}}}"
                 tex_lines.append(f"\\noindent\\textbf{{{q_label}}} \\quad {source_badge} \\hfill {diff_marks_tag}\\\\[0.18cm]")
                 formatted_q_text = "\n".join(format_latex_question_with_subparts(q_text, as_item=False))
-                tex_lines.append(formatted_q_text + r"\par\vspace{0.18cm}")
+                tex_lines.append(f"{{\\raggedright {formatted_q_text}\\par\\vspace{{0.18cm}}}}")
                 if q_diag and str(q_diag).strip():
                     tex_lines.append(sanitize_tikz_diagram(str(q_diag).strip()))
                     tex_lines.append(r"\vspace{0.15cm}")
